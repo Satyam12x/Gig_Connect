@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, Briefcase, MessageCircle, User, Bell, Menu, X } from 'lucide-react';
+import { Home, Briefcase, MessageCircle, User, Bell, Menu, X, Search, Code, Users } from 'lucide-react';
 
 const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -207,11 +207,96 @@ const HeroSection = () => {
   );
 };
 
+const FeaturesSection = () => {
+  const features = [
+    {
+      icon: Search,
+      title: 'Find Talent',
+      description: 'Browse a diverse pool of student designers, developers, tutors, and more, ready to tackle your projects with fresh ideas.',
+      cta: 'Explore Talent',
+      href: '#explore',
+    },
+    {
+      icon: Code,
+      title: 'Showcase Skills',
+      description: 'Students can create portfolios to display their expertise, connect with clients, and land exciting gigs.',
+      cta: 'Build Your Profile',
+      href: '#profile',
+    },
+    {
+      icon: Users,
+      title: 'Campus Community',
+      description: 'Connect with verified students from your campus, fostering local collaboration and trust.',
+      cta: 'Join the Community',
+      href: '#community',
+    },
+  ];
+
+  return (
+    <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
+      {/* Irregular Gradient Background Shapes - Positioned on Left */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div
+          className="absolute top-[-5%] left-[-5%] w-1/3 h-1/3 bg-gradient-to-br from-navyBlue to-blue-800 opacity-15 filter blur-3xl transform rotate-12"
+          style={{ clipPath: 'polygon(30% 0%, 70% 20%, 100% 60%, 70% 100%, 30% 80%, 0% 40%)' }}
+        ></div>
+        <div
+          className="absolute bottom-[-10%] left-[-5%] w-1/4 h-1/4 bg-gradient-to-tr from-purple-600 to-navyBlue opacity-10 filter blur-3xl transform -rotate-6"
+          style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 50%, 80% 100%, 20% 100%, 0% 50%)' }}
+        ></div>
+        <div
+          className="absolute top-1/2 left-1/4 w-1/4 h-1/4 bg-gradient-to-bl from-blue-800 to-purple-600 opacity-10 filter blur-3xl transform rotate-45"
+          style={{ clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }}
+        ></div>
+      </div>
+
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl sm:text-4xl font-bold text-navyBlue font-sans" style={{ color: '#1A2A4F' }}>
+            Why Choose CampusHire?
+          </h2>
+          <p className="mt-4 text-lg text-navyBlueMedium max-w-3xl mx-auto font-sans" style={{ color: '#2A3A6F' }}>
+            Empower your projects with talented students or showcase your skills to the world, all within a trusted campus network.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {features.map((feature, index) => {
+            const Icon = feature.icon;
+            return (
+              <div
+                key={index}
+                className="bg-white p-6 rounded-lg shadow-lg border border-blue-100 flex flex-col items-center text-center"
+              >
+                <Icon className="text-navyBlueLight mb-4" size={40} style={{ color: '#3A4A7F' }} />
+                <h3 className="text-xl font-semibold text-navyBlue mb-2 font-sans" style={{ color: '#1A2A4F' }}>
+                  {feature.title}
+                </h3>
+                <p className="text-navyBlueMedium mb-6 font-sans" style={{ color: '#2A3A6F' }}>
+                  {feature.description}
+                </p>
+                <a
+                  href={feature.href}
+                  className="px-6 py-3 bg-navyBlue text-white font-semibold rounded-lg hover:bg-blue-800 opacity-100 font-sans"
+                  style={{ backgroundColor: '#1A2A4F' }}
+                >
+                  {feature.cta}
+                </a>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const LandingPage = () => {
   return (
     <div className="font-sans antialiased">
       <Navbar />
       <HeroSection />
+      <FeaturesSection />
     </div>
   );
 };
