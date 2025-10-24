@@ -1,253 +1,216 @@
 import React, { useState } from 'react';
-import {Link } from 'react-router-dom';
+import { Home, Briefcase, MessageCircle, User, Bell, Menu, X } from 'lucide-react';
 
-// Mock Data
-const gigs = [
-  { id: 1, title: "Logo Design", price: "$50", seller: "John D.", rating: 4.5, image: "https://via.placeholder.com/150?format=webp" },
-  { id: 2, title: "Python Tutoring", price: "$30/hr", seller: "Sarah K.", rating: 4.8, image: "https://via.placeholder.com/150?format=webp" },
-  { id: 3, title: "Website Development", price: "$200", seller: "Mike R.", rating: 4.2, image: "https://via.placeholder.com/150?format=webp" },
-  { id: 4, title: "Essay Editing", price: "$25", seller: "Emma L.", rating: 4.7, image: "https://via.placeholder.com/150?format=webp" },
-];
+const Navbar = () => {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-const categories = ["Graphic Design", "Coding", "Tutoring", "Writing"];
-const testimonials = [
-  { id: 1, quote: "Amazing logo design, delivered on time!", user: "A.B.", rating: 5 },
-  { id: 2, quote: "Helped me ace my Python exam!", user: "C.D.", rating: 4.8 },
-  { id: 3, quote: "Professional and affordable website.", user: "E.F.", rating: 4.5 },
-];
-
-// Hero Section Component
-function HeroSection() {
-  return (
-    <div className="bg-gradient-to-b from-navyBlue to-white py-20 text-center">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-navyBlue mb-4">
-          Connect with Student Talent: Hire or Offer Services!
-        </h1>
-        <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-6">
-          Find graphic designers, coders, tutors, and more in your college community.
-        </p>
-        <div className="flex justify-center gap-4">
-          <Link to="/signup" className="bg-navyBlue text-white py-2 px-6 rounded-md hover:bg-blue-800 transition-colors" aria-label="Sign up">
-            Sign Up
-          </Link>
-          <Link to="/gigs" className="bg-navyBlue text-white py-2 px-6 rounded-md hover:bg-blue-800 transition-colors" aria-label="Browse gigs">
-            Browse Gigs
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Search Bar Component
-function SearchBar() {
-  const [search, setSearch] = useState("");
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 my-8">
-      <div className="flex justify-center">
-        <div className="w-full max-w-md flex">
-          <input
-            type="text"
-            className="w-full border border-gray-300 rounded-l-md py-2 px-4 text-gray-700 focus:outline-none focus:ring-2 focus:ring-navyBlue"
-            placeholder="Search for coding, design, tutoring..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            aria-label="Search services"
-          />
-          <button className="bg-navyBlue text-white py-2 px-4 rounded-r-md hover:bg-blue-800 transition-colors" aria-label="Search">
-            Search
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Gig Card Component
-function GigCard({ gig }) {
-  return (
-    <div className="w-full sm:w-1/2 lg:w-1/4 p-4">
-      <div className="bg-white border border-gray-300 rounded-lg shadow-md">
-        <img src={gig.image} className="w-full h-40 object-cover rounded-t-lg" alt={gig.title} loading="lazy" />
-        <div className="p-4">
-          <h5 className="text-lg font-semibold text-navyBlue">{gig.title}</h5>
-          <p className="text-gray-700">By {gig.seller}</p>
-          <p className="text-navyBlue font-medium">{gig.price}</p>
-          <p className="text-gray-700">Rating: {gig.rating} ★</p>
-          <Link to={`/gigs/${gig.id}`} className="bg-navyBlue text-white py-2 px-4 rounded-md hover:bg-blue-800 transition-colors mt-2 inline-block" aria-label={`View details for ${gig.title}`}>
-            View Details
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Featured Gigs Section
-function FeaturedGigs() {
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 my-12">
-      <h2 className="text-2xl md:text-3xl font-bold text-navyBlue text-center mb-6">Featured Gigs</h2>
-      <div className="flex flex-wrap -mx-4">
-        {gigs.map((gig) => <GigCard key={gig.id} gig={gig} />)}
-      </div>
-      <div className="text-center mt-6">
-        <Link to="/gigs" className="bg-navyBlue text-white py-2 px-6 rounded-md hover:bg-blue-800 transition-colors" aria-label="View all gigs">
-          View All Gigs
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-// Category Button Component
-function CategoryButton({ category }) {
-  return (
-    <div className="w-full sm:w-1/2 lg:w-1/4 p-4">
-      <Link to={`/gigs?category=${category}`} className="bg-gray-600 text-white py-3 px-4 rounded-md hover:bg-navyBlue transition-colors block text-center" aria-label={`Browse ${category}`}>
-        {category}
-      </Link>
-    </div>
-  );
-}
-
-// Categories Section
-function Categories() {
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 my-12">
-      <h2 className="text-2xl md:text-3xl font-bold text-navyBlue text-center mb-6">Explore Categories</h2>
-      <div className="flex flex-wrap -mx-4">
-        {categories.map((category) => <CategoryButton key={category} category={category} />)}
-      </div>
-      <div className="text-center mt-6">
-        <Link to="/categories" className="bg-navyBlue text-white py-2 px-6 rounded-md hover:bg-blue-800 transition-colors" aria-label="See all categories">
-          See All Categories
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-// Testimonial Card Component
-function TestimonialCard({ testimonial }) {
-  return (
-    <div className="w-full sm:w-1/2 lg:w-1/3 p-4">
-      <div className="bg-white border border-gray-300 rounded-lg shadow-md p-6">
-        <p className="text-navyBlue italic">"{testimonial.quote}"</p>
-        <p className="text-gray-700 mt-2">— {testimonial.user} ({testimonial.rating} ★)</p>
-      </div>
-    </div>
-  );
-}
-
-// Testimonials Section
-function Testimonials() {
-  return (
-    <div className="bg-navyBlue/10 py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 className="text-2xl md:text-3xl font-bold text-navyBlue text-center mb-6">What Our Users Say</h2>
-        <div className="flex flex-wrap -mx-4">
-          {testimonials.map((testimonial) => <TestimonialCard key={testimonial.id} testimonial={testimonial} />)}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// How It Works Step Component
-function HowItWorksStep({ title, description, icon }) {
-  return (
-    <div className="w-full sm:w-1/3 p-4">
-      <div className="bg-white border border-gray-300 rounded-lg shadow-md p-6 text-center">
-        <i className={`${icon} text-4xl text-navyBlue mb-4`}></i>
-        <h5 className="text-lg font-semibold text-navyBlue mb-2">{title}</h5>
-        <p className="text-gray-600">{description}</p>
-      </div>
-    </div>
-  );
-}
-
-// How It Works Section
-function HowItWorks() {
-  const steps = [
-    { title: "Browse or Post Gigs", description: "Find or offer services like coding or tutoring.", icon: "bi bi-search" },
-    { title: "Chat & Book", description: "Negotiate and pay securely with Stripe.", icon: "bi bi-chat" },
-    { title: "Deliver & Review", description: "Complete the service and share feedback.", icon: "bi bi-check-circle" },
+  const navItems = [
+    { icon: Home, label: 'Home', href: '#home' },
+    { icon: Briefcase, label: 'Gigs', href: '#gigs' },
+    { icon: MessageCircle, label: 'Messages', href: '#messages' },
+    { icon: Bell, label: 'Notifications', href: '#notifications' },
+    { icon: User, label: 'Profile', href: '#profile' },
   ];
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 my-12">
-      <h2 className="text-2xl md:text-3xl font-bold text-navyBlue text-center mb-6">How It Works</h2>
-      <div className="flex flex-wrap -mx-4">
-        {steps.map((step, index) => <HowItWorksStep key={index} {...step} />)}
-      </div>
-    </div>
-  );
-}
 
-// Portfolio Teaser Component
-function PortfolioTeaser() {
-  const portfolios = [
-    { id: 1, title: "Graphic Design Sample", image: "https://via.placeholder.com/150?format=webp" },
-    { id: 2, title: "Coding Project", image: "https://via.placeholder.com/150?format=webp" },
-  ];
   return (
-    <div className="bg-white py-12">
+    <nav className="bg-white shadow-md fixed w-full top-0 z-50 transition-all duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 className="text-2xl md:text-3xl font-bold text-navyBlue text-center mb-6">Showcase Your Work</h2>
-        <div className="flex flex-wrap -mx-4">
-          {portfolios.map((portfolio) => (
-            <div key={portfolio.id} className="w-full sm:w-1/2 lg:w-1/3 p-4">
-              <div className="bg-white border border-gray-300 rounded-lg shadow-md">
-                <img src={portfolio.image} className="w-full h-40 object-cover rounded-t-lg" alt={portfolio.title} loading="lazy" />
-                <div className="p-4">
-                  <p className="text-gray-700">{portfolio.title}</p>
-                </div>
+        <div className="flex justify-between items-center h-16">
+          {/* Logo */}
+          <div className="flex-shrink-0">
+            <h1 className="text-2xl font-bold test-tailwind" style={{ color: '#1B263B' }}>
+              CampusHire
+            </h1>
+          </div>
+
+          {/* Desktop/Tablet Navigation - Icons Only */}
+          <div className="hidden md:flex space-x-8">
+            {navItems.map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <a
+                  key={index}
+                  href={item.href}
+                  className="text-navyBlue hover:text-blue-800 transition-colors duration-300 p-2 rounded-lg hover:bg-blue-50"
+                  aria-label={item.label}
+                >
+                  <Icon size={24} />
+                </a>
+              );
+            })}
+          </div>
+
+          {/* Mobile Menu Button */}
+          <div className="md:hidden">
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="text-navyBlue hover:text-blue-800 transition-colors duration-300 p-2"
+              aria-label="Toggle menu"
+            >
+              {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Side Menu */}
+      <div
+        className={`md:hidden fixed inset-0 z-50 transition-all duration-300 ease-in-out ${
+          isMobileMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+      >
+        {/* Overlay */}
+        <div
+          className="absolute inset-0 bg-black bg-opacity-50"
+          onClick={() => setIsMobileMenuOpen(false)}
+        ></div>
+        {/* Side Menu */}
+        <div
+          className={`absolute top-0 right-0 h-full w-4/5 max-w-sm bg-white shadow-lg transform transition-transform duration-300 ${
+            isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
+        >
+          <div className="px-4 pt-4 pb-6 space-y-2 border-l border-blue-100">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-navyBlue" style={{ color: '#1B263B' }}>
+                Menu
+              </h2>
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="text-navyBlue hover:text-blue-800"
+                aria-label="Close menu"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            {navItems.map((item, index) => (
+              <a
+                key={index}
+                href={item.href}
+                className="block px-4 py-3 text-navyBlue hover:bg-blue-50 hover:text-blue-800 rounded-lg transition-all duration-300 font-medium"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                {item.label}
+              </a>
+            ))}
+          </div>
+        </div>
+      </div>
+    </nav>
+  );
+};
+
+const HeroSection = () => {
+  return (
+    <div className="relative min-h-screen bg-white overflow-hidden pt-16">
+      {/* Debug Tailwind */}
+      <div className="test-tailwind mb-4 text-center">Test Tailwind CSS</div>
+
+      {/* Irregular Gradient Background Shapes */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div
+          className="absolute top-[-10%] right-[-10%] w-1/2 h-1/2 bg-gradient-to-br from-navyBlue to-blue-800 opacity-20 filter blur-3xl transform rotate-12"
+          style={{ clipPath: 'polygon(30% 0%, 70% 20%, 100% 60%, 70% 100%, 30% 80%, 0% 40%)' }}
+        ></div>
+        <div
+          className="absolute bottom-[-15%] left-[-10%] w-2/5 h-2/5 bg-gradient-to-tr from-purple-600 to-navyBlue opacity-15 filter blur-3xl transform -rotate-6"
+          style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 50%, 80% 100%, 20% 100%, 0% 50%)' }}
+        ></div>
+        <div
+          className="absolute top-1/3 left-1/3 w-1/3 h-1/3 bg-gradient-to-bl from-blue-800 to-purple-600 opacity-10 filter blur-3xl transform rotate-45"
+          style={{ clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }}
+        ></div>
+      </div>
+
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-28">
+        <div className="grid lg:grid-cols-2 gap-12 items-center">
+          {/* Left Content */}
+          <div className="space-y-8 text-center lg:text-left">
+            <div className="space-y-4">
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-navyBlue" style={{ color: '#1B263B' }}>
+                Connect with
+                <span className="block bg-gradient-to-r from-navyBlue to-purple-600 bg-clip-text text-transparent">
+                  Student Talent
+                </span>
+              </h1>
+              <p className="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto lg:mx-0">
+                Discover skilled designers, developers, and tutors right in your campus community. Hire services or showcase your expertise—all in one platform.
+              </p>
+            </div>
+
+            {/* CTA Buttons */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+              <button className="px-8 py-4 bg-navyBlue text-white font-semibold rounded-lg shadow-lg hover:bg-blue-800 hover:shadow-xl hover:scale-105 transition-all duration-300">
+                Get Started Free
+              </button>
+              <button className="px-8 py-4 bg-white text-navyBlue font-semibold rounded-lg border-2 border-navyBlue hover:bg-blue-50 hover:shadow-lg hover:scale-105 transition-all duration-300">
+                Browse Services
+              </button>
+            </div>
+
+            {/* Stats */}
+            <div className="flex flex-wrap gap-8 justify-center lg:justify-start pt-8">
+              <div className="text-center lg:text-left">
+                <p className="text-3xl font-bold text-navyBlue" style={{ color: '#1B263B' }}>
+                  5,000+
+                </p>
+                <p className="text-gray-600">Active Students</p>
+              </div>
+              <div className="text-center lg:text-left">
+                <p className="text-3xl font-bold text-navyBlue" style={{ color: '#1B263B' }}>
+                  10,000+
+                </p>
+                <p className="text-gray-600">Projects Completed</p>
+              </div>
+              <div className="text-center lg:text-left">
+                <p className="text-3xl font-bold text-navyBlue" style={{ color: '#1B263B' }}>
+                  4.9/5
+                </p>
+                <p className="text-gray-600">Average Rating</p>
               </div>
             </div>
-          ))}
-        </div>
-        <div className="text-center mt-6">
-          <Link to="/signup" className="bg-navyBlue text-white py-2 px-6 rounded-md hover:bg-blue-800 transition-colors" aria-label="Start building your portfolio">
-            Start Building Your Portfolio
-          </Link>
+          </div>
+
+          {/* Right Image */}
+          <div className="flex justify-center lg:justify-end">
+            <div className="relative">
+              {/* Decorative Ring */}
+              <div
+                className="absolute inset-0 bg-gradient-to-br from-navyBlue via-purple-600 to-blue-800 rounded-full opacity-20 blur-md animate-spin-slow"
+              ></div>
+
+              {/* Main Circular Image */}
+              <div className="relative w-72 h-72 sm:w-96 sm:h-96 rounded-full overflow-hidden shadow-2xl border-8 border-white transform hover:scale-105 transition-transform duration-500">
+                <img
+                  src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=800&fit=crop"
+                  alt="Students collaborating"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+
+              {/* Floating Badge */}
+              <div className="absolute -bottom-4 -right-4 bg-white px-6 py-4 rounded-2xl shadow-xl border-2 border-blue-100 transform hover:scale-110 transition-transform duration-300">
+                <p className="text-sm text-gray-600">Trusted by</p>
+                <p className="text-2xl font-bold text-navyBlue" style={{ color: '#1B263B' }}>
+                  50+ Colleges
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
-}
+};
 
-// Footer Component
-function Footer() {
+const LandingPage = () => {
   return (
-    <footer className="bg-navyBlue/10 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-600">
-        <p className="mb-4">
-          <Link to="/about" className="text-gray-600 hover:text-navyBlue transition-colors mx-2">About</Link> |
-          <Link to="/contact" className="text-gray-600 hover:text-navyBlue transition-colors mx-2">Contact</Link> |
-          <Link to="/privacy" className="text-gray-600 hover:text-navyBlue transition-colors mx-2">Privacy Policy</Link> |
-          <Link to="/terms" className="text-gray-600 hover:text-navyBlue transition-colors mx-2">Terms of Service</Link>
-        </p>
-        <p>&copy; 2025 Student Services Platform. All rights reserved.</p>
-      </div>
-    </footer>
-  );
-}
-
-// Main Home Page Component
-function LandingPage() {
-  return (
-    <div className="min-h-screen bg-white">
+    <div className="font-sans antialiased">
+      <div className="test-tailwind mb-4 text-center">App Component Test</div>
+      <Navbar />
       <HeroSection />
-      <SearchBar />
-      <FeaturedGigs />
-      <Categories />
-      <Testimonials />
-      <HowItWorks />
-      <PortfolioTeaser />
-      <Footer />
     </div>
   );
-}
+};
 
 export default LandingPage;

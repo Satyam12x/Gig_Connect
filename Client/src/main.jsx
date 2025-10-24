@@ -5,7 +5,6 @@ import LandingPage from './Pages/LandingPage.jsx';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    
     <LandingPage />
   </React.StrictMode>
 );
