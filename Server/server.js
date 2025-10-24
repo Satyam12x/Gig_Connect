@@ -24,7 +24,7 @@ const userSchema = new mongoose.Schema(
     fullName: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    college: { type: String, required: true },
+    college: { type: String, required: false },
     bio: { type: String, default: "" },
     profilePicture: { type: String, default: "" },
     role: { type: String, enum: ["Seller", "Buyer", "Both"], default: "Both" },
@@ -191,6 +191,7 @@ const authMiddleware = async (req, res, next) => {
 };
 
 // Routes
+// User Signup
 app.post("/api/auth/signup", async (req, res) => {
   const { fullName, email, password, college, role, bio, socialLinks } =
     req.body;
@@ -235,10 +236,11 @@ app.post("/api/auth/signup", async (req, res) => {
     });
   } catch (err) {
     console.error("Signup error:", err);
-    res.status(500).json({ error: "Server error" });
+    res.status(500).json({ error: "Server error", details: err.message });
   }
 });
 
+// Verify OTP
 app.post("/api/auth/verify-otp", authMiddleware, async (req, res) => {
   const { otp } = req.body;
   try {
@@ -259,10 +261,11 @@ app.post("/api/auth/verify-otp", authMiddleware, async (req, res) => {
     });
   } catch (err) {
     console.error("OTP verification error:", err);
-    res.status(500).json({ error: "Server error" });
+    res.status(500).json({ error: "Server error", details: err.message });
   }
 });
 
+// Skip Profile Setup
 app.post("/api/users/skip-profile", authMiddleware, async (req, res) => {
   try {
     if (!req.user.isVerified) {
@@ -301,10 +304,11 @@ app.post("/api/users/skip-profile", authMiddleware, async (req, res) => {
     res.json({ success: true, message: "Profile setup complete" });
   } catch (err) {
     console.error("Skip profile error:", err);
-    res.status(500).json({ error: "Server error" });
+    res.status(500).json({ error: "Server error", details: err.message });
   }
 });
 
+// Upload Profile Picture
 app.post(
   "/api/users/upload-profile",
   authMiddleware,
@@ -325,12 +329,10 @@ app.post(
         async (error, result) => {
           if (error) {
             console.error("Cloudinary upload error:", error);
-            return res
-              .status(500)
-              .json({
-                error: "Failed to upload image to Cloudinary",
-                details: error.message,
-              });
+            return res.status(500).json({
+              error: "Failed to upload image to Cloudinary",
+              details: error.message,
+            });
           }
 
           try {
@@ -381,12 +383,10 @@ app.post(
             res.json({ success: true, profilePicture: result.secure_url });
           } catch (err) {
             console.error("Database update error:", err);
-            res
-              .status(500)
-              .json({
-                error: "Failed to update user profile",
-                details: err.message,
-              });
+            res.status(500).json({
+              error: "Failed to update user profile",
+              details: err.message,
+            });
           }
         }
       );
@@ -399,6 +399,7 @@ app.post(
   }
 );
 
+// Update Profile Picture
 app.put(
   "/api/users/profile-picture",
   authMiddleware,
@@ -421,12 +422,10 @@ app.put(
         async (error, result) => {
           if (error) {
             console.error("Cloudinary upload error:", error);
-            return res
-              .status(500)
-              .json({
-                error: "Failed to upload image to Cloudinary",
-                details: error.message,
-              });
+            return res.status(500).json({
+              error: "Failed to upload image to Cloudinary",
+              details: error.message,
+            });
           }
 
           try {
@@ -441,12 +440,10 @@ app.put(
             res.json({ success: true, profilePicture: result.secure_url });
           } catch (err) {
             console.error("Database update error:", err);
-            res
-              .status(500)
-              .json({
-                error: "Failed to update profile picture in database",
-                details: err.message,
-              });
+            res.status(500).json({
+              error: "Failed to update profile picture in database",
+              details: err.message,
+            });
           }
         }
       );
@@ -459,6 +456,7 @@ app.put(
   }
 );
 
+// Update Profile
 app.put("/api/users/profile", authMiddleware, async (req, res) => {
   const { fullName } = req.body;
   try {
@@ -473,6 +471,7 @@ app.put("/api/users/profile", authMiddleware, async (req, res) => {
   }
 });
 
+// Request Email OTP
 app.post("/api/users/request-email-otp", authMiddleware, async (req, res) => {
   const { newEmail } = req.body;
   try {
@@ -501,6 +500,7 @@ app.post("/api/users/request-email-otp", authMiddleware, async (req, res) => {
   }
 });
 
+// Verify Email OTP
 app.post("/api/users/verify-email-otp", authMiddleware, async (req, res) => {
   const { newEmail, otp } = req.body;
   try {
@@ -522,6 +522,7 @@ app.post("/api/users/verify-email-otp", authMiddleware, async (req, res) => {
   }
 });
 
+// Update Password
 app.put("/api/users/password", authMiddleware, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   try {
@@ -542,6 +543,7 @@ app.put("/api/users/password", authMiddleware, async (req, res) => {
   }
 });
 
+// Add Skill
 app.post("/api/users/skills", authMiddleware, async (req, res) => {
   const { skill } = req.body;
   try {
@@ -559,6 +561,7 @@ app.post("/api/users/skills", authMiddleware, async (req, res) => {
   }
 });
 
+// Delete Skill
 app.delete("/api/users/skills/:skillName", authMiddleware, async (req, res) => {
   const { skillName } = req.params;
   try {
@@ -573,6 +576,7 @@ app.delete("/api/users/skills/:skillName", authMiddleware, async (req, res) => {
   }
 });
 
+// Endorse Skill
 app.post("/api/users/endorse", authMiddleware, async (req, res) => {
   try {
     const { skill } = req.body;
@@ -589,6 +593,7 @@ app.post("/api/users/endorse", authMiddleware, async (req, res) => {
   }
 });
 
+// Add Certification
 app.post("/api/users/certifications", authMiddleware, async (req, res) => {
   const { name, issuer } = req.body;
   try {
@@ -612,6 +617,7 @@ app.post("/api/users/certifications", authMiddleware, async (req, res) => {
   }
 });
 
+// Delete Certification
 app.delete(
   "/api/users/certifications/:certName",
   authMiddleware,
@@ -632,6 +638,7 @@ app.delete(
   }
 );
 
+// Get User Profile
 app.get("/api/users/profile", authMiddleware, async (req, res) => {
   try {
     const user = await User.findOne({ _id: req.user._id }).select(
@@ -645,6 +652,7 @@ app.get("/api/users/profile", authMiddleware, async (req, res) => {
   }
 });
 
+// Login
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -664,6 +672,7 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
+// Get Reviews
 app.get("/api/reviews", authMiddleware, async (req, res) => {
   try {
     const reviews = await Review.find({ userId: req.userId }).sort({
@@ -676,6 +685,7 @@ app.get("/api/reviews", authMiddleware, async (req, res) => {
   }
 });
 
+// Create Review
 app.post("/api/reviews", authMiddleware, async (req, res) => {
   const { userId, text, rating, reviewerName } = req.body;
   try {
@@ -693,6 +703,122 @@ app.post("/api/reviews", authMiddleware, async (req, res) => {
   }
 });
 
+// Create Gig
+app.post(
+  "/api/gigs",
+  authMiddleware,
+  upload.single("thumbnail"),
+  async (req, res) => {
+    const { title, description, category, price } = req.body;
+    try {
+      const user = await User.findOne({ _id: req.userId });
+      if (!user) return res.status(400).json({ error: "User not found" });
+      if (!user.isVerified)
+        return res.status(400).json({ error: "User not verified" });
+
+      // Input validation
+      if (!title || title.length < 5 || title.length > 100) {
+        return res
+          .status(400)
+          .json({ error: "Title must be between 5 and 100 characters" });
+      }
+      if (
+        !description ||
+        description.length < 20 ||
+        description.length > 1000
+      ) {
+        return res
+          .status(400)
+          .json({
+            error: "Description must be between 20 and 1000 characters",
+          });
+      }
+      if (!category) {
+        return res.status(400).json({ error: "Category is required" });
+      }
+      const validCategories = [
+        "Web Development",
+        "Graphic Design",
+        "Tutoring",
+        "Digital Marketing",
+      ];
+      if (!validCategories.includes(category)) {
+        return res.status(400).json({ error: "Invalid category" });
+      }
+      if (!price || isNaN(price) || price <= 0) {
+        return res
+          .status(400)
+          .json({ error: "Price must be a positive number" });
+      }
+
+      let thumbnailUrl = "";
+      if (req.file) {
+        const fileStream = Readable.from(req.file.buffer);
+        const uploadResult = await new Promise((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            { folder: "gig_thumbnails" },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result);
+            }
+          );
+          fileStream.pipe(uploadStream);
+        });
+        thumbnailUrl = uploadResult.secure_url;
+      }
+
+      const gigId = crypto.randomBytes(16).toString("hex");
+      const gig = await Gig.create({
+        _id: gigId,
+        title,
+        sellerName: user.fullName,
+        sellerId: user._id,
+        thumbnail: thumbnailUrl,
+        description,
+        category,
+        price: parseFloat(price),
+      });
+
+      // Update user's totalGigs
+      user.totalGigs = (user.totalGigs || 0) + 1;
+      await user.save();
+
+      res.status(201).json({ success: true, gig });
+    } catch (err) {
+      console.error("Create gig error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  }
+);
+
+// Get All Gigs (with category filter, search, and pagination)
+app.get("/api/gigs", async (req, res) => {
+  try {
+    const { category, search, page = 1, limit = 10 } = req.query;
+    const query = {};
+    if (category) query.category = category;
+    if (search) query.title = { $regex: search, $options: "i" };
+
+    const gigs = await Gig.find(query)
+      .sort({ createdAt: -1 })
+      .skip((parseInt(page) - 1) * parseInt(limit))
+      .limit(parseInt(limit));
+    const total = await Gig.countDocuments(query);
+
+    res.json({
+      success: true,
+      gigs,
+      total,
+      page: parseInt(page),
+      pages: Math.ceil(total / parseInt(limit)),
+    });
+  } catch (err) {
+    console.error("Get gigs error:", err);
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+});
+
+// Get Recent Gigs
 app.get("/api/gigs/recent", async (req, res) => {
   try {
     const gigs = await Gig.find().sort({ createdAt: -1 }).limit(10);
@@ -703,6 +829,137 @@ app.get("/api/gigs/recent", async (req, res) => {
   }
 });
 
+// Get Gig by ID
+app.get("/api/gigs/:id", async (req, res) => {
+  try {
+    const gig = await Gig.findOne({ _id: req.params.id });
+    if (!gig) return res.status(404).json({ error: "Gig not found" });
+    res.json(gig);
+  } catch (err) {
+    console.error("Get gig by ID error:", err);
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+});
+
+// Update Gig
+app.put(
+  "/api/gigs/:id",
+  authMiddleware,
+  upload.single("thumbnail"),
+  async (req, res) => {
+    const { title, description, category, price } = req.body;
+    try {
+      const gig = await Gig.findOne({ _id: req.params.id });
+      if (!gig) return res.status(404).json({ error: "Gig not found" });
+      if (gig.sellerId !== req.userId) {
+        return res
+          .status(403)
+          .json({ error: "You can only update your own gigs" });
+      }
+
+      // Input validation
+      if (title && (title.length < 5 || title.length > 100)) {
+        return res
+          .status(400)
+          .json({ error: "Title must be between 5 and 100 characters" });
+      }
+      if (
+        description &&
+        (description.length < 20 || description.length > 1000)
+      ) {
+        return res
+          .status(400)
+          .json({
+            error: "Description must be between 20 and 1000 characters",
+          });
+      }
+      if (category) {
+        const validCategories = [
+          "Web Development",
+          "Graphic Design",
+          "Tutoring",
+          "Digital Marketing",
+        ];
+        if (!validCategories.includes(category)) {
+          return res.status(400).json({ error: "Invalid category" });
+        }
+      }
+      if (price && (isNaN(price) || price <= 0)) {
+        return res
+          .status(400)
+          .json({ error: "Price must be a positive number" });
+      }
+
+      if (req.file) {
+        const fileStream = Readable.from(req.file.buffer);
+        const uploadResult = await new Promise((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            { folder: "gig_thumbnails" },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result);
+            }
+          );
+          fileStream.pipe(uploadStream);
+        });
+        gig.thumbnail = uploadResult.secure_url;
+      }
+
+      if (title) gig.title = title;
+      if (description) gig.description = description;
+      if (category) gig.category = category;
+      if (price) gig.price = parseFloat(price);
+
+      await gig.save();
+      res.json({ success: true, gig });
+    } catch (err) {
+      console.error("Update gig error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  }
+);
+
+// Delete Gig
+app.delete("/api/gigs/:id", authMiddleware, async (req, res) => {
+  try {
+    const gig = await Gig.findOne({ _id: req.params.id });
+    if (!gig) return res.status(404).json({ error: "Gig not found" });
+    if (gig.sellerId !== req.userId) {
+      return res
+        .status(403)
+        .json({ error: "You can only delete your own gigs" });
+    }
+
+    await Gig.deleteOne({ _id: req.params.id });
+
+    // Update user's totalGigs
+    const user = await User.findOne({ _id: req.userId });
+    if (user) {
+      user.totalGigs = Math.max(0, (user.totalGigs || 0) - 1);
+      await user.save();
+    }
+
+    res.json({ success: true, message: "Gig deleted" });
+  } catch (err) {
+    console.error("Delete gig error:", err);
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+});
+
+// Get Gigs by Seller
+app.get("/api/users/:id/gigs", async (req, res) => {
+  try {
+    const gigs = await Gig.find({ sellerId: req.params.id }).sort({
+      createdAt: -1,
+    });
+    res.json(gigs);
+  } catch (err) {
+    console.error("Get seller gigs error:", err);
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+});
+
+// Cleanup expired pending users
 setInterval(async () => {
   try {
     await PendingUser.deleteMany({ otpExpire: { $lt: Date.now() } });
@@ -712,4 +969,5 @@ setInterval(async () => {
   }
 }, 3600000);
 
+// Start server
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
