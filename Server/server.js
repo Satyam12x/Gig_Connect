@@ -24,11 +24,11 @@ app.use(
 );
 app.use(express.json());
 
-// Rate limiter for application submissions
+// Rate limiter for application and ticket submissions
 const applyLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit to 10 applications per user per window
-  message: "Too many application requests, please try again later.",
+  max: 10, // Limit to 10 requests per user per window
+  message: "Too many requests, please try again later.",
   keyGenerator: (req) => req.userId || req.ip,
 });
 
@@ -138,12 +138,38 @@ const applicationSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
+const ticketSchema = new mongoose.Schema({
+  _id: { type: String, required: true },
+  gigId: { type: String, ref: "Gig", required: true },
+  sellerId: { type: String, ref: "User", required: true },
+  buyerId: { type: String, ref: "User", required: true },
+  status: {
+    type: String,
+    enum: ["open", "negotiating", "accepted", "paid", "closed"],
+    default: "open",
+  },
+  messages: [
+    {
+      senderId: { type: String, ref: "User", required: true },
+      senderName: { type: String, required: true },
+      content: { type: String, required: true },
+      timestamp: { type: Date, default: Date.now },
+    },
+  ],
+  agreedPrice: { type: Number, min: 0 },
+  createdAt: { type: Date, default: Date.now },
+});
+
 // Add indexes for faster queries
 applicationSchema.index({ gigId: 1 });
 applicationSchema.index({ applicantId: 1 });
+ticketSchema.index({ gigId: 1 });
+ticketSchema.index({ sellerId: 1 });
+ticketSchema.index({ buyerId: 1 });
 
 const Gig = mongoose.model("Gig", gigSchema);
 const Application = mongoose.model("Application", applicationSchema);
+const Ticket = mongoose.model("Ticket", ticketSchema);
 
 // MongoDB connection
 mongoose
@@ -252,6 +278,24 @@ const checkGigOwner = async (req, res, next) => {
   }
 };
 
+// Ticket participant middleware
+const checkTicketParticipant = async (req, res, next) => {
+  try {
+    const ticket = await Ticket.findOne({ _id: req.params.id });
+    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    if (![ticket.sellerId, ticket.buyerId].includes(req.userId)) {
+      return res
+        .status(403)
+        .json({ error: "Only ticket participants can perform this action" });
+    }
+    req.ticket = ticket;
+    next();
+  } catch (err) {
+    console.error("Ticket participant check error:", err);
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+};
+
 // Routes
 // User Signup
 app.post("/api/auth/signup", async (req, res) => {
@@ -323,7 +367,6 @@ app.post("/api/auth/verify-otp", authMiddleware, async (req, res) => {
       return res.status(400).json({ error: "Invalid or expired OTP" });
     }
 
-    // Move to User collection
     const user = new User({
       _id: pendingUser._id,
       fullName: pendingUser.fullName,
@@ -1089,21 +1132,30 @@ app.get("/api/users/:id/gigs", async (req, res) => {
   }
 });
 
-// Submit Application
+// Submit Application and Create Ticket
 app.post(
   "/api/gigs/:id/apply",
   authMiddleware,
+  applyLimiter,
   async (req, res) => {
     try {
       const gig = await Gig.findOne({ _id: req.params.id });
-      if (!gig) return res.status(404).json({ error: "Gig not found" });
+      if (!gig) {
+        console.error("Gig not found for ID:", req.params.id);
+        return res.status(404).json({ error: "Gig not found" });
+      }
       if (gig.status === "closed") {
+        console.error("Attempted to apply to closed gig:", req.params.id);
         return res
           .status(400)
           .json({ error: "This gig is closed for applications" });
       }
       if (gig.sellerId === req.userId) {
-        return res.status(403).json({ error: "Cannot apply to your own gig" });
+        console.error("User attempted to apply to own gig:", {
+          userId: req.userId,
+          gigId: req.params.id,
+        });
+        return res.status(400).json({ error: "You cannot apply to your own gig" });
       }
 
       const existingApplication = await Application.findOne({
@@ -1111,6 +1163,10 @@ app.post(
         applicantId: req.userId,
       });
       if (existingApplication) {
+        console.error("Duplicate application attempt:", {
+          userId: req.userId,
+          gigId: req.params.id,
+        });
         return res
           .status(400)
           .json({ error: "You have already applied to this gig" });
@@ -1127,24 +1183,44 @@ app.post(
       });
       await application.save();
 
+      // Create ticket
+      const ticketId = crypto.randomBytes(16).toString("hex");
+      const ticket = new Ticket({
+        _id: ticketId,
+        gigId: req.params.id,
+        sellerId: gig.sellerId,
+        buyerId: req.userId,
+        status: "open",
+        messages: [
+          {
+            senderId: req.userId,
+            senderName: req.user.fullName,
+            content: `I have applied to your gig "${gig.title}". Let's discuss the details!`,
+            timestamp: new Date(),
+          },
+        ],
+      });
+      await ticket.save();
+
       // Notify seller
       const seller = await User.findOne({ _id: gig.sellerId });
       if (seller) {
         const mailOptions = {
           from: process.env.EMAIL_USER,
           to: seller.email,
-          subject: "New Application for Your Gig",
-          html: `<p>Dear ${seller.fullName},</p><p>${req.user.fullName} has applied to your gig "${gig.title}".</p><p>View applications at Gig Connect.</p>`,
+          subject: "New Application and Ticket for Your Gig",
+          html: `<p>Dear ${seller.fullName},</p><p>${req.user.fullName} has applied to your gig "${gig.title}". A ticket has been created for negotiation.</p><p>View the ticket at Gig Connect: /tickets/${ticketId}</p>`,
         };
         await transporter.sendMail(mailOptions);
       }
 
-      console.log("Application submitted:", {
-        id: applicationId,
+      console.log("Application and ticket created:", {
+        applicationId,
+        ticketId,
         gigId: req.params.id,
         applicantId: req.userId,
       });
-      res.status(201).json({ success: true, application });
+      res.status(201).json({ success: true, application, ticketId });
     } catch (err) {
       console.error("Application submission error:", err);
       res.status(500).json({ error: "Server error", details: err.message });
@@ -1177,7 +1253,6 @@ app.get(
 // Get User's Applications
 app.get("/api/users/:id/applications", async (req, res) => {
   try {
-    // Allow unauthenticated access, return empty array if no token
     const authHeader = req.header("Authorization");
     if (!authHeader) {
       console.log("No token provided, returning empty applications");
@@ -1200,6 +1275,10 @@ app.get("/api/users/:id/applications", async (req, res) => {
     }
 
     if (userId !== req.params.id) {
+      console.error("Unauthorized access attempt:", {
+        userId,
+        requestedId: req.params.id,
+      });
       return res
         .status(403)
         .json({ error: "You can only view your own applications" });
@@ -1246,6 +1325,18 @@ app.patch(
       application.status = status;
       await application.save();
 
+      // Update ticket status if accepted
+      if (status === "accepted") {
+        const ticket = await Ticket.findOne({
+          gigId: req.params.id,
+          buyerId: application.applicantId,
+        });
+        if (ticket) {
+          ticket.status = "accepted";
+          await ticket.save();
+        }
+      }
+
       // Update user's orderHistory and stats if accepted
       if (status === "accepted") {
         const gig = await Gig.findOne({ _id: req.params.id });
@@ -1277,7 +1368,7 @@ app.patch(
             from: process.env.EMAIL_USER,
             to: buyer.email,
             subject: "Your Application Was Accepted",
-            html: `<p>Dear ${buyer.fullName},</p><p>Your application for "${gig.title}" has been accepted by ${seller.fullName}.</p><p>Contact the seller to proceed with the project.</p>`,
+            html: `<p>Dear ${buyer.fullName},</p><p>Your application for "${gig.title}" has been accepted by ${seller.fullName}.</p><p>Continue negotiation in your ticket: /tickets/${ticket._id}</p>`,
           };
           await transporter.sendMail(mailOptions);
         }
@@ -1302,6 +1393,269 @@ app.patch(
       res.json({ success: true, application });
     } catch (err) {
       console.error("Application status update error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  }
+);
+
+// Get User's Tickets
+app.get("/api/users/:id/tickets", async (req, res) => {
+  try {
+    const authHeader = req.header("Authorization");
+    if (!authHeader) {
+      console.log("No token provided, returning empty tickets");
+      return res.json([]);
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    if (!token) {
+      console.log("No token found after parsing, returning empty tickets");
+      return res.json([]);
+    }
+
+    let userId;
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      userId = decoded.id;
+    } catch (err) {
+      console.error("Token verification error:", err.message);
+      return res.json([]);
+    }
+
+    if (userId !== req.params.id) {
+      console.error("Unauthorized ticket access attempt:", {
+        userId,
+        requestedId: req.params.id,
+      });
+      return res
+        .status(403)
+        .json({ error: "You can only view your own tickets" });
+    }
+
+    const tickets = await Ticket.find({
+      $or: [{ sellerId: userId }, { buyerId: userId }],
+    })
+      .populate("gigId", "title")
+      .populate("sellerId", "fullName email")
+      .populate("buyerId", "fullName email")
+      .sort({ createdAt: -1 });
+    console.log("Fetched user tickets:", {
+      userId,
+      count: tickets.length,
+    });
+    res.json(tickets);
+  } catch (err) {
+    console.error("Get user tickets error:", err);
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+});
+
+// Get Ticket by ID
+app.get("/api/tickets/:id", authMiddleware, checkTicketParticipant, async (req, res) => {
+  try {
+    const ticket = await Ticket.findOne({ _id: req.params.id })
+      .populate("gigId", "title price")
+      .populate("sellerId", "fullName email")
+      .populate("buyerId", "fullName email");
+    if (!ticket) {
+      console.error("Ticket not found for ID:", req.params.id);
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+    console.log("Fetched ticket:", { id: ticket._id, gigId: ticket.gigId });
+    res.json(ticket);
+  } catch (err) {
+    console.error("Get ticket error:", err);
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+});
+
+// Send Message in Ticket
+app.post(
+  "/api/tickets/:id/messages",
+  authMiddleware,
+  checkTicketParticipant,
+  applyLimiter,
+  async (req, res) => {
+    const { content } = req.body;
+    if (!content) {
+      return res.status(400).json({ error: "Message content is required" });
+    }
+    try {
+      const ticket = req.ticket;
+      if (ticket.status === "closed") {
+        return res.status(400).json({ error: "Ticket is closed" });
+      }
+
+      ticket.messages.push({
+        senderId: req.userId,
+        senderName: req.user.fullName,
+        content,
+        timestamp: new Date(),
+      });
+      if (ticket.status === "open") {
+        ticket.status = "negotiating";
+      }
+      await ticket.save();
+
+      // Notify the other participant
+      const recipientId = ticket.sellerId === req.userId ? ticket.buyerId : ticket.sellerId;
+      const recipient = await User.findOne({ _id: recipientId });
+      if (recipient) {
+        const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: recipient.email,
+          subject: `New Message in Ticket for Gig "${ticket.gigId.title}"`,
+          html: `<p>Dear ${recipient.fullName},</p><p>You have a new message from ${req.user.fullName} in ticket for "${ticket.gigId.title}":</p><p>"${content}"</p><p>View the ticket at: /tickets/${ticket._id}</p>`,
+        };
+        await transporter.sendMail(mailOptions);
+      }
+
+      console.log("Message sent in ticket:", {
+        ticketId: req.params.id,
+        senderId: req.userId,
+      });
+      res.json({ success: true, ticket });
+    } catch (err) {
+      console.error("Send message error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  }
+);
+
+// Update Ticket Price
+app.patch(
+  "/api/tickets/:id/price",
+  authMiddleware,
+  checkTicketParticipant,
+  async (req, res) => {
+    const { agreedPrice } = req.body;
+    if (!agreedPrice || isNaN(agreedPrice) || agreedPrice <= 0) {
+      return res
+        .status(400)
+        .json({ error: "Agreed price must be a positive number" });
+    }
+    try {
+      const ticket = req.ticket;
+      if (ticket.status === "closed") {
+        return res.status(400).json({ error: "Ticket is closed" });
+      }
+
+      ticket.agreedPrice = parseFloat(agreedPrice);
+      ticket.status = "accepted";
+      await ticket.save();
+
+      // Notify both participants
+      const otherUserId = ticket.sellerId === req.userId ? ticket.buyerId : ticket.sellerId;
+      const otherUser = await User.findOne({ _id: otherUserId });
+      if (otherUser) {
+        const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: otherUser.email,
+          subject: `Price Agreed for Gig "${ticket.gigId.title}"`,
+          html: `<p>Dear ${otherUser.fullName},</p><p>The price of $${agreedPrice} has been agreed for the gig "${ticket.gigId.title}".</p><p>Proceed to payment or continue negotiation at: /tickets/${ticket._id}</p>`,
+        };
+        await transporter.sendMail(mailOptions);
+      }
+
+      console.log("Ticket price updated:", {
+        ticketId: req.params.id,
+        agreedPrice,
+      });
+      res.json({ success: true, ticket });
+    } catch (err) {
+      console.error("Update ticket price error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  }
+);
+
+// Confirm Payment
+app.patch(
+  "/api/tickets/:id/pay",
+  authMiddleware,
+  checkTicketParticipant,
+  async (req, res) => {
+    try {
+      const ticket = req.ticket;
+      if (ticket.status !== "accepted") {
+        return res
+          .status(400)
+          .json({ error: "Ticket must be in accepted status to confirm payment" });
+      }
+      if (req.userId !== ticket.buyerId) {
+        return res
+          .status(403)
+          .json({ error: "Only the buyer can confirm payment" });
+      }
+
+      ticket.status = "paid";
+      await ticket.save();
+
+      // Update order history
+      const gig = await Gig.findOne({ _id: ticket.gigId });
+      const seller = await User.findOne({ _id: ticket.sellerId });
+      const buyer = await User.findOne({ _id: ticket.buyerId });
+      if (seller && buyer && gig) {
+        seller.orderHistory.push({
+          title: gig.title,
+          status: "completed",
+          earnings: ticket.agreedPrice || gig.price,
+          date: new Date(),
+        });
+        seller.gigsCompleted = (seller.gigsCompleted || 0) + 1;
+        seller.completionRate = seller.totalGigs
+          ? (seller.gigsCompleted / seller.totalGigs) * 100
+          : 0;
+        await seller.save();
+
+        buyer.orderHistory.push({
+          title: gig.title,
+          status: "completed",
+          earnings: 0,
+          date: new Date(),
+        });
+        await buyer.save();
+
+        // Notify seller
+        const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: seller.email,
+          subject: `Payment Confirmed for Gig "${gig.title}"`,
+          html: `<p>Dear ${seller.fullName},</p><p>${buyer.fullName} has confirmed payment for "${gig.title}". Amount: $${ticket.agreedPrice || gig.price}.</p><p>View details at: /tickets/${ticket._id}</p>`,
+        };
+        await transporter.sendMail(mailOptions);
+      }
+
+      console.log("Payment confirmed for ticket:", {
+        ticketId: req.params.id,
+      });
+      res.json({ success: true, ticket });
+    } catch (err) {
+      console.error("Confirm payment error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  }
+);
+
+// Close Ticket
+app.patch(
+  "/api/tickets/:id/close",
+  authMiddleware,
+  checkTicketParticipant,
+  async (req, res) => {
+    try {
+      const ticket = req.ticket;
+      if (ticket.status === "closed") {
+        return res.status(400).json({ error: "Ticket is already closed" });
+      }
+
+      ticket.status = "closed";
+      await ticket.save();
+
+      console.log("Ticket closed:", { ticketId: req.params.id });
+      res.json({ success: true, ticket });
+    } catch (err) {
+      console.error("Close ticket error:", err);
       res.status(500).json({ error: "Server error", details: err.message });
     }
   }

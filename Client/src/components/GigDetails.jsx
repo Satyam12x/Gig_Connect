@@ -8,7 +8,7 @@ import { Briefcase } from "lucide-react";
 const API_BASE = "http://localhost:5000/api";
 
 const GigDetails = () => {
-  const { id } = useParams(); // Get gig ID from URL
+  const { id } = useParams();
   const [gig, setGig] = useState(null);
   const [userApplications, setUserApplications] = useState([]);
   const [userId, setUserId] = useState(null);
@@ -16,7 +16,6 @@ const GigDetails = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check for token and decode it
     const token = localStorage.getItem("token");
     if (token) {
       try {
@@ -44,7 +43,6 @@ const GigDetails = () => {
       try {
         const requests = [axios.get(`${API_BASE}/gigs/${id}`)];
 
-        // Only fetch applications if user is logged in
         if (userId) {
           requests.push(
             axios.get(`${API_BASE}/users/${userId}/applications`, {
@@ -78,21 +76,24 @@ const GigDetails = () => {
     }
 
     try {
-      await axios.post(
+      const response = await axios.post(
         `${API_BASE}/gigs/${id}/apply`,
         {},
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
-      toast.success("Application submitted successfully!");
+      toast.success("Application submitted! Redirecting to ticket...");
       setUserApplications([
         ...userApplications,
         { gigId: id, status: "pending" },
       ]);
+      navigate(`/tickets/${response.data.ticketId}`);
     } catch (error) {
       console.error("Error applying for gig:", error);
-      toast.error(error.response?.data?.error || "Failed to apply for gig.");
+      const errorMsg =
+        error.response?.data?.error || "Failed to apply for gig.";
+      toast.error(errorMsg);
     }
   };
 

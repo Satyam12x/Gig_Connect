@@ -8,6 +8,7 @@ import Home from './Pages/Home';
 import CreateGig from './components/CreateGig';
 import Gigs from './components/Gigs';
 import GigDetails from './components/GigDetails'
+import Ticket from './components/Ticket';
 // import { Home } from 'lucide-react';
 
 
@@ -23,6 +24,7 @@ const App = () => {
         <Route path="/create-gig" element={<CreateGig />} />
         <Route path="/gigs" element={<Gigs />} />
         <Route path="/gigs/:id" element={<GigDetails />} />
+        <Route path="/tickets/:id" element={<Ticket />} />
       </Routes>
     </Router>
   );
