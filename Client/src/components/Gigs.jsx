@@ -1,242 +1,222 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { Search, Trash2 } from 'lucide-react';
-import toast from 'react-hot-toast';
-import {jwtDecode} from 'jwt-decode';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import toast from "react-hot-toast";
+import { jwtDecode } from "jwt-decode";
+import { Briefcase, Search } from "lucide-react";
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = "http://localhost:5000/api";
 
 const Gigs = () => {
   const [gigs, setGigs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [category, setCategory] = useState('');
+  const [userApplications, setUserApplications] = useState([]);
   const [userId, setUserId] = useState(null);
+  const [role, setRole] = useState(null);
   const navigate = useNavigate();
-  const { search } = useLocation();
-  const params = new URLSearchParams(search);
-  const currentPage = parseInt(params.get('page') || '1');
-  const selectedCategory = params.get('category') || '';
-  const currentSearch = params.get('search') || '';
 
-  // Decode JWT token to get userId
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    // Check for token and decode it
+    const token = localStorage.getItem("token");
     if (token) {
       try {
         const decoded = jwtDecode(token);
-        setUserId(decoded.id);
-      } catch (err) {
-        console.error('Token decode error:', err);
-        toast.error('Invalid session. Please log in again.');
+        if (decoded.id && decoded.role) {
+          setUserId(decoded.id);
+          setRole(decoded.role);
+        } else {
+          console.error("Invalid token payload:", decoded);
+          localStorage.removeItem("token");
+          toast.error("Session invalid. Please log in again.");
+          navigate("/login");
+        }
+      } catch (error) {
+        console.error("Error decoding token:", error);
+        localStorage.removeItem("token");
+        toast.error("Session expired. Please log in again.");
+        navigate("/login");
       }
     }
-  }, []);
+  }, [navigate]);
 
-  // Fetch gigs
   useEffect(() => {
-    const fetchGigs = async () => {
-      setLoading(true);
+    const fetchData = async () => {
       try {
-        const response = await axios.get(
-          `${API_BASE}/gigs?category=${encodeURIComponent(selectedCategory)}&search=${encodeURIComponent(currentSearch)}&page=${currentPage}`
-        );
-        console.log('API Response:', response.data);
-        setGigs(Array.isArray(response.data.gigs) ? response.data.gigs : []);
-        setTotalPages(response.data.pages || 1);
-      } catch (err) {
-        console.error('Failed to fetch gigs:', err);
-        toast.error('Failed to load gigs. Please try again.');
-        setGigs([]);
-      } finally {
-        setLoading(false);
+        const params = { page, limit: 10 };
+        if (selectedCategory) params.category = selectedCategory;
+        if (searchTerm) params.search = searchTerm;
+
+        const requests = [
+          axios.get(`${API_BASE}/gigs`, { params }),
+          axios.get(`${API_BASE}/categories`),
+        ];
+
+        // Only fetch applications if user is logged in
+        if (userId) {
+          requests.push(
+            axios.get(`${API_BASE}/users/${userId}/applications`, {
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem("token")}`,
+              },
+            })
+          );
+        } else {
+          requests.push(Promise.resolve({ data: [] }));
+        }
+
+        const [gigsResponse, categoriesResponse, applicationsResponse] =
+          await Promise.all(requests);
+
+        setGigs(gigsResponse.data.gigs || []);
+        setTotalPages(gigsResponse.data.pages || 1);
+        setCategories(categoriesResponse.data.categories || []);
+        setUserApplications(applicationsResponse.data || []);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        toast.error("Failed to load gigs or categories.");
       }
     };
-    fetchGigs();
-  }, [selectedCategory, currentSearch, currentPage]);
 
-  // Handle gig deletion
-  const handleDeleteGig = async (gigId) => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      toast.error('Please log in to delete a gig.');
+    fetchData();
+  }, [page, selectedCategory, searchTerm, userId]);
+
+  const handleApply = async (gigId) => {
+    if (!userId) {
+      toast.error("Please log in to apply for gigs.");
+      navigate("/login", { state: { from: `/gigs/${gigId}` } });
       return;
     }
-    if (window.confirm('Are you sure you want to delete this gig?')) {
-      try {
-        await axios.delete(`${API_BASE}/gigs/${gigId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setGigs(gigs.filter((gig) => gig._id !== gigId));
-        toast.success('Gig deleted successfully.');
-      } catch (err) {
-        console.error('Delete gig error:', err);
-        toast.error(err.response?.data?.error || 'Failed to delete gig.');
-      }
+
+    // Allow application regardless of role
+    try {
+      await axios.post(
+        `${API_BASE}/gigs/${gigId}/apply`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        }
+      );
+      toast.success("Application submitted successfully!");
+      setUserApplications([...userApplications, { gigId, status: "pending" }]);
+    } catch (error) {
+      console.error("Error applying for gig:", error);
+      toast.error(error.response?.data?.error || "Failed to apply for gig.");
     }
-  };
-
-  // Handle contact seller (placeholder)
-  const handleContactSeller = (sellerId) => {
-    toast.success(`Contacting seller ${sellerId} (placeholder functionality)`);
-    // Implement actual contact logic (e.g., navigate to messaging page)
-  };
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    navigate(`/gigs?category=${encodeURIComponent(category)}&search=${encodeURIComponent(searchQuery)}&page=1`);
   };
 
   const handleCategoryChange = (e) => {
-    setCategory(e.target.value);
-    navigate(`/gigs?category=${encodeURIComponent(e.target.value)}&search=${encodeURIComponent(searchQuery)}&page=1`);
+    setSelectedCategory(e.target.value);
+    setPage(1);
+  };
+
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+    setPage(1);
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setPage(newPage);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 font-sans" style={{ backgroundColor: '#F7FAFC' }}>
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-4xl font-bold text-navyBlue mb-8 text-center" style={{ color: '#1A2A4F' }}>
-          Find Gigs
-        </h1>
+    <div className="container mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-6">Available Gigs</h1>
 
-        {/* Search and Category Filter */}
-        <div className="flex flex-col sm:flex-row justify-center gap-4 mb-8">
-          <form onSubmit={handleSearch} className="flex w-full sm:w-auto">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search gigs..."
-              className="px-4 py-2 rounded-l-lg border border-blue-100 focus:outline-none focus:ring-2 focus:ring-navyBlueLight w-full sm:w-64"
-              style={{ color: '#2A3A6F' }}
-            />
-            <button
-              type="submit"
-              className="px-4 py-2 bg-navyBlue text-white rounded-r-lg hover:bg-navyBlueLight transition-colors duration-300"
-              style={{ backgroundColor: '#1A2A4F' }}
-            >
-              <Search size={20} />
-            </button>
-          </form>
-          <select
-            value={category}
-            onChange={handleCategoryChange}
-            className="px-4 py-2 rounded-lg border border-blue-100 focus:outline-none focus:ring-2 focus:ring-navyBlueLight"
-            style={{ color: '#2A3A6F' }}
-          >
-            <option value="">All Categories</option>
-            <option value="Web Development">Web Development</option>
-            <option value="Graphic Design">Graphic Design</option>
-            <option value="Tutoring">Tutoring</option>
-            <option value="Digital Marketing">Digital Marketing</option>
-          </select>
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-500" />
+          <input
+            type="text"
+            placeholder="Search gigs..."
+            value={searchTerm}
+            onChange={handleSearchChange}
+            className="w-full pl-10 p-2 border rounded-md"
+          />
         </div>
+        <select
+          value={selectedCategory}
+          onChange={handleCategoryChange}
+          className="p-2 border rounded-md"
+        >
+          <option value="">All Categories</option>
+          {categories.map((category) => (
+            <option key={category} value={category}>
+              {category}
+            </option>
+          ))}
+        </select>
+      </div>
 
-        {/* Loading State */}
-        {loading ? (
-          <div className="text-center text-navyBlueMedium" style={{ color: '#2A3A6F' }}>
-            Loading gigs...
-          </div>
-        ) : gigs.length === 0 ? (
-          <div className="text-center text-navyBlueMedium" style={{ color: '#2A3A6F' }}>
-            No gigs found.
-          </div>
-        ) : (
-          <>
-            {/* Gigs Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {gigs.map((gig) => (
-                <div
-                  key={gig._id}
-                  className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow duration-300"
-                  style={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                    clipPath: 'polygon(0 0, 100% 0, 100% 85%, 85% 100%, 0 100%)',
-                  }}
+      {gigs.length === 0 ? (
+        <p className="text-gray-500">No gigs available at the moment.</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {gigs.map((gig) => (
+            <div
+              key={gig._id}
+              className="border rounded-lg p-4 shadow-md hover:shadow-lg"
+            >
+              {gig.thumbnail && (
+                <img
+                  src={gig.thumbnail}
+                  alt={gig.title}
+                  className="w-full h-48 object-cover rounded-md mb-4"
+                />
+              )}
+              <h2 className="text-xl font-semibold">{gig.title}</h2>
+              <p className="text-gray-600 mb-2">
+                {gig.description.substring(0, 100)}...
+              </p>
+              <p className="text-gray-500">Category: {gig.category}</p>
+              <p className="text-gray-500">Price: ${gig.price}</p>
+              <p className="text-gray-500">Seller: {gig.sellerName}</p>
+              <div className="mt-4 flex justify-between">
+                <button
+                  onClick={() => navigate(`/gigs/${gig._id}`)}
+                  className="text-blue-500 hover:underline"
                 >
-                  <img
-                    src={gig.thumbnail || 'https://via.placeholder.com/300x200'}
-                    alt={gig.title}
-                    className="w-full h-40 object-cover rounded-lg mb-4"
-                  />
-                  <h3
-                    className="text-xl font-semibold text-navyBlue mb-2 cursor-pointer hover:underline"
-                    style={{ color: '#1A2A4F' }}
-                    onClick={() => navigate(`/gigs/${gig._id}`)}
+                  View Details
+                </button>
+                {userApplications.some((app) => app.gigId === gig._id) ? (
+                  <span className="text-green-500">Applied</span>
+                ) : (
+                  <button
+                    onClick={() => handleApply(gig._id)}
+                    className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
                   >
-                    {gig.title}
-                  </h3>
-                  <p className="text-navyBlueMedium mb-2" style={{ color: '#2A3A6F' }}>
-                    {gig.description.substring(0, 100)}...
-                  </p>
-                  <p className="text-sm text-navyBlueLight mb-2" style={{ color: '#3A4A7F' }}>
-                    Category: {gig.category}
-                  </p>
-                  <p className="text-lg font-bold text-navyBlue mb-4" style={{ color: '#1A2A4F' }}>
-                    ${gig.price.toFixed(2)}
-                  </p>
-                  <p className="text-sm text-navyBlueLight mb-4" style={{ color: '#3A4A7F' }}>
-                    Seller: {gig.sellerName}
-                  </p>
-                  {userId === gig.sellerId ? (
-                    <button
-                      onClick={() => handleDeleteGig(gig._id)}
-                      className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-300 flex items-center justify-center gap-2"
-                    >
-                      <Trash2 size={20} />
-                      Delete Gig
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleContactSeller(gig.sellerId)}
-                      className="w-full px-4 py-2 bg-navyBlue text-white rounded-lg hover:bg-navyBlueLight transition-colors duration-300"
-                      style={{ backgroundColor: '#1A2A4F' }}
-                    >
-                      Contact Seller
-                    </button>
-                  )}
-                </div>
-              ))}
+                    Apply
+                  </button>
+                )}
+              </div>
             </div>
+          ))}
+        </div>
+      )}
 
-            {/* Pagination */}
-            <div className="flex justify-center gap-4 mt-8">
-              <button
-                onClick={() =>
-                  navigate(
-                    `/gigs?category=${encodeURIComponent(category)}&search=${encodeURIComponent(
-                      searchQuery
-                    )}&page=${Math.max(1, currentPage - 1)}`
-                  )
-                }
-                disabled={currentPage <= 1}
-                className="px-4 py-2 bg-navyBlue text-white rounded-lg hover:bg-navyBlueLight disabled:opacity-50 transition-colors duration-300"
-                style={{ backgroundColor: '#1A2A4F' }}
-              >
-                Previous
-              </button>
-              <span className="text-navyBlueMedium" style={{ color: '#2A3A6F' }}>
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                onClick={() =>
-                  navigate(
-                    `/gigs?category=${encodeURIComponent(category)}&search=${encodeURIComponent(
-                      searchQuery
-                    )}&page=${currentPage + 1}`
-                  )
-                }
-                disabled={currentPage >= totalPages}
-                className="px-4 py-2 bg-navyBlue text-white rounded-lg hover:bg-navyBlueLight disabled:opacity-50 transition-colors duration-300"
-                style={{ backgroundColor: '#1A2A4F' }}
-              >
-                Next
-              </button>
-            </div>
-          </>
-        )}
+      <div className="mt-6 flex justify-center gap-2">
+        <button
+          onClick={() => handlePageChange(page - 1)}
+          disabled={page === 1}
+          className="px-4 py-2 border rounded-md disabled:opacity-50"
+        >
+          Previous
+        </button>
+        <span>
+          Page {page} of {totalPages}
+        </span>
+        <button
+          onClick={() => handlePageChange(page + 1)}
+          disabled={page === totalPages}
+          className="px-4 py-2 border rounded-md disabled:opacity-50"
+        >
+          Next
+        </button>
       </div>
     </div>
   );

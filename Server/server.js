@@ -9,22 +9,37 @@ const multer = require("multer");
 const cloudinary = require("cloudinary").v2;
 const { Readable } = require("stream");
 const cors = require("cors");
+const rateLimit = require("express-rate-limit");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:5173"],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    credentials: true,
+  })
+);
 app.use(express.json());
+
+// Rate limiter for application submissions
+const applyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit to 10 applications per user per window
+  message: "Too many application requests, please try again later.",
+  keyGenerator: (req) => req.userId || req.ip,
+});
 
 // MongoDB Schemas
 const userSchema = new mongoose.Schema(
   {
     _id: { type: String, required: true },
-    fullName: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
+    fullName: { type: String, required: true, trim: true },
+    email: { type: String, required: true, unique: true, lowercase: true },
     password: { type: String, required: true },
-    college: { type: String, required: false },
+    college: { type: String },
     bio: { type: String, default: "" },
     profilePicture: { type: String, default: "" },
     role: { type: String, enum: ["Seller", "Buyer", "Both"], default: "Both" },
@@ -97,18 +112,38 @@ const Review = mongoose.model("Review", reviewSchema);
 
 const gigSchema = new mongoose.Schema({
   _id: { type: String, required: true },
-  title: { type: String, required: true },
-  sellerName: { type: String, required: true },
+  title: { type: String, required: true, trim: true },
+  sellerName: { type: String, required: true, trim: true },
   sellerId: { type: String, ref: "User", required: true },
   thumbnail: { type: String, default: "" },
-  description: { type: String, required: true },
-  category: { type: String, required: true },
-  price: { type: Number, required: true },
-  rating: { type: Number, default: 0 },
+  description: { type: String, required: true, trim: true },
+  category: { type: String, required: true, trim: true },
+  price: { type: Number, required: true, min: 0 },
+  rating: { type: Number, default: 0, min: 0, max: 5 },
+  status: { type: String, enum: ["open", "closed"], default: "open" },
   createdAt: { type: Date, default: Date.now },
 });
 
+const applicationSchema = new mongoose.Schema({
+  _id: { type: String, required: true },
+  gigId: { type: String, ref: "Gig", required: true },
+  applicantId: { type: String, ref: "User", required: true },
+  applicantName: { type: String, required: true, trim: true },
+  coverLetter: { type: String, default: "" },
+  status: {
+    type: String,
+    enum: ["pending", "accepted", "rejected"],
+    default: "pending",
+  },
+  createdAt: { type: Date, default: Date.now },
+});
+
+// Add indexes for faster queries
+applicationSchema.index({ gigId: 1 });
+applicationSchema.index({ applicantId: 1 });
+
 const Gig = mongoose.model("Gig", gigSchema);
+const Application = mongoose.model("Application", applicationSchema);
 
 // MongoDB connection
 mongoose
@@ -190,14 +225,49 @@ const authMiddleware = async (req, res, next) => {
   }
 };
 
+// Role-based middleware
+const checkRole = (roles) => (req, res, next) => {
+  if (!roles.includes(req.user.role)) {
+    return res
+      .status(403)
+      .json({ error: `Only ${roles.join(" or ")} roles are allowed` });
+  }
+  next();
+};
+
+// Gig owner middleware
+const checkGigOwner = async (req, res, next) => {
+  try {
+    const gig = await Gig.findOne({ _id: req.params.id });
+    if (!gig) return res.status(404).json({ error: "Gig not found" });
+    if (gig.sellerId !== req.userId) {
+      return res
+        .status(403)
+        .json({ error: "Only the gig owner can perform this action" });
+    }
+    next();
+  } catch (err) {
+    console.error("Gig owner check error:", err);
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+};
+
 // Routes
 // User Signup
 app.post("/api/auth/signup", async (req, res) => {
   const { fullName, email, password, college, role, bio, socialLinks } =
     req.body;
+  if (!fullName || !email || !password) {
+    return res
+      .status(400)
+      .json({ error: "Full name, email, and password are required" });
+  }
+  if (role && !["Seller", "Buyer", "Both"].includes(role)) {
+    return res.status(400).json({ error: "Invalid role" });
+  }
   try {
     let user = await User.findOne({ email });
-    if (user) return res.status(400).json({ error: "User already exists" });
+    if (user) return res.status(400).json({ error: "Email already in use" });
 
     const userId = crypto.randomBytes(16).toString("hex");
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -243,17 +313,37 @@ app.post("/api/auth/signup", async (req, res) => {
 // Verify OTP
 app.post("/api/auth/verify-otp", authMiddleware, async (req, res) => {
   const { otp } = req.body;
+  if (!otp) {
+    return res.status(400).json({ error: "OTP is required" });
+  }
   try {
-    const user = await PendingUser.findOne({ _id: req.userId });
-    if (!user) return res.status(400).json({ error: "User not found" });
-    if (user.otp !== otp || user.otpExpire < Date.now()) {
+    const pendingUser = await PendingUser.findOne({ _id: req.userId });
+    if (!pendingUser) return res.status(400).json({ error: "User not found" });
+    if (pendingUser.otp !== otp || pendingUser.otpExpire < Date.now()) {
       return res.status(400).json({ error: "Invalid or expired OTP" });
     }
 
-    user.isVerified = true;
-    user.otp = undefined;
-    user.otpExpire = undefined;
+    // Move to User collection
+    const user = new User({
+      _id: pendingUser._id,
+      fullName: pendingUser.fullName,
+      email: pendingUser.email,
+      password: pendingUser.password,
+      college: pendingUser.college,
+      role: pendingUser.role,
+      bio: pendingUser.bio,
+      socialLinks: pendingUser.socialLinks,
+      isVerified: true,
+      skills: [],
+      certifications: [],
+      orderHistory: [],
+      gigsCompleted: 0,
+      totalGigs: 0,
+      completionRate: 0,
+    });
     await user.save();
+    await PendingUser.deleteOne({ _id: req.userId });
+    console.log("User verified and moved to User collection:", user._id);
 
     res.json({
       success: true,
@@ -268,37 +358,10 @@ app.post("/api/auth/verify-otp", authMiddleware, async (req, res) => {
 // Skip Profile Setup
 app.post("/api/users/skip-profile", authMiddleware, async (req, res) => {
   try {
-    if (!req.user.isVerified) {
+    const user = await User.findOne({ _id: req.userId });
+    if (!user) return res.status(400).json({ error: "User not found" });
+    if (!user.isVerified) {
       return res.status(400).json({ error: "Please verify your email first" });
-    }
-
-    let user = await User.findOne({ _id: req.userId });
-    if (!user) {
-      const pendingUser = await PendingUser.findOne({ _id: req.userId });
-      if (!pendingUser) {
-        return res.status(400).json({ error: "User not found" });
-      }
-      user = new User({
-        _id: req.userId,
-        fullName: pendingUser.fullName,
-        email: pendingUser.email,
-        password: pendingUser.password,
-        college: pendingUser.college,
-        role: pendingUser.role,
-        bio: pendingUser.bio,
-        socialLinks: pendingUser.socialLinks,
-        isVerified: true,
-        profilePicture: "",
-        skills: [],
-        certifications: [],
-        orderHistory: [],
-        gigsCompleted: 0,
-        totalGigs: 0,
-        completionRate: 0,
-      });
-      await user.save();
-      await PendingUser.deleteOne({ _id: req.userId });
-      console.log("User saved (skip):", user._id);
     }
 
     res.json({ success: true, message: "Profile setup complete" });
@@ -315,7 +378,9 @@ app.post(
   upload.single("image"),
   async (req, res) => {
     try {
-      if (!req.user.isVerified) {
+      const user = await User.findOne({ _id: req.userId });
+      if (!user) return res.status(400).json({ error: "User not found" });
+      if (!user.isVerified) {
         return res
           .status(400)
           .json({ error: "Please verify your email first" });
@@ -336,50 +401,14 @@ app.post(
           }
 
           try {
-            let user = await User.findOne({ _id: req.userId });
-            if (!user) {
-              const pendingUser = await PendingUser.findOne({
-                _id: req.userId,
-              });
-              if (!pendingUser) {
-                return res.status(400).json({ error: "User not found" });
-              }
-              user = new User({
-                _id: req.userId,
-                fullName: pendingUser.fullName,
-                email: pendingUser.email,
-                password: pendingUser.password,
-                college: pendingUser.college,
-                role: pendingUser.role,
-                bio: pendingUser.bio,
-                socialLinks: pendingUser.socialLinks,
-                isVerified: true,
-                profilePicture: result.secure_url,
-                skills: [],
-                certifications: [],
-                orderHistory: [],
-                gigsCompleted: 0,
-                totalGigs: 0,
-                completionRate: 0,
-              });
-              await user.save();
-              await PendingUser.deleteOne({ _id: req.userId });
-              console.log(
-                "User saved with profile picture:",
-                user._id,
-                "URL:",
-                result.secure_url
-              );
-            } else {
-              user.profilePicture = result.secure_url;
-              await user.save();
-              console.log(
-                "Profile picture updated:",
-                user._id,
-                "URL:",
-                result.secure_url
-              );
-            }
+            user.profilePicture = result.secure_url;
+            await user.save();
+            console.log(
+              "Profile picture updated:",
+              user._id,
+              "URL:",
+              result.secure_url
+            );
             res.json({ success: true, profilePicture: result.secure_url });
           } catch (err) {
             console.error("Database update error:", err);
@@ -406,15 +435,14 @@ app.put(
   upload.single("profilePicture"),
   async (req, res) => {
     try {
-      if (!req.file) {
-        console.error("No file provided in profile picture update");
-        return res.status(400).json({ error: "No file uploaded" });
-      }
-
       const user = await User.findOne({ _id: req.userId });
       if (!user) {
         console.error("User not found for ID:", req.userId);
         return res.status(400).json({ error: "User not found" });
+      }
+      if (!req.file) {
+        console.error("No file provided in profile picture update");
+        return res.status(400).json({ error: "No file uploaded" });
       }
 
       const stream = cloudinary.uploader.upload_stream(
@@ -458,11 +486,14 @@ app.put(
 
 // Update Profile
 app.put("/api/users/profile", authMiddleware, async (req, res) => {
-  const { fullName } = req.body;
+  const { fullName, college, bio, socialLinks } = req.body;
   try {
     const user = await User.findOne({ _id: req.userId });
     if (!user) return res.status(400).json({ error: "User not found" });
     if (fullName) user.fullName = fullName;
+    if (college) user.college = college;
+    if (bio) user.bio = bio;
+    if (socialLinks) user.socialLinks = socialLinks;
     await user.save();
     res.json({ success: true, message: "Profile updated" });
   } catch (err) {
@@ -474,6 +505,9 @@ app.put("/api/users/profile", authMiddleware, async (req, res) => {
 // Request Email OTP
 app.post("/api/users/request-email-otp", authMiddleware, async (req, res) => {
   const { newEmail } = req.body;
+  if (!newEmail) {
+    return res.status(400).json({ error: "New email is required" });
+  }
   try {
     const user = await User.findOne({ _id: req.userId });
     if (!user) return res.status(400).json({ error: "User not found" });
@@ -503,6 +537,9 @@ app.post("/api/users/request-email-otp", authMiddleware, async (req, res) => {
 // Verify Email OTP
 app.post("/api/users/verify-email-otp", authMiddleware, async (req, res) => {
   const { newEmail, otp } = req.body;
+  if (!newEmail || !otp) {
+    return res.status(400).json({ error: "New email and OTP are required" });
+  }
   try {
     const user = await User.findOne({ _id: req.userId });
     if (!user) return res.status(400).json({ error: "User not found" });
@@ -525,6 +562,11 @@ app.post("/api/users/verify-email-otp", authMiddleware, async (req, res) => {
 // Update Password
 app.put("/api/users/password", authMiddleware, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    return res
+      .status(400)
+      .json({ error: "Current and new passwords are required" });
+  }
   try {
     const user = await User.findOne({ _id: req.userId });
     if (!user) return res.status(400).json({ error: "User not found" });
@@ -546,6 +588,9 @@ app.put("/api/users/password", authMiddleware, async (req, res) => {
 // Add Skill
 app.post("/api/users/skills", authMiddleware, async (req, res) => {
   const { skill } = req.body;
+  if (!skill) {
+    return res.status(400).json({ error: "Skill name is required" });
+  }
   try {
     const user = await User.findOne({ _id: req.userId });
     if (!user) return res.status(400).json({ error: "User not found" });
@@ -578,10 +623,18 @@ app.delete("/api/users/skills/:skillName", authMiddleware, async (req, res) => {
 
 // Endorse Skill
 app.post("/api/users/endorse", authMiddleware, async (req, res) => {
+  const { userId, skill } = req.body;
+  if (!userId || !skill) {
+    return res
+      .status(400)
+      .json({ error: "User ID and skill name are required" });
+  }
   try {
-    const { skill } = req.body;
-    const user = await User.findOne({ _id: req.userId });
+    const user = await User.findOne({ _id: userId });
     if (!user) return res.status(400).json({ error: "User not found" });
+    if (user._id === req.userId) {
+      return res.status(400).json({ error: "Cannot endorse your own skill" });
+    }
     user.skills = user.skills.map((s) =>
       s.name === skill ? { ...s, endorsements: (s.endorsements || 0) + 1 } : s
     );
@@ -596,6 +649,11 @@ app.post("/api/users/endorse", authMiddleware, async (req, res) => {
 // Add Certification
 app.post("/api/users/certifications", authMiddleware, async (req, res) => {
   const { name, issuer } = req.body;
+  if (!name || !issuer) {
+    return res
+      .status(400)
+      .json({ error: "Certification name and issuer are required" });
+  }
   try {
     const user = await User.findOne({ _id: req.userId });
     if (!user) return res.status(400).json({ error: "User not found" });
@@ -652,20 +710,45 @@ app.get("/api/users/profile", authMiddleware, async (req, res) => {
   }
 });
 
+// Get Public User Profile
+app.get("/api/users/:id", async (req, res) => {
+  try {
+    const user = await User.findOne({ _id: req.params.id }).select(
+      "fullName college bio profilePicture role skills certifications socialLinks gigsCompleted totalGigs completionRate"
+    );
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json(user);
+  } catch (err) {
+    console.error("Public profile fetch error:", err);
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+});
+
 // Login
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required" });
+  }
   try {
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ error: "Invalid credentials" });
+    if (!user)
+      return res.status(400).json({ error: "Invalid email or password" });
 
     const isMatch = await user.matchPassword(password);
-    if (!isMatch) return res.status(400).json({ error: "Invalid credentials" });
+    if (!isMatch)
+      return res.status(400).json({ error: "Invalid email or password" });
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "24h",
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "24h" }
+    );
+    res.json({
+      success: true,
+      token,
+      user: { id: user._id, fullName: user.fullName, role: user.role },
     });
-    res.json({ success: true, token });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ error: "Server error", details: err.message });
@@ -687,11 +770,21 @@ app.get("/api/reviews", authMiddleware, async (req, res) => {
 
 // Create Review
 app.post("/api/reviews", authMiddleware, async (req, res) => {
-  const { userId, text, rating, reviewerName } = req.body;
+  const { userId, text, rating } = req.body;
+  if (!userId || !text || !rating || rating < 1 || rating > 5) {
+    return res
+      .status(400)
+      .json({ error: "User ID, text, and valid rating (1-5) are required" });
+  }
   try {
+    const user = await User.findOne({ _id: userId });
+    if (!user) return res.status(400).json({ error: "User not found" });
+    if (user._id === req.userId) {
+      return res.status(400).json({ error: "Cannot review yourself" });
+    }
     const review = new Review({
       userId,
-      reviewerName: reviewerName || req.user.fullName,
+      reviewerName: req.user.fullName,
       text,
       rating,
     });
@@ -707,9 +800,17 @@ app.post("/api/reviews", authMiddleware, async (req, res) => {
 app.post(
   "/api/gigs",
   authMiddleware,
+  checkRole(["Seller", "Both"]),
   upload.single("thumbnail"),
   async (req, res) => {
     const { title, description, category, price } = req.body;
+    if (!title || !description || !category || !price) {
+      return res
+        .status(400)
+        .json({
+          error: "Title, description, category, and price are required",
+        });
+    }
     try {
       const user = await User.findOne({ _id: req.userId });
       if (!user) return res.status(400).json({ error: "User not found" });
@@ -717,35 +818,19 @@ app.post(
         return res.status(400).json({ error: "User not verified" });
 
       // Input validation
-      if (!title || title.length < 5 || title.length > 100) {
+      if (title.length < 5 || title.length > 100) {
         return res
           .status(400)
           .json({ error: "Title must be between 5 and 100 characters" });
       }
-      if (
-        !description ||
-        description.length < 20 ||
-        description.length > 1000
-      ) {
+      if (description.length < 20 || description.length > 1000) {
         return res
           .status(400)
           .json({
             error: "Description must be between 20 and 1000 characters",
           });
       }
-      if (!category) {
-        return res.status(400).json({ error: "Category is required" });
-      }
-      const validCategories = [
-        "Web Development",
-        "Graphic Design",
-        "Tutoring",
-        "Digital Marketing",
-      ];
-      if (!validCategories.includes(category)) {
-        return res.status(400).json({ error: "Invalid category" });
-      }
-      if (!price || isNaN(price) || price <= 0) {
+      if (isNaN(price) || price <= 0) {
         return res
           .status(400)
           .json({ error: "Price must be a positive number" });
@@ -777,12 +862,14 @@ app.post(
         description,
         category,
         price: parseFloat(price),
+        status: "open",
       });
 
       // Update user's totalGigs
       user.totalGigs = (user.totalGigs || 0) + 1;
       await user.save();
 
+      console.log("Gig created:", { id: gig._id, title, sellerId: user._id });
       res.status(201).json({ success: true, gig });
     } catch (err) {
       console.error("Create gig error:", err);
@@ -795,8 +882,8 @@ app.post(
 app.get("/api/gigs", async (req, res) => {
   try {
     const { category, search, page = 1, limit = 10 } = req.query;
-    const query = {};
-    if (category) query.category = category;
+    const query = { status: "open" };
+    if (category) query.category = { $regex: `^${category}$`, $options: "i" };
     if (search) query.title = { $regex: search, $options: "i" };
 
     const gigs = await Gig.find(query)
@@ -805,12 +892,20 @@ app.get("/api/gigs", async (req, res) => {
       .limit(parseInt(limit));
     const total = await Gig.countDocuments(query);
 
+    console.log("Fetching gigs:", {
+      query,
+      page,
+      limit,
+      total,
+      gigsCount: gigs.length,
+    });
+
     res.json({
       success: true,
-      gigs,
-      total,
+      gigs: gigs || [],
+      total: total || 0,
       page: parseInt(page),
-      pages: Math.ceil(total / parseInt(limit)),
+      pages: Math.ceil(total / parseInt(limit)) || 1,
     });
   } catch (err) {
     console.error("Get gigs error:", err);
@@ -818,10 +913,42 @@ app.get("/api/gigs", async (req, res) => {
   }
 });
 
+// Get Categories
+app.get("/api/categories", async (req, res) => {
+  try {
+    const categories = await Gig.distinct("category");
+    console.log("Fetched categories:", categories);
+    res.json({ success: true, categories });
+  } catch (err) {
+    console.error("Get categories error:", err);
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+});
+
+// Debug Gigs
+app.get("/api/debug/gigs", async (req, res) => {
+  try {
+    const gigs = await Gig.find({});
+    const total = await Gig.countDocuments({});
+    res.json({
+      success: true,
+      gigs,
+      total,
+      message: "All gigs in the database, including closed ones",
+    });
+  } catch (err) {
+    console.error("Debug gigs error:", err);
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+});
+
 // Get Recent Gigs
 app.get("/api/gigs/recent", async (req, res) => {
   try {
-    const gigs = await Gig.find().sort({ createdAt: -1 }).limit(10);
+    const gigs = await Gig.find({ status: "open" })
+      .sort({ createdAt: -1 })
+      .limit(10);
+    console.log("Fetched recent gigs:", { count: gigs.length });
     res.json(gigs);
   } catch (err) {
     console.error("Recent gigs fetch error:", err);
@@ -833,7 +960,11 @@ app.get("/api/gigs/recent", async (req, res) => {
 app.get("/api/gigs/:id", async (req, res) => {
   try {
     const gig = await Gig.findOne({ _id: req.params.id });
-    if (!gig) return res.status(404).json({ error: "Gig not found" });
+    if (!gig) {
+      console.error("Gig not found for ID:", req.params.id);
+      return res.status(404).json({ error: "Gig not found" });
+    }
+    console.log("Fetched gig:", { id: gig._id, title: gig.title });
     res.json(gig);
   } catch (err) {
     console.error("Get gig by ID error:", err);
@@ -845,17 +976,14 @@ app.get("/api/gigs/:id", async (req, res) => {
 app.put(
   "/api/gigs/:id",
   authMiddleware,
+  checkRole(["Seller", "Both"]),
+  checkGigOwner,
   upload.single("thumbnail"),
   async (req, res) => {
-    const { title, description, category, price } = req.body;
+    const { title, description, category, price, status } = req.body;
     try {
       const gig = await Gig.findOne({ _id: req.params.id });
       if (!gig) return res.status(404).json({ error: "Gig not found" });
-      if (gig.sellerId !== req.userId) {
-        return res
-          .status(403)
-          .json({ error: "You can only update your own gigs" });
-      }
 
       // Input validation
       if (title && (title.length < 5 || title.length > 100)) {
@@ -873,21 +1001,15 @@ app.put(
             error: "Description must be between 20 and 1000 characters",
           });
       }
-      if (category) {
-        const validCategories = [
-          "Web Development",
-          "Graphic Design",
-          "Tutoring",
-          "Digital Marketing",
-        ];
-        if (!validCategories.includes(category)) {
-          return res.status(400).json({ error: "Invalid category" });
-        }
-      }
       if (price && (isNaN(price) || price <= 0)) {
         return res
           .status(400)
           .json({ error: "Price must be a positive number" });
+      }
+      if (status && !["open", "closed"].includes(status)) {
+        return res
+          .status(400)
+          .json({ error: "Invalid status. Must be 'open' or 'closed'" });
       }
 
       if (req.file) {
@@ -909,8 +1031,10 @@ app.put(
       if (description) gig.description = description;
       if (category) gig.category = category;
       if (price) gig.price = parseFloat(price);
+      if (status) gig.status = status;
 
       await gig.save();
+      console.log("Gig updated:", { id: gig._id, title: gig.title });
       res.json({ success: true, gig });
     } catch (err) {
       console.error("Update gig error:", err);
@@ -920,37 +1044,43 @@ app.put(
 );
 
 // Delete Gig
-app.delete("/api/gigs/:id", authMiddleware, async (req, res) => {
-  try {
-    const gig = await Gig.findOne({ _id: req.params.id });
-    if (!gig) return res.status(404).json({ error: "Gig not found" });
-    if (gig.sellerId !== req.userId) {
-      return res
-        .status(403)
-        .json({ error: "You can only delete your own gigs" });
+app.delete(
+  "/api/gigs/:id",
+  authMiddleware,
+  checkRole(["Seller", "Both"]),
+  checkGigOwner,
+  async (req, res) => {
+    try {
+      const gig = await Gig.findOne({ _id: req.params.id });
+      if (!gig) return res.status(404).json({ error: "Gig not found" });
+
+      await Gig.deleteOne({ _id: req.params.id });
+
+      // Update user's totalGigs
+      const user = await User.findOne({ _id: req.userId });
+      if (user) {
+        user.totalGigs = Math.max(0, (user.totalGigs || 0) - 1);
+        await user.save();
+      }
+
+      console.log("Gig deleted:", { id: req.params.id });
+      res.json({ success: true, message: "Gig deleted" });
+    } catch (err) {
+      console.error("Delete gig error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
     }
-
-    await Gig.deleteOne({ _id: req.params.id });
-
-    // Update user's totalGigs
-    const user = await User.findOne({ _id: req.userId });
-    if (user) {
-      user.totalGigs = Math.max(0, (user.totalGigs || 0) - 1);
-      await user.save();
-    }
-
-    res.json({ success: true, message: "Gig deleted" });
-  } catch (err) {
-    console.error("Delete gig error:", err);
-    res.status(500).json({ error: "Server error", details: err.message });
   }
-});
+);
 
 // Get Gigs by Seller
 app.get("/api/users/:id/gigs", async (req, res) => {
   try {
     const gigs = await Gig.find({ sellerId: req.params.id }).sort({
       createdAt: -1,
+    });
+    console.log("Fetched seller gigs:", {
+      sellerId: req.params.id,
+      count: gigs.length,
     });
     res.json(gigs);
   } catch (err) {
@@ -959,11 +1089,233 @@ app.get("/api/users/:id/gigs", async (req, res) => {
   }
 });
 
-// Cleanup expired pending users
+// Submit Application
+app.post(
+  "/api/gigs/:id/apply",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const gig = await Gig.findOne({ _id: req.params.id });
+      if (!gig) return res.status(404).json({ error: "Gig not found" });
+      if (gig.status === "closed") {
+        return res
+          .status(400)
+          .json({ error: "This gig is closed for applications" });
+      }
+      if (gig.sellerId === req.userId) {
+        return res.status(403).json({ error: "Cannot apply to your own gig" });
+      }
+
+      const existingApplication = await Application.findOne({
+        gigId: req.params.id,
+        applicantId: req.userId,
+      });
+      if (existingApplication) {
+        return res
+          .status(400)
+          .json({ error: "You have already applied to this gig" });
+      }
+
+      const applicationId = crypto.randomBytes(16).toString("hex");
+      const application = new Application({
+        _id: applicationId,
+        gigId: req.params.id,
+        applicantId: req.userId,
+        applicantName: req.user.fullName,
+        coverLetter: req.body.coverLetter || "",
+        status: "pending",
+      });
+      await application.save();
+
+      // Notify seller
+      const seller = await User.findOne({ _id: gig.sellerId });
+      if (seller) {
+        const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: seller.email,
+          subject: "New Application for Your Gig",
+          html: `<p>Dear ${seller.fullName},</p><p>${req.user.fullName} has applied to your gig "${gig.title}".</p><p>View applications at Gig Connect.</p>`,
+        };
+        await transporter.sendMail(mailOptions);
+      }
+
+      console.log("Application submitted:", {
+        id: applicationId,
+        gigId: req.params.id,
+        applicantId: req.userId,
+      });
+      res.status(201).json({ success: true, application });
+    } catch (err) {
+      console.error("Application submission error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  }
+);
+
+// Get Applications for a Gig
+app.get(
+  "/api/gigs/:id/applications",
+  authMiddleware,
+  checkGigOwner,
+  async (req, res) => {
+    try {
+      const applications = await Application.find({ gigId: req.params.id })
+        .populate("applicantId", "fullName email profilePicture")
+        .sort({ createdAt: -1 });
+      console.log("Fetched applications for gig:", {
+        gigId: req.params.id,
+        count: applications.length,
+      });
+      res.json(applications);
+    } catch (err) {
+      console.error("Get applications error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  }
+);
+
+// Get User's Applications
+app.get("/api/users/:id/applications", async (req, res) => {
+  try {
+    // Allow unauthenticated access, return empty array if no token
+    const authHeader = req.header("Authorization");
+    if (!authHeader) {
+      console.log("No token provided, returning empty applications");
+      return res.json([]);
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    if (!token) {
+      console.log("No token found after parsing, returning empty applications");
+      return res.json([]);
+    }
+
+    let userId;
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      userId = decoded.id;
+    } catch (err) {
+      console.error("Token verification error:", err.message);
+      return res.json([]);
+    }
+
+    if (userId !== req.params.id) {
+      return res
+        .status(403)
+        .json({ error: "You can only view your own applications" });
+    }
+
+    const applications = await Application.find({ applicantId: req.params.id })
+      .populate("gigId", "title category")
+      .sort({ createdAt: -1 });
+    console.log("Fetched user applications:", {
+      userId: req.params.id,
+      count: applications.length,
+    });
+    res.json(applications);
+  } catch (err) {
+    console.error("Get user applications error:", err);
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+});
+
+// Accept/Reject Application
+app.patch(
+  "/api/gigs/:id/applications/:applicationId",
+  authMiddleware,
+  checkGigOwner,
+  async (req, res) => {
+    const { status } = req.body;
+    if (!["accepted", "rejected"].includes(status)) {
+      return res
+        .status(400)
+        .json({ error: "Invalid status. Must be 'accepted' or 'rejected'" });
+    }
+    try {
+      const application = await Application.findOne({
+        _id: req.params.applicationId,
+      });
+      if (!application)
+        return res.status(404).json({ error: "Application not found" });
+      if (application.gigId.toString() !== req.params.id) {
+        return res
+          .status(400)
+          .json({ error: "Application does not belong to this gig" });
+      }
+
+      application.status = status;
+      await application.save();
+
+      // Update user's orderHistory and stats if accepted
+      if (status === "accepted") {
+        const gig = await Gig.findOne({ _id: req.params.id });
+        const seller = await User.findOne({ _id: gig.sellerId });
+        const buyer = await User.findOne({ _id: application.applicantId });
+        if (seller && buyer) {
+          seller.orderHistory.push({
+            title: gig.title,
+            status: "completed",
+            earnings: gig.price,
+            date: new Date(),
+          });
+          seller.gigsCompleted = (seller.gigsCompleted || 0) + 1;
+          seller.completionRate = seller.totalGigs
+            ? (seller.gigsCompleted / seller.totalGigs) * 100
+            : 0;
+          await seller.save();
+
+          buyer.orderHistory.push({
+            title: gig.title,
+            status: "completed",
+            earnings: 0,
+            date: new Date(),
+          });
+          await buyer.save();
+
+          // Notify buyer
+          const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: buyer.email,
+            subject: "Your Application Was Accepted",
+            html: `<p>Dear ${buyer.fullName},</p><p>Your application for "${gig.title}" has been accepted by ${seller.fullName}.</p><p>Contact the seller to proceed with the project.</p>`,
+          };
+          await transporter.sendMail(mailOptions);
+        }
+      } else if (status === "rejected") {
+        const buyer = await User.findOne({ _id: application.applicantId });
+        const gig = await Gig.findOne({ _id: req.params.id });
+        if (buyer && gig) {
+          const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: buyer.email,
+            subject: "Your Application Status",
+            html: `<p>Dear ${buyer.fullName},</p><p>Your application for "${gig.title}" was not accepted.</p><p>Explore other gigs on Gig Connect.</p>`,
+          };
+          await transporter.sendMail(mailOptions);
+        }
+      }
+
+      console.log("Application status updated:", {
+        applicationId: req.params.applicationId,
+        status,
+      });
+      res.json({ success: true, application });
+    } catch (err) {
+      console.error("Application status update error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  }
+);
+
+// Cleanup expired pending users and OTPs
 setInterval(async () => {
   try {
     await PendingUser.deleteMany({ otpExpire: { $lt: Date.now() } });
-    console.log("Cleaned expired pending users");
+    await User.updateMany(
+      { emailOtpExpire: { $lt: Date.now() } },
+      { $unset: { emailOtp: "", emailOtpExpire: "" } }
+    );
+    console.log("Cleaned expired pending users and OTPs");
   } catch (err) {
     console.error("Cleanup error:", err);
   }
