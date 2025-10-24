@@ -18,12 +18,12 @@ const Navbar = () => {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <div className="flex-shrink-0">
-            <h1 className="text-2xl font-bold text-purple-600 font-sans" style={{ color: '#6B7280' }}>
+            <h1 className="text-2xl font-bold text-navyBlue font-sans" style={{ color: '#1A2A4F' }}>
               CampusHire
             </h1>
           </div>
 
-          {/* Desktop/Tablet Navigation - Icons with Improved Hover Labels */}
+          {/* Desktop/Tablet Navigation - Icons with Hover Labels Below */}
           <div className="hidden md:flex space-x-8">
             {navItems.map((item, index) => {
               const Icon = item.icon;
@@ -31,11 +31,11 @@ const Navbar = () => {
                 <a
                   key={index}
                   href={item.href}
-                  className="relative group text-purple-600 hover:text-blue-800 transition-colors duration-300 p-2 rounded-lg hover:bg-blue-50"
+                  className="relative group text-navyBlue hover:text-blue-800 transition-colors duration-300 p-2 rounded-lg hover:bg-blue-50"
                   aria-label={item.label}
                 >
                   <Icon size={24} />
-                  <span className="absolute left-1/2 -translate-x-1/2 top-[-30px] opacity-0 group-hover:opacity-100 group-hover:-translate-y-1 text-sm text-white bg-purple-600 px-2 py-1 rounded shadow-md font-sans transition-all duration-200">
+                  <span className="absolute left-1/2 -translate-x-1/2 bottom-[-30px] opacity-0 group-hover:opacity-100 group-hover:translate-y-1 text-sm text-white bg-navyBlue px-2 py-1 rounded shadow-md font-sans transition-all duration-200">
                     {item.label}
                   </span>
                 </a>
@@ -47,7 +47,7 @@ const Navbar = () => {
           <div className="md:hidden">
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="text-purple-600 hover:text-blue-800 transition-colors duration-300 p-2"
+              className="text-navyBlue hover:text-blue-800 transition-colors duration-300 p-2"
               aria-label="Toggle menu"
             >
               {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
@@ -75,12 +75,12 @@ const Navbar = () => {
         >
           <div className="px-4 pt-4 pb-6 space-y-2 border-l border-blue-100">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-purple-600 font-sans" style={{ color: '#6B7280' }}>
+              <h2 className="text-xl font-semibold text-navyBlue font-sans" style={{ color: '#1A2A4F' }}>
                 Menu
               </h2>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="text-purple-600 hover:text-blue-800"
+                className="text-navyBlue hover:text-blue-800"
                 aria-label="Close menu"
               >
                 <X size={24} />
@@ -92,7 +92,7 @@ const Navbar = () => {
                 <a
                   key={index}
                   href={item.href}
-                  className="flex items-center px-4 py-3 text-purple-600 hover:bg-blue-50 hover:text-blue-800 rounded-lg transition-all duration-300 font-medium font-sans"
+                  className="flex items-center px-4 py-3 text-navyBlue hover:bg-blue-50 hover:text-blue-800 rounded-lg transition-all duration-300 font-medium font-sans"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <Icon size={20} className="mr-2" />
@@ -131,23 +131,23 @@ const HeroSection = () => {
           {/* Left Content */}
           <div className="space-y-8 text-center lg:text-left">
             <div className="space-y-4">
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-purple-600 opacity-100 font-sans" style={{ color: '#6B7280' }}>
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-navyBlue opacity-100 font-sans" style={{ color: '#1A2A4F' }}>
                 Connect with
-                <span className="block text-purple-600 font-extrabold" style={{ color: '#6B7280' }}>
+                <span className="block text-navyBlueLight font-extrabold" style={{ color: '#3A4A7F' }}>
                   Student Talent
                 </span>
               </h1>
-              <p className="text-lg sm:text-xl text-purple-600 max-w-2xl mx-auto lg:mx-0 opacity-100 font-sans" style={{ color: '#6B7280' }}>
+              <p className="text-lg sm:text-xl text-navyBlueMedium max-w-2xl mx-auto lg:mx-0 opacity-100 font-sans" style={{ color: '#2A3A6F' }}>
                 Discover skilled designers, developers, and tutors right in your campus community. Hire services or showcase your expertise—all in one platform.
               </p>
             </div>
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-              <button className="px-8 py-4 bg-purple-600 text-white font-semibold rounded-lg shadow-lg hover:bg-blue-800 opacity-100 font-sans" style={{ backgroundColor: '#6B7280' }}>
+              <button className="px-8 py-4 bg-navyBlue text-white font-semibold rounded-lg shadow-lg hover:bg-blue-800 opacity-100 font-sans" style={{ backgroundColor: '#1A2A4F' }}>
                 Get Started Free
               </button>
-              <button className="px-8 py-4 bg-white text-purple-600 font-semibold rounded-lg border-2 border-purple-600 hover:bg-blue-50 hover:text-blue-800 opacity-100 font-sans" style={{ color: '#6B7280', borderColor: '#6B7280' }}>
+              <button className="px-8 py-4 bg-white text-navyBlue font-semibold rounded-lg border-2 border-navyBlue hover:bg-blue-50 hover:text-blue-800 opacity-100 font-sans" style={{ color: '#1A2A4F', borderColor: '#1A2A4F' }}>
                 Browse Services
               </button>
             </div>
@@ -155,22 +155,22 @@ const HeroSection = () => {
             {/* Stats */}
             <div className="flex flex-wrap gap-8 justify-center lg:justify-start pt-8">
               <div className="text-center lg:text-left">
-                <p className="text-3xl font-bold text-purple-600 opacity-100 font-sans" style={{ color: '#6B7280' }}>
+                <p className="text-3xl font-bold text-navyBlue opacity-100 font-sans" style={{ color: '#1A2A4F' }}>
                   5,000+
                 </p>
-                <p className="text-purple-600 opacity-100 font-sans" style={{ color: '#6B7280' }}>Active Students</p>
+                <p className="text-navyBlueMedium opacity-100 font-sans" style={{ color: '#2A3A6F' }}>Active Students</p>
               </div>
               <div className="text-center lg:text-left">
-                <p className="text-3xl font-bold text-purple-600 opacity-100 font-sans" style={{ color: '#6B7280' }}>
+                <p className="text-3xl font-bold text-navyBlue opacity-100 font-sans" style={{ color: '#1A2A4F' }}>
                   10,000+
                 </p>
-                <p className="text-purple-600 opacity-100 font-sans" style={{ color: '#6B7280' }}>Projects Completed</p>
+                <p className="text-navyBlueMedium opacity-100 font-sans" style={{ color: '#2A3A6F' }}>Projects Completed</p>
               </div>
               <div className="text-center lg:text-left">
-                <p className="text-3xl font-bold text-purple-600 opacity-100 font-sans" style={{ color: '#6B7280' }}>
+                <p className="text-3xl font-bold text-navyBlue opacity-100 font-sans" style={{ color: '#1A2A4F' }}>
                   4.9/5
                 </p>
-                <p className="text-purple-600 opacity-100 font-sans" style={{ color: '#6B7280' }}>Average Rating</p>
+                <p className="text-navyBlueMedium opacity-100 font-sans" style={{ color: '#2A3A6F' }}>Average Rating</p>
               </div>
             </div>
           </div>
@@ -183,18 +183,8 @@ const HeroSection = () => {
                 className="absolute inset-0 bg-gradient-to-br from-navyBlue via-purple-600 to-blue-800 rounded-full opacity-20 blur-md animate-spin-slow"
               ></div>
 
-              {/* Main Circular Image with Narrow RGB Gradient Border */}
-              <div className="relative w-72 h-72 sm:w-96 sm:h-96 rounded-full overflow-hidden shadow-2xl border-[3px] border-transparent">
-                <div
-                  className="absolute inset-[-1.5px] rounded-full"
-                  style={{
-                    background: 'linear-gradient(45deg, #FF0000, #00FF00, #0000FF, #FF0000)',
-                    backgroundSize: '200% 200%',
-                    animation: 'moveGradient 5s linear forwards',
-                    WebkitMask: 'radial-gradient(circle at center, transparent 62%, black 62%)',
-                    mask: 'radial-gradient(circle at center, transparent 62%, black 62%)',
-                  }}
-                ></div>
+              {/* Main Circular Image with Thin Navy Blue Border */}
+              <div className="relative w-72 h-72 sm:w-96 sm:h-96 rounded-full overflow-hidden shadow-2xl border-[2px] border-navyBlue" style={{ borderColor: '#1A2A4F' }}>
                 <img
                   src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=800&fit=crop"
                   alt="Students collaborating"
@@ -204,8 +194,8 @@ const HeroSection = () => {
 
               {/* Floating Badge */}
               <div className="absolute -bottom-4 -right-4 bg-white px-6 py-4 rounded-2xl shadow-xl border-2 border-blue-100">
-                <p className="text-sm text-purple-600 opacity-100 font-sans" style={{ color: '#6B7280' }}>Trusted by</p>
-                <p className="text-2xl font-bold text-purple-600 opacity-100 font-sans" style={{ color: '#6B7280' }}>
+                <p className="text-sm text-navyBlueMedium opacity-100 font-sans" style={{ color: '#2A3A6F' }}>Trusted by</p>
+                <p className="text-2xl font-bold text-navyBlue opacity-100 font-sans" style={{ color: '#1A2A4F' }}>
                   50+ Colleges
                 </p>
               </div>
