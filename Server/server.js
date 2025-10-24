@@ -27,9 +27,7 @@ const userSchema = new mongoose.Schema({
   profilePicture: { type: String, default: '' },
   role: { type: String, enum: ['Seller', 'Buyer', 'Both'], default: 'Both' },
   isVerified: { type: Boolean, default: false },
-  isPublic: { type: Boolean, default: true },
   skills: [{ name: String, endorsements: { type: Number, default: 0 } }],
-  portfolio: [{ title: String, description: String, thumbnail: String }],
   orderHistory: [{ title: String, status: String, earnings: Number, date: Date }],
   gigsCompleted: { type: Number, default: 0 },
   totalGigs: { type: Number, default: 0 },
@@ -62,6 +60,12 @@ const pendingUserSchema = new mongoose.Schema({
   password: String,
   college: String,
   role: String,
+  bio: String,
+  socialLinks: {
+    linkedin: String,
+    github: String,
+    instagram: String,
+  },
   isVerified: Boolean,
   otp: String,
   otpExpire: Date,
@@ -78,29 +82,6 @@ const reviewSchema = new mongoose.Schema({
 });
 
 const Review = mongoose.model('Review', reviewSchema);
-
-const gigSchema = new mongoose.Schema({
-  userId: { type: String, ref: 'User', required: true },
-  title: { type: String, required: true },
-  category: { type: String, required: true },
-  price: { type: Number, required: true },
-  createdAt: { type: Date, default: Date.now },
-});
-
-const Gig = mongoose.model('Gig', gigSchema);
-
-const creditSchema = new mongoose.Schema({
-  userId: { type: String, ref: 'User', required: true },
-  balance: { type: Number, default: 0 },
-  earnings: { type: Number, default: 0 },
-  transactions: [{
-    amount: Number,
-    description: String,
-    date: { type: Date, default: Date.now },
-  }],
-});
-
-const Credit = mongoose.model('Credit', creditSchema);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGODB_URI)
@@ -163,7 +144,7 @@ const authMiddleware = async (req, res, next) => {
 // Routes
 // Signup
 app.post('/api/auth/signup', async (req, res) => {
-  const { fullName, email, password, college, role } = req.body;
+  const { fullName, email, password, college, role, bio, socialLinks } = req.body;
   try {
     let user = await User.findOne({ email });
     if (user) return res.status(400).json({ error: 'User already exists' });
@@ -177,6 +158,8 @@ app.post('/api/auth/signup', async (req, res) => {
       password,
       college,
       role: role || 'Both',
+      bio: bio || '',
+      socialLinks: socialLinks || {},
       isVerified: false,
       otp,
       otpExpire: Date.now() + 10 * 60 * 1000, // 10 minutes
@@ -248,26 +231,19 @@ app.post('/api/users/skip-profile', authMiddleware, async (req, res) => {
         password: pendingUser.password,
         college: pendingUser.college,
         role: pendingUser.role,
+        bio: pendingUser.bio,
+        socialLinks: pendingUser.socialLinks,
         isVerified: true,
         profilePicture: '',
         skills: [],
-        portfolio: [],
         orderHistory: [],
         gigsCompleted: 0,
         totalGigs: 0,
         completionRate: 0,
-        socialLinks: {},
       });
       await user.save();
       await PendingUser.deleteOne({ _id: req.userId });
       console.log('User saved to MongoDB (skip):', user._id); // Debug
-    }
-
-    // Initialize credits for new user
-    let credit = await Credit.findOne({ userId: req.userId });
-    if (!credit) {
-      credit = new Credit({ userId: req.userId, balance: 0, earnings: 0, transactions: [] });
-      await credit.save();
     }
 
     res.json({ success: true, message: 'Profile setup complete' });
@@ -304,15 +280,15 @@ app.post('/api/users/upload-profile', authMiddleware, upload.single('image'), as
         password: pendingUser.password,
         college: pendingUser.college,
         role: pendingUser.role,
+        bio: pendingUser.bio,
+        socialLinks: pendingUser.socialLinks,
         isVerified: true,
         profilePicture: result.secure_url,
         skills: [],
-        portfolio: [],
         orderHistory: [],
         gigsCompleted: 0,
         totalGigs: 0,
         completionRate: 0,
-        socialLinks: {},
       });
       await user.save();
       await PendingUser.deleteOne({ _id: req.userId });
@@ -323,47 +299,10 @@ app.post('/api/users/upload-profile', authMiddleware, upload.single('image'), as
       console.log('User profile updated:', user._id); // Debug
     }
 
-    // Initialize credits for new user
-    let credit = await Credit.findOne({ userId: req.userId });
-    if (!credit) {
-      credit = new Credit({ userId: req.userId, balance: 0, earnings: 0, transactions: [] });
-      await credit.save();
-    }
-
     res.json({ success: true, profilePicture: result.secure_url });
   } catch (err) {
     console.log('Upload profile error:', err);
     res.status(500).json({ error: 'Upload failed' });
-  }
-});
-
-// Update profile
-app.put('/api/users/profile', authMiddleware, async (req, res) => {
-  const { fullName, email, college, bio, skills, socialLinks, isPublic } = req.body;
-  try {
-    const user = await User.findOne({ _id: req.userId });
-    if (!user) return res.status(400).json({ error: 'User not found' });
-
-    // Check if email is taken by another user
-    if (email && email !== user.email) {
-      const existingUser = await User.findOne({ email });
-      if (existingUser) return res.status(400).json({ error: 'Email already in use' });
-    }
-
-    user.fullName = fullName || user.fullName;
-    user.email = email || user.email;
-    user.college = college || user.college;
-    user.bio = bio || user.bio;
-    user.skills = skills || user.skills;
-    user.socialLinks = socialLinks || user.socialLinks;
-    user.isPublic = isPublic !== undefined ? isPublic : user.isPublic;
-    user.updatedAt = Date.now();
-    await user.save();
-
-    res.json({ success: true, message: 'Profile updated', user: user.toObject({ getters: true }) });
-  } catch (err) {
-    console.log('Profile update error:', err);
-    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -428,7 +367,7 @@ app.get('/api/reviews', authMiddleware, async (req, res) => {
   }
 });
 
-// Create review (for testing; in production, restrict to clients post-gig)
+// Create review (for testing; restrict to clients in production)
 app.post('/api/reviews', authMiddleware, async (req, res) => {
   const { userId, text, rating, reviewerName } = req.body;
   try {
@@ -446,50 +385,6 @@ app.post('/api/reviews', authMiddleware, async (req, res) => {
   }
 });
 
-// Fetch gigs
-app.get('/api/gigs', authMiddleware, async (req, res) => {
-  try {
-    const gigs = await Gig.find({ userId: req.userId });
-    res.json(gigs);
-  } catch (err) {
-    console.log('Gigs fetch error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Create gig
-app.post('/api/gigs', authMiddleware, async (req, res) => {
-  const { title, category, price } = req.body;
-  try {
-    const gig = new Gig({
-      userId: req.userId,
-      title,
-      category,
-      price,
-    });
-    await gig.save();
-    res.json({ success: true, message: 'Gig created', gig });
-  } catch (err) {
-    console.log('Gig creation error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Fetch credits
-app.get('/api/credits', authMiddleware, async (req, res) => {
-  try {
-    let credit = await Credit.findOne({ userId: req.userId });
-    if (!credit) {
-      credit = new Credit({ userId: req.userId, balance: 0, earnings: 0, transactions: [] });
-      await credit.save();
-    }
-    res.json(credit);
-  } catch (err) {
-    console.log('Credits fetch error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
 // Endorse skill
 app.post('/api/users/endorse', authMiddleware, async (req, res) => {
   try {
@@ -503,28 +398,6 @@ app.post('/api/users/endorse', authMiddleware, async (req, res) => {
     res.json({ success: true, message: 'Skill endorsed' });
   } catch (err) {
     console.log('Skill endorsement error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Upload portfolio item
-app.post('/api/users/portfolio', authMiddleware, upload.single('thumbnail'), async (req, res) => {
-  try {
-    const { title, description } = req.body;
-    const result = await new Promise((resolve, reject) => {
-      cloudinary.uploader.upload_stream({ folder: 'gigconnect/portfolio' }, (error, result) => {
-        if (error) reject(error);
-        else resolve(result);
-      }).end(req.file.buffer);
-    });
-
-    const user = await User.findOne({ _id: req.userId });
-    if (!user) return res.status(400).json({ error: 'User not found' });
-    user.portfolio.push({ title, description, thumbnail: result.secure_url });
-    await user.save();
-    res.json({ success: true, message: 'Portfolio item added', thumbnail: result.secure_url });
-  } catch (err) {
-    console.log('Portfolio upload error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
