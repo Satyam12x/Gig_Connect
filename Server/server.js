@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(
   cors({
-    origin: ["http://localhost:5173"],
+    origin: ["http://localhost:3000", "http://localhost:5173"],
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     credentials: true,
   })
@@ -27,7 +27,7 @@ app.use(express.json());
 // Rate limiter for application and ticket submissions
 const applyLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit to 10 requests per user per window
+  max: 10,
   message: "Too many requests, please try again later.",
   keyGenerator: (req) => req.userId || req.ip,
 });
@@ -160,7 +160,6 @@ const ticketSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
-// Add indexes for faster queries
 applicationSchema.index({ gigId: 1 });
 applicationSchema.index({ applicantId: 1 });
 ticketSchema.index({ gigId: 1 });
@@ -205,7 +204,7 @@ try {
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const filetypes = /jpeg|jpg|png/;
     const mimetype = filetypes.test(file.mimetype);
@@ -271,6 +270,7 @@ const checkGigOwner = async (req, res, next) => {
         .status(403)
         .json({ error: "Only the gig owner can perform this action" });
     }
+    req.gig = gig;
     next();
   } catch (err) {
     console.error("Gig owner check error:", err);
@@ -848,11 +848,9 @@ app.post(
   async (req, res) => {
     const { title, description, category, price } = req.body;
     if (!title || !description || !category || !price) {
-      return res
-        .status(400)
-        .json({
-          error: "Title, description, category, and price are required",
-        });
+      return res.status(400).json({
+        error: "Title, description, category, and price are required",
+      });
     }
     try {
       const user = await User.findOne({ _id: req.userId });
@@ -860,18 +858,15 @@ app.post(
       if (!user.isVerified)
         return res.status(400).json({ error: "User not verified" });
 
-      // Input validation
       if (title.length < 5 || title.length > 100) {
         return res
           .status(400)
           .json({ error: "Title must be between 5 and 100 characters" });
       }
       if (description.length < 20 || description.length > 1000) {
-        return res
-          .status(400)
-          .json({
-            error: "Description must be between 20 and 1000 characters",
-          });
+        return res.status(400).json({
+          error: "Description must be between 20 and 1000 characters",
+        });
       }
       if (isNaN(price) || price <= 0) {
         return res
@@ -908,7 +903,6 @@ app.post(
         status: "open",
       });
 
-      // Update user's totalGigs
       user.totalGigs = (user.totalGigs || 0) + 1;
       await user.save();
 
@@ -921,7 +915,7 @@ app.post(
   }
 );
 
-// Get All Gigs (with category filter, search, and pagination)
+// Get All Gigs
 app.get("/api/gigs", async (req, res) => {
   try {
     const { category, search, page = 1, limit = 10 } = req.query;
@@ -1028,7 +1022,6 @@ app.put(
       const gig = await Gig.findOne({ _id: req.params.id });
       if (!gig) return res.status(404).json({ error: "Gig not found" });
 
-      // Input validation
       if (title && (title.length < 5 || title.length > 100)) {
         return res
           .status(400)
@@ -1038,11 +1031,9 @@ app.put(
         description &&
         (description.length < 20 || description.length > 1000)
       ) {
-        return res
-          .status(400)
-          .json({
-            error: "Description must be between 20 and 1000 characters",
-          });
+        return res.status(400).json({
+          error: "Description must be between 20 and 1000 characters",
+        });
       }
       if (price && (isNaN(price) || price <= 0)) {
         return res
@@ -1099,7 +1090,6 @@ app.delete(
 
       await Gig.deleteOne({ _id: req.params.id });
 
-      // Update user's totalGigs
       const user = await User.findOne({ _id: req.userId });
       if (user) {
         user.totalGigs = Math.max(0, (user.totalGigs || 0) - 1);
@@ -1155,7 +1145,9 @@ app.post(
           userId: req.userId,
           gigId: req.params.id,
         });
-        return res.status(400).json({ error: "You cannot apply to your own gig" });
+        return res
+          .status(400)
+          .json({ error: "You cannot apply to your own gig" });
       }
 
       const existingApplication = await Application.findOne({
@@ -1183,7 +1175,6 @@ app.post(
       });
       await application.save();
 
-      // Create ticket
       const ticketId = crypto.randomBytes(16).toString("hex");
       const ticket = new Ticket({
         _id: ticketId,
@@ -1202,14 +1193,13 @@ app.post(
       });
       await ticket.save();
 
-      // Notify seller
       const seller = await User.findOne({ _id: gig.sellerId });
       if (seller) {
         const mailOptions = {
           from: process.env.EMAIL_USER,
           to: seller.email,
           subject: "New Application and Ticket for Your Gig",
-          html: `<p>Dear ${seller.fullName},</p><p>${req.user.fullName} has applied to your gig "${gig.title}". A ticket has been created for negotiation.</p><p>View the ticket at Gig Connect: /tickets/${ticketId}</p>`,
+          html: `<p>Dear ${seller.fullName},</p><p>${req.user.fullName} has applied to your gig "${gig.title}". A ticket has been created for negotiation.</p><p>View the ticket at: /tickets/${ticketId}</p>`,
         };
         await transporter.sendMail(mailOptions);
       }
@@ -1325,7 +1315,6 @@ app.patch(
       application.status = status;
       await application.save();
 
-      // Update ticket status if accepted
       if (status === "accepted") {
         const ticket = await Ticket.findOne({
           gigId: req.params.id,
@@ -1337,12 +1326,11 @@ app.patch(
         }
       }
 
-      // Update user's orderHistory and stats if accepted
-      if (status === "accepted") {
-        const gig = await Gig.findOne({ _id: req.params.id });
-        const seller = await User.findOne({ _id: gig.sellerId });
-        const buyer = await User.findOne({ _id: application.applicantId });
-        if (seller && buyer) {
+      const gig = await Gig.findOne({ _id: req.params.id });
+      const seller = await User.findOne({ _id: gig.sellerId });
+      const buyer = await User.findOne({ _id: application.applicantId });
+      if (seller && buyer) {
+        if (status === "accepted") {
           seller.orderHistory.push({
             title: gig.title,
             status: "completed",
@@ -1363,7 +1351,6 @@ app.patch(
           });
           await buyer.save();
 
-          // Notify buyer
           const mailOptions = {
             from: process.env.EMAIL_USER,
             to: buyer.email,
@@ -1371,11 +1358,7 @@ app.patch(
             html: `<p>Dear ${buyer.fullName},</p><p>Your application for "${gig.title}" has been accepted by ${seller.fullName}.</p><p>Continue negotiation in your ticket: /tickets/${ticket._id}</p>`,
           };
           await transporter.sendMail(mailOptions);
-        }
-      } else if (status === "rejected") {
-        const buyer = await User.findOne({ _id: application.applicantId });
-        const gig = await Gig.findOne({ _id: req.params.id });
-        if (buyer && gig) {
+        } else if (status === "rejected") {
           const mailOptions = {
             from: process.env.EMAIL_USER,
             to: buyer.email,
@@ -1451,23 +1434,28 @@ app.get("/api/users/:id/tickets", async (req, res) => {
 });
 
 // Get Ticket by ID
-app.get("/api/tickets/:id", authMiddleware, checkTicketParticipant, async (req, res) => {
-  try {
-    const ticket = await Ticket.findOne({ _id: req.params.id })
-      .populate("gigId", "title price")
-      .populate("sellerId", "fullName email")
-      .populate("buyerId", "fullName email");
-    if (!ticket) {
-      console.error("Ticket not found for ID:", req.params.id);
-      return res.status(404).json({ error: "Ticket not found" });
+app.get(
+  "/api/tickets/:id",
+  authMiddleware,
+  checkTicketParticipant,
+  async (req, res) => {
+    try {
+      const ticket = await Ticket.findOne({ _id: req.params.id })
+        .populate("gigId", "title price")
+        .populate("sellerId", "fullName email")
+        .populate("buyerId", "fullName email");
+      if (!ticket) {
+        console.error("Ticket not found for ID:", req.params.id);
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+      console.log("Fetched ticket:", { id: ticket._id, gigId: ticket.gigId });
+      res.json(ticket);
+    } catch (err) {
+      console.error("Get ticket error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
     }
-    console.log("Fetched ticket:", { id: ticket._id, gigId: ticket.gigId });
-    res.json(ticket);
-  } catch (err) {
-    console.error("Get ticket error:", err);
-    res.status(500).json({ error: "Server error", details: err.message });
   }
-});
+);
 
 // Send Message in Ticket
 app.post(
@@ -1497,8 +1485,8 @@ app.post(
       }
       await ticket.save();
 
-      // Notify the other participant
-      const recipientId = ticket.sellerId === req.userId ? ticket.buyerId : ticket.sellerId;
+      const recipientId =
+        ticket.sellerId === req.userId ? ticket.buyerId : ticket.sellerId;
       const recipient = await User.findOne({ _id: recipientId });
       if (recipient) {
         const mailOptions = {
@@ -1544,8 +1532,8 @@ app.patch(
       ticket.status = "accepted";
       await ticket.save();
 
-      // Notify both participants
-      const otherUserId = ticket.sellerId === req.userId ? ticket.buyerId : ticket.sellerId;
+      const otherUserId =
+        ticket.sellerId === req.userId ? ticket.buyerId : ticket.sellerId;
       const otherUser = await User.findOne({ _id: otherUserId });
       if (otherUser) {
         const mailOptions = {
@@ -1580,7 +1568,9 @@ app.patch(
       if (ticket.status !== "accepted") {
         return res
           .status(400)
-          .json({ error: "Ticket must be in accepted status to confirm payment" });
+          .json({
+            error: "Ticket must be in accepted status to confirm payment",
+          });
       }
       if (req.userId !== ticket.buyerId) {
         return res
@@ -1591,7 +1581,6 @@ app.patch(
       ticket.status = "paid";
       await ticket.save();
 
-      // Update order history
       const gig = await Gig.findOne({ _id: ticket.gigId });
       const seller = await User.findOne({ _id: ticket.sellerId });
       const buyer = await User.findOne({ _id: ticket.buyerId });
@@ -1616,12 +1605,15 @@ app.patch(
         });
         await buyer.save();
 
-        // Notify seller
         const mailOptions = {
           from: process.env.EMAIL_USER,
           to: seller.email,
           subject: `Payment Confirmed for Gig "${gig.title}"`,
-          html: `<p>Dear ${seller.fullName},</p><p>${buyer.fullName} has confirmed payment for "${gig.title}". Amount: $${ticket.agreedPrice || gig.price}.</p><p>View details at: /tickets/${ticket._id}</p>`,
+          html: `<p>Dear ${seller.fullName},</p><p>${
+            buyer.fullName
+          } has confirmed payment for "${gig.title}". Amount: $${
+            ticket.agreedPrice || gig.price
+          }.</p><p>View details at: /tickets/${ticket._id}</p>`,
         };
         await transporter.sendMail(mailOptions);
       }
