@@ -18,6 +18,7 @@ const Gigs = () => {
   const [userId, setUserId] = useState(null);
   const [role, setRole] = useState(null);
   const [applicants, setApplicants] = useState({});
+  const [isApplying, setIsApplying] = useState({}); // Track applying state per gig
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -73,7 +74,13 @@ const Gigs = () => {
         setGigs(gigsResponse.data.gigs || []);
         setTotalPages(gigsResponse.data.pages || 1);
         setCategories(categoriesResponse.data.categories || []);
-        setUserApplications(applicationsResponse.data || []);
+        setUserApplications(
+          applicationsResponse.data.map((app) => ({
+            gigId: app.gigId._id,
+            status: app.status,
+            _id: app._id,
+          })) || []
+        );
 
         if (userId) {
           const applicantRequests = gigs
@@ -110,6 +117,7 @@ const Gigs = () => {
       return;
     }
 
+    setIsApplying((prev) => ({ ...prev, [gigId]: true }));
     try {
       const response = await axios.post(
         `${API_BASE}/gigs/${gigId}/apply`,
@@ -119,13 +127,18 @@ const Gigs = () => {
         }
       );
       toast.success("Application submitted! Redirecting to ticket...");
-      setUserApplications([...userApplications, { gigId, status: "pending" }]);
+      setUserApplications([
+        ...userApplications,
+        { gigId, status: "pending", _id: response.data.application._id },
+      ]);
       navigate(`/tickets/${response.data.ticketId}`);
     } catch (error) {
       console.error("Error applying for gig:", error);
       const errorMsg =
         error.response?.data?.error || "Failed to apply for gig.";
       toast.error(errorMsg);
+    } finally {
+      setIsApplying((prev) => ({ ...prev, [gigId]: false }));
     }
   };
 
@@ -145,6 +158,24 @@ const Gigs = () => {
           app._id === applicationId ? { ...app, status } : app
         ),
       }));
+      // Refresh user applications if the user is viewing their own applications
+      if (userId) {
+        const applicationsResponse = await axios.get(
+          `${API_BASE}/users/${userId}/applications`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+          }
+        );
+        setUserApplications(
+          applicationsResponse.data.map((app) => ({
+            gigId: app.gigId._id,
+            status: app.status,
+            _id: app._id,
+          })) || []
+        );
+      }
     } catch (error) {
       console.error("Error updating application status:", error);
       toast.error(
@@ -192,13 +223,13 @@ const Gigs = () => {
             placeholder="Search gigs..."
             value={searchTerm}
             onChange={handleSearchChange}
-            className="w-full pl-10 p-2 border rounded-md"
+            className="w-full pl-10 p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <select
           value={selectedCategory}
           onChange={handleCategoryChange}
-          className="p-2 border rounded-md"
+          className="p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All Categories</option>
           {categories.map((category) => (
@@ -217,10 +248,13 @@ const Gigs = () => {
             const userApplication = userApplications.find(
               (app) => app.gigId === gig._id
             );
+            const isClosed = gig.status !== "open";
             return (
               <div
                 key={gig._id}
-                className="border rounded-lg p-4 shadow-md hover:shadow-lg"
+                className={`border rounded-lg p-4 shadow-md hover:shadow-lg ${
+                  isClosed ? "opacity-75 bg-gray-100" : ""
+                }`}
               >
                 {gig.thumbnail && (
                   <img
@@ -242,6 +276,9 @@ const Gigs = () => {
                   })}
                 </p>
                 <p className="text-gray-500">Seller: {gig.sellerName}</p>
+                {isClosed && (
+                  <p className="text-red-500 font-semibold mt-2">Gig Closed</p>
+                )}
                 <div className="mt-4">
                   {gig.sellerId === userId ? (
                     <div>
@@ -258,7 +295,19 @@ const Gigs = () => {
                             <div key={app._id} className="border-t pt-2 mt-2">
                               <div className="flex items-center justify-between">
                                 <p>
-                                  {app.applicantName} - {app.status}
+                                  {app.applicantName} -{" "}
+                                  <span
+                                    className={`${
+                                      app.status === "pending"
+                                        ? "text-yellow-500"
+                                        : app.status === "accepted"
+                                        ? "text-green-500"
+                                        : "text-red-500"
+                                    }`}
+                                  >
+                                    {app.status.charAt(0).toUpperCase() +
+                                      app.status.slice(1)}
+                                  </span>
                                 </p>
                                 <button
                                   onClick={() =>
@@ -306,7 +355,7 @@ const Gigs = () => {
                       )}
                     </div>
                   ) : (
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center">
                       <button
                         onClick={() => navigate(`/gigs/${gig._id}`)}
                         className="text-blue-500 hover:underline"
@@ -315,11 +364,20 @@ const Gigs = () => {
                       </button>
                       {userApplication ? (
                         <span
-                          className={`text-${
+                          className={`font-semibold px-4 py-2 rounded-md ${
                             userApplication.status === "pending"
-                              ? "yellow"
-                              : "green"
-                          }-500`}
+                              ? "text-yellow-600 bg-yellow-100"
+                              : userApplication.status === "accepted"
+                              ? "text-green-600 bg-green-100"
+                              : "text-red-600 bg-red-100"
+                          }`}
+                          title={
+                            userApplication.status === "pending"
+                              ? "Your application is pending review"
+                              : userApplication.status === "accepted"
+                              ? "Your application has been accepted"
+                              : "Your application was rejected"
+                          }
                         >
                           {userApplication.status.charAt(0).toUpperCase() +
                             userApplication.status.slice(1)}
@@ -327,10 +385,14 @@ const Gigs = () => {
                       ) : (
                         <button
                           onClick={() => handleApply(gig._id)}
-                          className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
-                          disabled={gig.status !== "open"}
+                          className={`px-4 py-2 rounded-md ${
+                            isClosed || isApplying[gig._id]
+                              ? "bg-gray-400 cursor-not-allowed"
+                              : "bg-blue-500 hover:bg-blue-600"
+                          } text-white`}
+                          disabled={isClosed || isApplying[gig._id]}
                         >
-                          Apply
+                          {isApplying[gig._id] ? "Applying..." : "Apply"}
                         </button>
                       )}
                     </div>
@@ -346,7 +408,7 @@ const Gigs = () => {
         <button
           onClick={() => handlePageChange(page - 1)}
           disabled={page === 1}
-          className="px-4 py-2 border rounded-md disabled:opacity-50"
+          className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Previous
         </button>
@@ -356,7 +418,7 @@ const Gigs = () => {
         <button
           onClick={() => handlePageChange(page + 1)}
           disabled={page === totalPages}
-          className="px-4 py-2 border rounded-md disabled:opacity-50"
+          className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Next
         </button>

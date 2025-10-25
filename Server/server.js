@@ -52,7 +52,7 @@ const userSchema = new mongoose.Schema(
     gigsCompleted: { type: Number, default: 0 },
     totalGigs: { type: Number, default: 0 },
     completionRate: { type: Number, default: 0 },
-    credits: { type: Number, default: 0, min: 0 }, // New credits field
+    credits: { type: Number, default: 0, min: 0 },
     socialLinks: {
       linkedin: String,
       github: String,
@@ -267,9 +267,12 @@ const checkGigOwner = async (req, res, next) => {
     const gig = await Gig.findOne({ _id: req.params.id });
     if (!gig) return res.status(404).json({ error: "Gig not found" });
     if (gig.sellerId !== req.userId) {
-      return res
-        .status(403)
-        .json({ error: "Only the gig owner can perform this action" });
+      return (
+        res -
+        oxo
+          .status(403)
+          .json({ error: "Only the gig owner can perform this action" })
+      );
     }
     req.gig = gig;
     next();
@@ -1091,6 +1094,28 @@ app.delete(
       const gig = await Gig.findOne({ _id: req.params.id });
       if (!gig) return res.status(404).json({ error: "Gig not found" });
 
+      // Reject all pending applications
+      const applications = await Application.find({
+        gigId: req.params.id,
+        status: "pending",
+      });
+      for (const app of applications) {
+        app.status = "rejected";
+        await app.save();
+        const applicant = await User.findOne({ _id: app.applicantId });
+        if (applicant) {
+          const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: applicant.email,
+            subject: `Application Update for Gig "${gig.title}"`,
+            html: `<p>Dear ${applicant.fullName},</p><p>The gig "${gig.title}" has been deleted, and your application has been rejected.</p><p>Explore other gigs on Gig Connect.</p>`,
+          };
+          await transporter.sendMail(mailOptions).catch((err) => {
+            console.error("Failed to send rejection email:", err);
+          });
+        }
+      }
+
       await Gig.deleteOne({ _id: req.params.id });
 
       const user = await User.findOne({ _id: req.userId });
@@ -1132,17 +1157,27 @@ app.post(
   applyLimiter,
   async (req, res) => {
     try {
+      // Validate gig ID
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        console.error("Invalid gig ID:", req.params.id);
+        return res.status(400).json({ error: "Invalid gig ID" });
+      }
+
       const gig = await Gig.findOne({ _id: req.params.id });
       if (!gig) {
         console.error("Gig not found for ID:", req.params.id);
         return res.status(404).json({ error: "Gig not found" });
       }
+
+      // Check if gig is closed
       if (gig.status === "closed") {
         console.error("Attempted to apply to closed gig:", req.params.id);
         return res
           .status(400)
           .json({ error: "This gig is closed for applications" });
       }
+
+      // Prevent self-application
       if (gig.sellerId === req.userId) {
         console.error("User attempted to apply to own gig:", {
           userId: req.userId,
@@ -1153,6 +1188,7 @@ app.post(
           .json({ error: "You cannot apply to your own gig" });
       }
 
+      // Check for existing application
       const existingApplication = await Application.findOne({
         gigId: req.params.id,
         applicantId: req.userId,
@@ -1161,23 +1197,58 @@ app.post(
         console.error("Duplicate application attempt:", {
           userId: req.userId,
           gigId: req.params.id,
+          applicationId: existingApplication._id,
+          status: existingApplication.status,
         });
         return res
           .status(400)
           .json({ error: "You have already applied to this gig" });
       }
 
+      // Validate cover letter (if provided)
+      const { coverLetter } = req.body;
+      if (
+        coverLetter &&
+        (coverLetter.length < 10 || coverLetter.length > 1000)
+      ) {
+        console.error("Invalid cover letter length:", {
+          userId: req.userId,
+          gigId: req.params.id,
+          length: coverLetter.length,
+        });
+        return res
+          .status(400)
+          .json({
+            error: "Cover letter must be between 10 and 1000 characters",
+          });
+      }
+
+      // Check user verification
+      const user = await User.findOne({ _id: req.userId });
+      if (!user) {
+        console.error("User not found:", req.userId);
+        return res.status(400).json({ error: "User not found" });
+      }
+      if (!user.isVerified) {
+        console.error("Unverified user attempted to apply:", req.userId);
+        return res
+          .status(400)
+          .json({ error: "Please verify your email first" });
+      }
+
+      // Create application
       const applicationId = crypto.randomBytes(16).toString("hex");
       const application = new Application({
         _id: applicationId,
         gigId: req.params.id,
         applicantId: req.userId,
         applicantName: req.user.fullName,
-        coverLetter: req.body.coverLetter || "",
+        coverLetter: coverLetter || "",
         status: "pending",
       });
       await application.save();
 
+      // Create ticket
       const ticketId = crypto.randomBytes(16).toString("hex");
       const ticket = new Ticket({
         _id: ticketId,
@@ -1196,15 +1267,24 @@ app.post(
       });
       await ticket.save();
 
+      // Notify seller
       const seller = await User.findOne({ _id: gig.sellerId });
       if (seller) {
         const mailOptions = {
           from: process.env.EMAIL_USER,
           to: seller.email,
-          subject: "New Application and Ticket for Your Gig",
-          html: `<p>Dear ${seller.fullName},</p><p>${req.user.fullName} has applied to your gig "${gig.title}". A ticket has been created for negotiation.</p><p>View the ticket at: /tickets/${ticketId}</p>`,
+          subject: `New Application for "${gig.title}"`,
+          html: `<p>Dear ${seller.fullName},</p><p>${
+            req.user.fullName
+          } has applied to your gig "${
+            gig.title
+          }" with the following cover letter:</p><p>"${
+            coverLetter || "No cover letter provided"
+          }"</p><p>View the application and discuss at: /tickets/${ticketId}</p>`,
         };
-        await transporter.sendMail(mailOptions);
+        await transporter.sendMail(mailOptions).catch((err) => {
+          console.error("Failed to send application email:", err);
+        });
       }
 
       console.log("Application and ticket created:", {
@@ -1212,10 +1292,15 @@ app.post(
         ticketId,
         gigId: req.params.id,
         applicantId: req.userId,
+        coverLetter: coverLetter || "None",
       });
       res.status(201).json({ success: true, application, ticketId });
     } catch (err) {
-      console.error("Application submission error:", err);
+      console.error("Application submission error:", {
+        error: err.message,
+        userId: req.userId,
+        gigId: req.params.id,
+      });
       res.status(500).json({ error: "Server error", details: err.message });
     }
   }
@@ -1238,6 +1323,7 @@ app.get(
           applicantId: app.applicantId._id,
           applicantName: app.applicantName,
           status: app.status,
+          coverLetter: app.coverLetter || "None",
         })),
       });
       res.json(applications);
@@ -1283,11 +1369,17 @@ app.get("/api/users/:id/applications", async (req, res) => {
     }
 
     const applications = await Application.find({ applicantId: req.params.id })
-      .populate("gigId", "title category")
+      .populate("gigId", "title category price status")
       .sort({ createdAt: -1 });
     console.log("Fetched user applications:", {
       userId: req.params.id,
       count: applications.length,
+      applications: applications.map((app) => ({
+        gigId: app.gigId._id,
+        title: app.gigId.title,
+        status: app.status,
+        coverLetter: app.coverLetter || "None",
+      })),
     });
     res.json(applications);
   } catch (err) {
@@ -1319,6 +1411,18 @@ app.patch(
           .status(400)
           .json({ error: "Application does not belong to this gig" });
       }
+      if (application.status !== "pending") {
+        console.error("Attempt to update non-pending application:", {
+          applicationId: req.params.applicationId,
+          currentStatus: application.status,
+        });
+        return res.status(400).json({
+          error: `Application is already ${application.status}`,
+        });
+      }
+
+      const gig = await Gig.findOne({ _id: req.params.id });
+      if (!gig) return res.status(404).json({ error: "Gig not found" });
 
       application.status = status;
       await application.save();
@@ -1331,30 +1435,39 @@ app.patch(
         if (ticket) {
           ticket.status = "accepted";
           await ticket.save();
+          console.log("Ticket updated to accepted:", {
+            ticketId: ticket._id,
+            gigId: req.params.id,
+            buyerId: application.applicantId,
+          });
+        } else {
+          console.error("Ticket not found for accepted application:", {
+            gigId: req.params.id,
+            buyerId: application.applicantId,
+          });
         }
       }
 
-      const gig = await Gig.findOne({ _id: req.params.id });
       const seller = await User.findOne({ _id: gig.sellerId });
       const buyer = await User.findOne({ _id: application.applicantId });
       if (seller && buyer) {
-        if (status === "accepted") {
-          const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: buyer.email,
-            subject: "Your Application Was Accepted",
-            html: `<p>Dear ${buyer.fullName},</p><p>Your application for "${gig.title}" has been accepted by ${seller.fullName}.</p><p>Continue negotiation in your ticket: /tickets/${ticket._id}</p>`,
-          };
-          await transporter.sendMail(mailOptions);
-        } else if (status === "rejected") {
-          const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: buyer.email,
-            subject: "Your Application Status",
-            html: `<p>Dear ${buyer.fullName},</p><p>Your application for "${gig.title}" was not accepted.</p><p>Explore other gigs on Gig Connect.</p>`,
-          };
-          await transporter.sendMail(mailOptions);
-        }
+        const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: buyer.email,
+          subject: `Your Application for "${gig.title}" Was ${
+            status.charAt(0).toUpperCase() + status.slice(1)
+          }`,
+          html: `<p>Dear ${buyer.fullName},</p><p>Your application for "${
+            gig.title
+          }" has been ${status} by ${seller.fullName}.</p>${
+            status === "accepted"
+              ? `<p>Continue negotiation in your ticket: /tickets/${ticket._id}</p>`
+              : "<p>Explore other gigs on Gig Connect.</p>"
+          }`,
+        };
+        await transporter.sendMail(mailOptions).catch((err) => {
+          console.error("Failed to send application status email:", err);
+        });
       }
 
       console.log("Application status updated:", {
@@ -1458,6 +1571,11 @@ app.post(
     if (!content) {
       return res.status(400).json({ error: "Message content is required" });
     }
+    if (content.length < 1 || content.length > 1000) {
+      return res
+        .status(400)
+        .json({ error: "Message must be between 1 and 1000 characters" });
+    }
     try {
       const ticket = req.ticket;
       if (ticket.status === "closed") {
@@ -1485,12 +1603,15 @@ app.post(
           subject: `New Message in Ticket for Gig "${ticket.gigId.title}"`,
           html: `<p>Dear ${recipient.fullName},</p><p>You have a new message from ${req.user.fullName} in ticket for "${ticket.gigId.title}":</p><p>"${content}"</p><p>View the ticket at: /tickets/${ticket._id}</p>`,
         };
-        await transporter.sendMail(mailOptions);
+        await transporter.sendMail(mailOptions).catch((err) => {
+          console.error("Failed to send message notification email:", err);
+        });
       }
 
       console.log("Message sent in ticket:", {
         ticketId: req.params.id,
         senderId: req.userId,
+        contentLength: content.length,
       });
       res.json({ success: true, ticket });
     } catch (err) {
@@ -1538,7 +1659,9 @@ app.patch(
             ticket.gigId.title
           }".</p><p>Accept or negotiate at: /tickets/${ticket._id}</p>`,
         };
-        await transporter.sendMail(mailOptions);
+        await transporter.sendMail(mailOptions).catch((err) => {
+          console.error("Failed to send price proposal email:", err);
+        });
       }
 
       console.log("Ticket price proposed:", {
@@ -1590,9 +1713,13 @@ app.patch(
             "en-IN"
           )} for "${
             ticket.gigId.title
-          }".</p><p>Proceed to confirm payment at: /tickets/${ticket._id}</p>`,
+          }".</p><p>Please wait for payment confirmation at: /tickets/${
+            ticket._id
+          }</p>`,
         };
-        await transporter.sendMail(mailOptions);
+        await transporter.sendMail(mailOptions).catch((err) => {
+          console.error("Failed to send price acceptance email:", err);
+        });
       }
 
       console.log("Ticket price accepted:", {
@@ -1607,7 +1734,6 @@ app.patch(
   }
 );
 
-// Confirm Payment
 // Confirm Payment
 app.patch(
   "/api/tickets/:id/pay",
@@ -1630,9 +1756,45 @@ app.patch(
       ticket.status = "paid";
       await ticket.save();
 
+      // Close applications for the associated gig
+      const gig = await Gig.findOne({ _id: ticket.gigId });
+      if (gig) {
+        gig.status = "closed";
+        await gig.save();
+        console.log("Gig applications closed:", {
+          gigId: gig._id,
+          title: gig.title,
+        });
+
+        // Reject all pending applications except the accepted one
+        const applications = await Application.find({
+          gigId: ticket.gigId,
+          status: "pending",
+        });
+        for (const app of applications) {
+          app.status = "rejected";
+          await app.save();
+          const applicant = await User.findOne({ _id: app.applicantId });
+          if (applicant) {
+            const mailOptions = {
+              from: process.env.EMAIL_USER,
+              to: applicant.email,
+              subject: `Application Update for Gig "${gig.title}"`,
+              html: `<p>Dear ${applicant.fullName},</p><p>The gig "${gig.title}" has been closed as payment has been confirmed, and your application has been rejected.</p><p>Explore other gigs on Gig Connect.</p>`,
+            };
+            await transporter.sendMail(mailOptions).catch((err) => {
+              console.error("Failed to send rejection email:", err);
+            });
+          }
+        }
+        console.log("Rejected pending applications:", {
+          gigId: ticket.gigId,
+          count: applications.length,
+        });
+      }
+
       const seller = await User.findOne({ _id: ticket.sellerId });
       if (seller) {
-        const gig = await Gig.findOne({ _id: ticket.gigId });
         const mailOptions = {
           from: process.env.EMAIL_USER,
           to: seller.email,
@@ -1647,11 +1809,14 @@ app.patch(
             ticket._id
           }</p>`,
         };
-        await transporter.sendMail(mailOptions);
+        await transporter.sendMail(mailOptions).catch((err) => {
+          console.error("Failed to send payment confirmation email:", err);
+        });
       }
 
       console.log("Payment confirmed for ticket:", {
         ticketId: req.params.id,
+        agreedPrice: ticket.agreedPrice || gig.price,
       });
       res.json({ success: true, ticket });
     } catch (err) {
@@ -1688,10 +1853,12 @@ app.patch(
         const mailOptions = {
           from: process.env.EMAIL_USER,
           to: seller.email,
-          subject: `Work Completed for Gig "${ticket.gigId.title}"`,
+          subject: `Work Marked as Completed for Gig "${ticket.gigId.title}"`,
           html: `<p>Dear ${seller.fullName},</p><p>${req.user.fullName} has marked the work as completed for "${ticket.gigId.title}".</p><p>Please confirm completion at: /tickets/${ticket._id}</p>`,
         };
-        await transporter.sendMail(mailOptions);
+        await transporter.sendMail(mailOptions).catch((err) => {
+          console.error("Failed to send completion email:", err);
+        });
       }
 
       console.log("Work marked as completed for ticket:", {
@@ -1777,7 +1944,9 @@ app.patch(
             currency: "INR",
           })} in credits.</p><p>View details at: /tickets/${ticket._id}</p>`,
         };
-        await transporter.sendMail(mailOptions);
+        await transporter.sendMail(mailOptions).catch((err) => {
+          console.error("Failed to send completion confirmation email:", err);
+        });
       }
 
       console.log("Completion confirmed for ticket:", {

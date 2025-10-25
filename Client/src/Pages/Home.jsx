@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -31,9 +32,10 @@ const HeroSection = ({ userRole }) => {
     }
   };
 
-  const message = userRole === "Seller" 
-    ? "Showcase your skills and start earning with gigs!"
-    : userRole === "Buyer" 
+  const message =
+    userRole === "Seller"
+      ? "Showcase your skills and start earning with gigs!"
+      : userRole === "Buyer"
       ? "Hire talented students for your projects!"
       : "Discover or offer services in your campus community!";
 
@@ -275,6 +277,15 @@ const FeaturedGigsSection = ({ userId }) => {
             community.
           </p>
         </div>
+        {error && (
+          <div
+            className="text-center text-red-500 font-sans flex items-center justify-center gap-2 mb-6"
+            style={{ color: "#DC2626" }}
+          >
+            <AlertTriangle size={20} />
+            {error}
+          </div>
+        )}
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {[...Array(4)].map((_, index) => (
@@ -291,7 +302,10 @@ const FeaturedGigsSection = ({ userId }) => {
                 <div className="h-4 bg-gray-200 rounded mb-2"></div>
                 <div className="flex justify-center mb-2">
                   {[...Array(5)].map((_, i) => (
-                    <div key={i} className="w-4 h-4 bg-gray-200 rounded-full mx-1"></div>
+                    <div
+                      key={i}
+                      className="w-4 h-4 bg-gray-200 rounded-full mx-1"
+                    ></div>
                   ))}
                 </div>
                 <div className="h-4 bg-gray-200 rounded mb-2"></div>
@@ -299,13 +313,6 @@ const FeaturedGigsSection = ({ userId }) => {
                 <div className="h-10 bg-gray-200 rounded-lg"></div>
               </div>
             ))}
-          </div>
-        ) : error ? (
-          <div
-            className="text-center text-red-500 font-sans"
-            style={{ color: "#DC2626" }}
-          >
-            {error}
           </div>
         ) : gigs.length === 0 ? (
           <div
@@ -317,11 +324,17 @@ const FeaturedGigsSection = ({ userId }) => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {gigs.map((gig) => {
-              const status = getApplicationStatus(gig._id);
+              const applicationStatus = getApplicationStatus(gig._id);
+              const isClosed = gig.status === "closed";
+              const hasApplied = !!applicationStatus; // True if application exists (pending, accepted, or rejected)
               return (
                 <div
                   key={gig._id}
-                  className="bg-white bg-opacity-70 backdrop-blur-lg p-6 rounded-2xl shadow-lg border border-blue-100 hover:bg-blue-50 hover:border-navyBlueLight transition-colors duration-300 text-center"
+                  className={`bg-white bg-opacity-70 backdrop-blur-lg p-6 rounded-2xl shadow-lg border border-blue-100 transition-colors duration-300 text-center ${
+                    isClosed || hasApplied
+                      ? "opacity-70"
+                      : "hover:bg-blue-50 hover:border-navyBlueLight"
+                  }`}
                   style={{
                     clipPath:
                       "polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)",
@@ -382,22 +395,24 @@ const FeaturedGigsSection = ({ userId }) => {
                     From ${gig.price}
                   </p>
                   <p
-                    className="text-navyBlueMedium mb-2 font-sans"
-                    style={{ color: "#2A3A6F" }}
+                    className={`text-navyBlueMedium mb-2 font-sans font-semibold ${
+                      isClosed ? "text-red-600" : ""
+                    }`}
+                    style={{ color: isClosed ? "#DC2626" : "#2A3A6F" }}
                   >
                     Status: {gig.status.charAt(0).toUpperCase() + gig.status.slice(1)}
                   </p>
-                  {status && (
+                  {hasApplied && (
                     <p
                       className={`text-sm font-semibold mb-2 font-sans ${
-                        status === "accepted"
+                        applicationStatus === "accepted"
                           ? "text-green-600"
-                          : status === "rejected"
+                          : applicationStatus === "rejected"
                           ? "text-red-600"
                           : "text-yellow-600"
                       }`}
                     >
-                      Application: {status.charAt(0).toUpperCase() + status.slice(1)}
+                      Application: {applicationStatus.charAt(0).toUpperCase() + applicationStatus.slice(1)}
                     </p>
                   )}
                   <p
@@ -412,14 +427,30 @@ const FeaturedGigsSection = ({ userId }) => {
                   >
                     {gig.category}
                   </p>
-                  <Link
-                    to={`/gigs/${gig._id}`}
-                    className="px-6 py-3 bg-navyBlue text-white font-semibold rounded-lg hover:bg-navyBlueLight font-sans transition-colors duration-300"
-                    style={{ backgroundColor: "#1A2A4F", color: "#FFFFFF" }}
-                    aria-label={`View details for ${gig.title}`}
-                  >
-                    View Details
-                  </Link>
+                  {isClosed ? (
+                    <span
+                      className="px-6 py-3 bg-gray-300 text-gray-600 font-semibold rounded-lg font-sans"
+                      style={{ backgroundColor: "#D1D5DB", color: "#4B5563" }}
+                    >
+                      Applications Closed
+                    </span>
+                  ) : hasApplied ? (
+                    <span
+                      className="px-6 py-3 bg-gray-300 text-gray-600 font-semibold rounded-lg font-sans"
+                      style={{ backgroundColor: "#D1D5DB", color: "#4B5563" }}
+                    >
+                      Application Submitted
+                    </span>
+                  ) : (
+                    <Link
+                      to={`/gigs/${gig._id}`}
+                      className="px-6 py-3 bg-navyBlue text-white font-semibold rounded-lg hover:bg-navyBlueLight font-sans transition-colors duration-300"
+                      style={{ backgroundColor: "#1A2A4F", color: "#FFFFFF" }}
+                      aria-label={`View details for ${gig.title}`}
+                    >
+                      View Details
+                    </Link>
+                  )}
                 </div>
               );
             })}
@@ -505,6 +536,15 @@ const RecentGigsSection = ({ userId }) => {
             Check out the latest services posted by talented students.
           </p>
         </div>
+        {error && (
+          <div
+            className="text-center text-red-500 font-sans flex items-center justify-center gap-2 mb-6"
+            style={{ color: "#DC2626" }}
+          >
+            <AlertTriangle size={20} />
+            {error}
+          </div>
+        )}
         {loading ? (
           <div className="flex overflow-x-auto gap-8 pb-4">
             {[...Array(6)].map((_, index) => (
@@ -521,7 +561,10 @@ const RecentGigsSection = ({ userId }) => {
                 <div className="h-4 bg-gray-200 rounded mb-2"></div>
                 <div className="flex justify-center mb-2">
                   {[...Array(5)].map((_, i) => (
-                    <div key={i} className="w-4 h-4 bg-gray-200 rounded-full mx-1"></div>
+                    <div
+                      key={i}
+                      className="w-4 h-4 bg-gray-200 rounded-full mx-1"
+                    ></div>
                   ))}
                 </div>
                 <div className="h-4 bg-gray-200 rounded mb-2"></div>
@@ -529,13 +572,6 @@ const RecentGigsSection = ({ userId }) => {
                 <div className="h-10 bg-gray-200 rounded-lg"></div>
               </div>
             ))}
-          </div>
-        ) : error ? (
-          <div
-            className="text-center text-red-500 font-sans"
-            style={{ color: "#DC2626" }}
-          >
-            {error}
           </div>
         ) : gigs.length === 0 ? (
           <div
@@ -548,11 +584,17 @@ const RecentGigsSection = ({ userId }) => {
           <>
             <div className="flex overflow-x-auto gap-8 pb-4 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-navyBlue scrollbar-track-blue-100">
               {gigs.map((gig) => {
-                const status = getApplicationStatus(gig._id);
+                const applicationStatus = getApplicationStatus(gig._id);
+                const isClosed = gig.status === "closed";
+                const hasApplied = !!applicationStatus;
                 return (
                   <div
                     key={gig._id}
-                    className="min-w-[280px] snap-center bg-white bg-opacity-70 backdrop-blur-lg p-6 rounded-2xl shadow-lg border border-blue-100 hover:bg-blue-50 hover:border-navyBlueLight transition-colors duration-300 text-center"
+                    className={`min-w-[280px] snap-center bg-white bg-opacity-70 backdrop-blur-lg p-6 rounded-2xl shadow-lg border border-blue-100 transition-colors duration-300 text-center ${
+                      isClosed || hasApplied
+                        ? "opacity-70"
+                        : "hover:bg-blue-50 hover:border-navyBlueLight"
+                    }`}
                     style={{
                       clipPath:
                         "polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)",
@@ -613,22 +655,24 @@ const RecentGigsSection = ({ userId }) => {
                       From ${gig.price}
                     </p>
                     <p
-                      className="text-navyBlueMedium mb-2 font-sans"
-                      style={{ color: "#2A3A6F" }}
+                      className={`text-navyBlueMedium mb-2 font-sans font-semibold ${
+                        isClosed ? "text-red-600" : ""
+                      }`}
+                      style={{ color: isClosed ? "#DC2626" : "#2A3A6F" }}
                     >
                       Status: {gig.status.charAt(0).toUpperCase() + gig.status.slice(1)}
                     </p>
-                    {status && (
+                    {hasApplied && (
                       <p
                         className={`text-sm font-semibold mb-2 font-sans ${
-                          status === "accepted"
+                          applicationStatus === "accepted"
                             ? "text-green-600"
-                            : status === "rejected"
+                            : applicationStatus === "rejected"
                             ? "text-red-600"
                             : "text-yellow-600"
                         }`}
                       >
-                        Application: {status.charAt(0).toUpperCase() + status.slice(1)}
+                        Application: {applicationStatus.charAt(0).toUpperCase() + applicationStatus.slice(1)}
                       </p>
                     )}
                     <p
@@ -643,14 +687,30 @@ const RecentGigsSection = ({ userId }) => {
                     >
                       {gig.category}
                     </p>
-                    <Link
-                      to={`/gigs/${gig._id}`}
-                      className="px-6 py-3 bg-navyBlue text-white font-semibold rounded-lg hover:bg-navyBlueLight font-sans transition-colors duration-300"
-                      style={{ backgroundColor: "#1A2A4F", color: "#FFFFFF" }}
-                      aria-label={`View details for ${gig.title}`}
-                    >
-                      View Details
-                    </Link>
+                    {isClosed ? (
+                      <span
+                        className="px-6 py-3 bg-gray-300 text-gray-600 font-semibold rounded-lg font-sans"
+                        style={{ backgroundColor: "#D1D5DB", color: "#4B5563" }}
+                      >
+                        Applications Closed
+                      </span>
+                    ) : hasApplied ? (
+                      <span
+                        className="px-6 py-3 bg-gray-300 text-gray-600 font-semibold rounded-lg font-sans"
+                        style={{ backgroundColor: "#D1D5DB", color: "#4B5563" }}
+                      >
+                        Application Submitted
+                      </span>
+                    ) : (
+                      <Link
+                        to={`/gigs/${gig._id}`}
+                        className="px-6 py-3 bg-navyBlue text-white font-semibold rounded-lg hover:bg-navyBlueLight font-sans transition-colors duration-300"
+                        style={{ backgroundColor: "#1A2A4F", color: "#FFFFFF" }}
+                        aria-label={`View details for ${gig.title}`}
+                      >
+                        View Details
+                      </Link>
+                    )}
                   </div>
                 );
               })}
@@ -687,12 +747,8 @@ const CategoriesSection = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await axios.get(`${API_BASE}/gigs`, {
-          params: { page: 1, limit: 100 }, // Fetch enough gigs to get categories
-        });
-        const gigs = response.data.gigs || [];
-        const uniqueCategories = [...new Set(gigs.map((gig) => gig.category))];
-        setCategories(uniqueCategories);
+        const response = await axios.get(`${API_BASE}/categories`);
+        setCategories(response.data.categories || []);
         setLoading(false);
       } catch (err) {
         setError(err.response?.data?.error || "Failed to fetch categories");
@@ -743,6 +799,15 @@ const CategoriesSection = () => {
             talent categories.
           </p>
         </div>
+        {error && (
+          <div
+            className="text-center text-red-500 font-sans flex items-center justify-center gap-2 mb-6"
+            style={{ color: "#DC2626" }}
+          >
+            <AlertTriangle size={20} />
+            {error}
+          </div>
+        )}
         {loading ? (
           <div className="flex flex-wrap justify-center gap-8">
             {[...Array(4)].map((_, index) => (
@@ -755,13 +820,6 @@ const CategoriesSection = () => {
                 <div className="w-20 h-4 bg-gray-200 rounded"></div>
               </div>
             ))}
-          </div>
-        ) : error ? (
-          <div
-            className="text-center text-red-500 font-sans"
-            style={{ color: "#DC2626" }}
-          >
-            {error}
           </div>
         ) : categories.length === 0 ? (
           <div
@@ -1086,9 +1144,10 @@ const CTABanner = ({ userRole, userId }) => {
     }
   }, [userId]);
 
-  const ctaMessage = userRole === "Seller"
-    ? "Post your first gig and reach clients today!"
-    : userRole === "Buyer"
+  const ctaMessage =
+    userRole === "Seller"
+      ? "Post your first gig and reach clients today!"
+      : userRole === "Buyer"
       ? "Find the perfect student talent for your project!"
       : "Join Gig Connect to find or post gigs in your campus!";
 
@@ -1164,7 +1223,6 @@ const Home = () => {
         setLoading(false);
       } catch (err) {
         setError(err.response?.data?.error || "Failed to fetch user profile");
-        setUser(null);
         setLoading(false);
       }
     };
@@ -1186,9 +1244,10 @@ const Home = () => {
   if (error) {
     return (
       <div
-        className="min-h-screen flex items-center justify-center text-red-500 font-sans"
+        className="min-h-screen flex items-center justify-center text-red-500 font-sans flex items-center gap-2"
         style={{ color: "#DC2626" }}
       >
+        <AlertTriangle size={24} />
         {error}
       </div>
     );
