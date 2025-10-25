@@ -760,6 +760,7 @@ app.get("/api/users/:id", async (req, res) => {
       "fullName college bio profilePicture role skills certifications socialLinks gigsCompleted totalGigs completionRate"
     );
     if (!user) return res.status(404).json({ error: "User not found" });
+    console.log("Fetched public profile:", { userId: req.params.id });
     res.json(user);
   } catch (err) {
     console.error("Public profile fetch error:", err);
@@ -1231,6 +1232,11 @@ app.get(
       console.log("Fetched applications for gig:", {
         gigId: req.params.id,
         count: applications.length,
+        applicants: applications.map((app) => ({
+          applicantId: app.applicantId._id,
+          applicantName: app.applicantName,
+          status: app.status,
+        })),
       });
       res.json(applications);
     } catch (err) {
@@ -1372,6 +1378,8 @@ app.patch(
       console.log("Application status updated:", {
         applicationId: req.params.applicationId,
         status,
+        gigId: req.params.id,
+        applicantId: application.applicantId,
       });
       res.json({ success: true, application });
     } catch (err) {
@@ -1540,7 +1548,15 @@ app.patch(
           from: process.env.EMAIL_USER,
           to: otherUser.email,
           subject: `Price Agreed for Gig "${ticket.gigId.title}"`,
-          html: `<p>Dear ${otherUser.fullName},</p><p>The price of $${agreedPrice} has been agreed for the gig "${ticket.gigId.title}".</p><p>Proceed to payment or continue negotiation at: /tickets/${ticket._id}</p>`,
+          html: `<p>Dear ${
+            otherUser.fullName
+          },</p><p>The price of ₹${agreedPrice.toLocaleString(
+            "en-IN"
+          )} has been agreed for the gig "${
+            ticket.gigId.title
+          }".</p><p>Proceed to payment or continue negotiation at: /tickets/${
+            ticket._id
+          }</p>`,
         };
         await transporter.sendMail(mailOptions);
       }
@@ -1566,11 +1582,9 @@ app.patch(
     try {
       const ticket = req.ticket;
       if (ticket.status !== "accepted") {
-        return res
-          .status(400)
-          .json({
-            error: "Ticket must be in accepted status to confirm payment",
-          });
+        return res.status(400).json({
+          error: "Ticket must be in accepted status to confirm payment",
+        });
       }
       if (req.userId !== ticket.buyerId) {
         return res
@@ -1611,9 +1625,11 @@ app.patch(
           subject: `Payment Confirmed for Gig "${gig.title}"`,
           html: `<p>Dear ${seller.fullName},</p><p>${
             buyer.fullName
-          } has confirmed payment for "${gig.title}". Amount: $${
+          } has confirmed payment for "${gig.title}". Amount: ₹${(
             ticket.agreedPrice || gig.price
-          }.</p><p>View details at: /tickets/${ticket._id}</p>`,
+          ).toLocaleString("en-IN")}.</p><p>View details at: /tickets/${
+            ticket._id
+          }</p>`,
         };
         await transporter.sendMail(mailOptions);
       }

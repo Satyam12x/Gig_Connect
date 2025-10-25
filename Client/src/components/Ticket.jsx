@@ -1,42 +1,42 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import toast from 'react-hot-toast';
-import { jwtDecode } from 'jwt-decode';
-import { MessageCircle, DollarSign, XCircle } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import axios from "axios";
+import toast from "react-hot-toast";
+import { jwtDecode } from "jwt-decode";
+import { MessageCircle, DollarSign, XCircle, User } from "lucide-react";
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = "http://localhost:5000/api";
 
 const Ticket = () => {
   const { id } = useParams();
   const [ticket, setTicket] = useState(null);
   const [userId, setUserId] = useState(null);
-  const [message, setMessage] = useState('');
-  const [agreedPrice, setAgreedPrice] = useState('');
+  const [message, setMessage] = useState("");
+  const [agreedPrice, setAgreedPrice] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (token) {
       try {
         const decoded = jwtDecode(token);
         if (decoded.id) {
           setUserId(decoded.id);
         } else {
-          console.error('Invalid token payload:', decoded);
-          localStorage.removeItem('token');
-          toast.error('Session invalid. Please log in again.');
-          navigate('/login');
+          console.error("Invalid token payload:", decoded);
+          localStorage.removeItem("token");
+          toast.error("Session invalid. Please log in again.");
+          navigate("/login");
         }
       } catch (error) {
-        console.error('Error decoding token:', error);
-        localStorage.removeItem('token');
-        toast.error('Session expired. Please log in again.');
-        navigate('/login');
+        console.error("Error decoding token:", error);
+        localStorage.removeItem("token");
+        toast.error("Session expired. Please log in again.");
+        navigate("/login");
       }
     } else {
-      toast.error('Please log in to view tickets.');
-      navigate('/login', { state: { from: `/tickets/${id}` } });
+      toast.error("Please log in to view tickets.");
+      navigate("/login", { state: { from: `/tickets/${id}` } });
     }
   }, [navigate]);
 
@@ -44,15 +44,16 @@ const Ticket = () => {
     const fetchTicket = async () => {
       try {
         const response = await axios.get(`${API_BASE}/tickets/${id}`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         });
+        console.log("Fetched ticket:", response.data); // Debug ticket data
         setTicket(response.data);
       } catch (error) {
-        console.error('Error fetching ticket:', error);
-        toast.error(error.response?.data?.error || 'Failed to load ticket.');
+        console.error("Error fetching ticket:", error);
+        toast.error(error.response?.data?.error || "Failed to load ticket.");
         if (error.response?.status === 403 || error.response?.status === 401) {
-          localStorage.removeItem('token');
-          navigate('/login');
+          localStorage.removeItem("token");
+          navigate("/login");
         }
       }
     };
@@ -64,7 +65,7 @@ const Ticket = () => {
 
   const handleSendMessage = async () => {
     if (!message.trim()) {
-      toast.error('Message cannot be empty.');
+      toast.error("Message cannot be empty.");
       return;
     }
 
@@ -72,20 +73,22 @@ const Ticket = () => {
       const response = await axios.post(
         `${API_BASE}/tickets/${id}/messages`,
         { content: message },
-        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        }
       );
       setTicket(response.data.ticket);
-      setMessage('');
-      toast.success('Message sent!');
+      setMessage("");
+      toast.success("Message sent!");
     } catch (error) {
-      console.error('Error sending message:', error);
-      toast.error(error.response?.data?.error || 'Failed to send message.');
+      console.error("Error sending message:", error);
+      toast.error(error.response?.data?.error || "Failed to send message.");
     }
   };
 
   const handleSetPrice = async () => {
     if (!agreedPrice || isNaN(agreedPrice) || agreedPrice <= 0) {
-      toast.error('Please enter a valid price.');
+      toast.error("Please enter a valid price.");
       return;
     }
 
@@ -93,14 +96,16 @@ const Ticket = () => {
       const response = await axios.patch(
         `${API_BASE}/tickets/${id}/price`,
         { agreedPrice },
-        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        }
       );
       setTicket(response.data.ticket);
-      setAgreedPrice('');
-      toast.success('Price agreed!');
+      setAgreedPrice("");
+      toast.success("Price agreed!");
     } catch (error) {
-      console.error('Error setting price:', error);
-      toast.error(error.response?.data?.error || 'Failed to set price.');
+      console.error("Error setting price:", error);
+      toast.error(error.response?.data?.error || "Failed to set price.");
     }
   };
 
@@ -109,13 +114,15 @@ const Ticket = () => {
       const response = await axios.patch(
         `${API_BASE}/tickets/${id}/pay`,
         {},
-        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        }
       );
       setTicket(response.data.ticket);
-      toast.success('Payment confirmed!');
+      toast.success("Payment confirmed!");
     } catch (error) {
-      console.error('Error confirming payment:', error);
-      toast.error(error.response?.data?.error || 'Failed to confirm payment.');
+      console.error("Error confirming payment:", error);
+      toast.error(error.response?.data?.error || "Failed to confirm payment.");
     }
   };
 
@@ -124,13 +131,15 @@ const Ticket = () => {
       const response = await axios.patch(
         `${API_BASE}/tickets/${id}/close`,
         {},
-        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        }
       );
       setTicket(response.data.ticket);
-      toast.success('Ticket closed!');
+      toast.success("Ticket closed!");
     } catch (error) {
-      console.error('Error closing ticket:', error);
-      toast.error(error.response?.data?.error || 'Failed to close ticket.');
+      console.error("Error closing ticket:", error);
+      toast.error(error.response?.data?.error || "Failed to close ticket.");
     }
   };
 
@@ -138,20 +147,74 @@ const Ticket = () => {
     return <div className="container mx-auto p-4">Loading...</div>;
   }
 
-  const isBuyer = userId === ticket.buyerId;
-  const isSeller = userId === ticket.sellerId;
+  const isBuyer = userId === ticket.buyerId?._id;
+  const isSeller = userId === ticket.sellerId?._id;
+  const profileUser = isBuyer ? ticket.sellerId : ticket.buyerId; // Show seller's picture to buyer, buyer's picture to seller
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Ticket for {ticket.gigId.title}</h1>
-      <div className="border rounded-lg p-6 shadow-md">
-        <p className="text-gray-600 mb-2">Status: {ticket.status}</p>
-        <p className="text-gray-600 mb-2">Seller: {ticket.sellerId.fullName}</p>
-        <p className="text-gray-600 mb-2">Buyer: {ticket.buyerId.fullName}</p>
-        {ticket.agreedPrice && (
-          <p className="text-gray-600 mb-4">Agreed Price: ${ticket.agreedPrice}</p>
+      <div className="flex flex-col items-center mb-6">
+        {/* Profile Picture at Top (WhatsApp Style) */}
+        {profileUser?.profilePicture && (
+          <img
+            src={profileUser.profilePicture}
+            alt={profileUser.fullName}
+            className="w-24 h-24 rounded-full object-cover mb-4"
+          />
         )}
-        
+        <h1 className="text-3xl font-bold text-center">
+          Ticket for {ticket.gigId.title}
+        </h1>
+      </div>
+      <div className="border rounded-lg p-6 shadow-md">
+        {/* Seller and Buyer Info with View Profile Buttons */}
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <p className="text-gray-600">
+              Seller: {ticket.sellerId.fullName}
+              <button
+                onClick={() => {
+                  console.log(
+                    "Navigating to seller profile:",
+                    ticket.sellerId._id
+                  ); // Debug
+                  navigate(`/users/${ticket.sellerId._id}`);
+                }}
+                className="ml-2 text-blue-500 hover:underline flex items-center"
+              >
+                <User className="h-4 w-4 mr-1" />
+                View Profile
+              </button>
+            </p>
+            <p className="text-gray-600">
+              Buyer: {ticket.buyerId.fullName}
+              <button
+                onClick={() => {
+                  console.log(
+                    "Navigating to buyer profile:",
+                    ticket.buyerId._id
+                  ); // Debug
+                  navigate(`/users/${ticket.buyerId._id}`);
+                }}
+                className="ml-2 text-blue-500 hover:underline flex items-center"
+              >
+                <User className="h-4 w-4 mr-1" />
+                View Profile
+              </button>
+            </p>
+          </div>
+          <p className="text-gray-600">Status: {ticket.status}</p>
+        </div>
+        {ticket.agreedPrice && (
+          <p className="text-gray-600 mb-4">
+            Agreed Price:{" "}
+            {ticket.agreedPrice.toLocaleString("en-IN", {
+              style: "currency",
+              currency: "INR",
+            })}
+          </p>
+        )}
+
         <h2 className="text-xl font-semibold mb-4">Messages</h2>
         <div className="border rounded-md p-4 mb-4 max-h-96 overflow-y-auto">
           {ticket.messages.length === 0 ? (
@@ -161,7 +224,9 @@ const Ticket = () => {
               <div
                 key={index}
                 className={`mb-2 p-2 rounded-md ${
-                  msg.senderId === userId ? 'bg-blue-100 ml-auto' : 'bg-gray-100'
+                  msg.senderId === userId
+                    ? "bg-blue-100 ml-auto"
+                    : "bg-gray-100"
                 } max-w-[70%]`}
               >
                 <p className="font-semibold">{msg.senderName}</p>
@@ -174,7 +239,7 @@ const Ticket = () => {
           )}
         </div>
 
-        {ticket.status !== 'closed' && (
+        {ticket.status !== "closed" && (
           <div className="mb-4">
             <textarea
               value={message}
@@ -193,7 +258,7 @@ const Ticket = () => {
           </div>
         )}
 
-        {ticket.status !== 'closed' && ticket.status !== 'paid' && (
+        {ticket.status !== "closed" && ticket.status !== "paid" && (
           <div className="mb-4">
             <input
               type="number"
@@ -214,7 +279,7 @@ const Ticket = () => {
           </div>
         )}
 
-        {ticket.status === 'accepted' && isBuyer && (
+        {ticket.status === "accepted" && isBuyer && (
           <button
             onClick={handleConfirmPayment}
             className="bg-purple-500 text-white px-4 py-2 rounded-md hover:bg-purple-600 flex items-center mb-4"
@@ -224,7 +289,7 @@ const Ticket = () => {
           </button>
         )}
 
-        {ticket.status !== 'closed' && (
+        {ticket.status !== "closed" && (
           <button
             onClick={handleCloseTicket}
             className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 flex items-center"
@@ -235,7 +300,7 @@ const Ticket = () => {
         )}
 
         <button
-          onClick={() => navigate('/gigs')}
+          onClick={() => navigate("/gigs")}
           className="text-blue-500 hover:underline mt-4"
         >
           Back to Gigs

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { jwtDecode } from "jwt-decode";
-import { Briefcase, Search, Users } from "lucide-react";
+import { Briefcase, Search, Users, User } from "lucide-react";
 
 const API_BASE = "http://localhost:5000/api";
 
@@ -213,101 +213,132 @@ const Gigs = () => {
         <p className="text-gray-500">No gigs available at the moment.</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {gigs.map((gig) => (
-            <div
-              key={gig._id}
-              className="border rounded-lg p-4 shadow-md hover:shadow-lg"
-            >
-              {gig.thumbnail && (
-                <img
-                  src={gig.thumbnail}
-                  alt={gig.title}
-                  className="w-full h-48 object-cover rounded-md mb-4"
-                />
-              )}
-              <h2 className="text-xl font-semibold">{gig.title}</h2>
-              <p className="text-gray-600 mb-2">
-                {gig.description.substring(0, 100)}...
-              </p>
-              <p className="text-gray-500">Category: {gig.category}</p>
-              <p className="text-gray-500">Price: ${gig.price}</p>
-              <p className="text-gray-500">Seller: {gig.sellerName}</p>
-              <div className="mt-4">
-                {gig.sellerId === userId ? (
-                  <div>
-                    <button
-                      onClick={() => navigate(`/gigs/${gig._id}`)}
-                      className="text-blue-500 hover:underline mb-2"
-                    >
-                      View Applicants
-                    </button>
-                    {applicants[gig._id] && applicants[gig._id].length > 0 ? (
-                      <div className="mt-2">
-                        <h3 className="font-semibold">Applicants:</h3>
-                        {applicants[gig._id].map((app) => (
-                          <div key={app._id} className="border-t pt-2 mt-2">
-                            <p>
-                              {app.applicantName} - {app.status}
-                            </p>
-                            {app.status === "pending" && (
-                              <div className="flex gap-2">
+          {gigs.map((gig) => {
+            const userApplication = userApplications.find(
+              (app) => app.gigId === gig._id
+            );
+            return (
+              <div
+                key={gig._id}
+                className="border rounded-lg p-4 shadow-md hover:shadow-lg"
+              >
+                {gig.thumbnail && (
+                  <img
+                    src={gig.thumbnail}
+                    alt={gig.title}
+                    className="w-full h-48 object-cover rounded-md mb-4"
+                  />
+                )}
+                <h2 className="text-xl font-semibold">{gig.title}</h2>
+                <p className="text-gray-600 mb-2">
+                  {gig.description.substring(0, 100)}...
+                </p>
+                <p className="text-gray-500">Category: {gig.category}</p>
+                <p className="text-gray-500">
+                  Price:{" "}
+                  {gig.price.toLocaleString("en-IN", {
+                    style: "currency",
+                    currency: "INR",
+                  })}
+                </p>
+                <p className="text-gray-500">Seller: {gig.sellerName}</p>
+                <div className="mt-4">
+                  {gig.sellerId === userId ? (
+                    <div>
+                      <button
+                        onClick={() => navigate(`/gigs/${gig._id}`)}
+                        className="text-blue-500 hover:underline mb-2"
+                      >
+                        View Applicants
+                      </button>
+                      {applicants[gig._id] && applicants[gig._id].length > 0 ? (
+                        <div className="mt-2">
+                          <h3 className="font-semibold">Applicants:</h3>
+                          {applicants[gig._id].map((app) => (
+                            <div key={app._id} className="border-t pt-2 mt-2">
+                              <div className="flex items-center justify-between">
+                                <p>
+                                  {app.applicantName} - {app.status}
+                                </p>
                                 <button
                                   onClick={() =>
-                                    handleApplicationStatus(
-                                      gig._id,
-                                      app._id,
-                                      "accepted"
-                                    )
+                                    navigate(`/users/${app.applicantId}`)
                                   }
-                                  className="text-green-500 hover:underline"
+                                  className="text-blue-500 hover:underline flex items-center"
                                 >
-                                  Accept
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    handleApplicationStatus(
-                                      gig._id,
-                                      app._id,
-                                      "rejected"
-                                    )
-                                  }
-                                  className="text-red-500 hover:underline"
-                                >
-                                  Reject
+                                  <User className="h-4 w-4 mr-1" />
+                                  View Profile
                                 </button>
                               </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-gray-500">No applicants yet.</p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex justify-between">
-                    <button
-                      onClick={() => navigate(`/gigs/${gig._id}`)}
-                      className="text-blue-500 hover:underline"
-                    >
-                      View Details
-                    </button>
-                    {userApplications.some((app) => app.gigId === gig._id) ? (
-                      <span className="text-green-500">Applied</span>
-                    ) : (
+                              {app.status === "pending" && (
+                                <div className="flex gap-2 mt-2">
+                                  <button
+                                    onClick={() =>
+                                      handleApplicationStatus(
+                                        gig._id,
+                                        app._id,
+                                        "accepted"
+                                      )
+                                    }
+                                    className="text-green-500 hover:underline"
+                                  >
+                                    Accept
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      handleApplicationStatus(
+                                        gig._id,
+                                        app._id,
+                                        "rejected"
+                                      )
+                                    }
+                                    className="text-red-500 hover:underline"
+                                  >
+                                    Reject
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500">No applicants yet.</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex justify-between">
                       <button
-                        onClick={() => handleApply(gig._id)}
-                        className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
-                        disabled={gig.status !== "open"}
+                        onClick={() => navigate(`/gigs/${gig._id}`)}
+                        className="text-blue-500 hover:underline"
                       >
-                        Apply
+                        View Details
                       </button>
-                    )}
-                  </div>
-                )}
+                      {userApplication ? (
+                        <span
+                          className={`text-${
+                            userApplication.status === "pending"
+                              ? "yellow"
+                              : "green"
+                          }-500`}
+                        >
+                          {userApplication.status.charAt(0).toUpperCase() +
+                            userApplication.status.slice(1)}
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleApply(gig._id)}
+                          className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
+                          disabled={gig.status !== "open"}
+                        >
+                          Apply
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { jwtDecode } from "jwt-decode";
-import { Briefcase, Users } from "lucide-react";
+import { Briefcase, Users, User } from "lucide-react";
 
 const API_BASE = "http://localhost:5000/api";
 
@@ -76,6 +76,7 @@ const GigDetails = () => {
         setGig(gigResponse.data || null);
         setUserApplications(applicationsResponse.data || []);
         setApplicants(applicantsResponse.data || []);
+        console.log("Fetched applicants:", applicantsResponse.data); // Debug applicants
       } catch (error) {
         console.error("Error fetching data:", error);
         toast.error("Failed to load gig details.");
@@ -141,6 +142,8 @@ const GigDetails = () => {
     return <div className="container mx-auto p-4">Loading...</div>;
   }
 
+  const userApplication = userApplications.find((app) => app.gigId === id);
+
   return (
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
@@ -165,7 +168,13 @@ const GigDetails = () => {
         )}
         <p className="text-gray-600 mb-4">{gig.description}</p>
         <p className="text-gray-500 mb-2">Category: {gig.category}</p>
-        <p className="text-gray-500 mb-2">Price: ${gig.price}</p>
+        <p className="text-gray-500 mb-2">
+          Price:{" "}
+          {gig.price.toLocaleString("en-IN", {
+            style: "currency",
+            currency: "INR",
+          })}
+        </p>
         <p className="text-gray-500 mb-2">Seller: {gig.sellerName}</p>
         <p className="text-gray-500 mb-4">Status: {gig.status}</p>
         {gig.sellerId === userId ? (
@@ -175,9 +184,24 @@ const GigDetails = () => {
               <div className="space-y-4">
                 {applicants.map((app) => (
                   <div key={app._id} className="border-t pt-2">
-                    <p>
-                      {app.applicantName} - {app.status}
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <p>
+                        {app.applicantName} - {app.status}
+                      </p>
+                      <button
+                        onClick={() => {
+                          console.log(
+                            "Navigating to user profile, applicantId:",
+                            app.applicantId
+                          ); // Debug
+                          navigate(`/users/${app.applicantId._id}`);
+                        }}
+                        className="text-blue-500 hover:underline flex items-center"
+                      >
+                        <User className="h-4 w-4 mr-1" />
+                        View Profile
+                      </button>
+                    </div>
                     {app.status === "pending" && (
                       <div className="flex gap-2 mt-2">
                         <button
@@ -213,8 +237,15 @@ const GigDetails = () => {
             >
               Back to Gigs
             </button>
-            {userApplications.some((app) => app.gigId === id) ? (
-              <span className="text-green-500">Applied</span>
+            {userApplication ? (
+              <span
+                className={`text-${
+                  userApplication.status === "pending" ? "yellow" : "green"
+                }-500`}
+              >
+                {userApplication.status.charAt(0).toUpperCase() +
+                  userApplication.status.slice(1)}
+              </span>
             ) : (
               <button
                 onClick={handleApply}
