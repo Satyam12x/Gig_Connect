@@ -255,7 +255,7 @@ const GlobalChat = () => {
         </form>
       </div>
 
-      <Footer />
+      {/* <Footer /> */}
     </div>
   );
 };
