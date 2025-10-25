@@ -25,18 +25,21 @@ const setupSocket = (server, authMiddleware) => {
       credentials: true,
     },
   });
+  console.log("Socket.io server initialized on http://localhost:5000/socket.io/");
 
   io.use((socket, next) => {
     const token = socket.handshake.auth.token;
+    console.log("Socket connection attempt with token:", token);
     if (!token) return next(new Error("Authentication error"));
     try {
       const decoded = require("jsonwebtoken").verify(
         token,
         process.env.JWT_SECRET
       );
-      socket.userId = decoded.id; // Match JWT payload ('id' from server.js)
+      socket.userId = decoded.id;
       next();
     } catch (err) {
+      console.error("Socket auth error:", err.message);
       next(new Error("Invalid token"));
     }
   });
@@ -62,17 +65,22 @@ const setupSocket = (server, authMiddleware) => {
           content: content.trim(),
           userId,
           username: user.fullName,
-          profilePicture: user.profilePicture,
+          profilePicture: user.profilePicture || "http://localhost:5000/uploads/default-avatar.png",
         });
 
         await message.save();
+        console.log("Message saved:", {
+          _id: message._id,
+          userId,
+          profilePicture: message.profilePicture,
+        });
         io.emit("message", {
           _id: message._id,
           content: message.content,
           userId: message.userId,
           user: {
             username: user.fullName,
-            profilePicture: user.profilePicture,
+            profilePicture: user.profilePicture || "http://localhost:5000/uploads/default-avatar.png",
           },
           createdAt: message.createdAt,
         });
@@ -98,6 +106,10 @@ const setupRoutes = (authMiddleware) => {
         .sort({ createdAt: 1 })
         .populate("userId", "fullName profilePicture")
         .lean();
+      console.log("Messages fetched:", messages.map((msg) => ({
+        userId: msg.userId._id,
+        profilePicture: msg.userId.profilePicture,
+      })));
       res.json(
         messages.map((msg) => ({
           _id: msg._id,
@@ -105,7 +117,7 @@ const setupRoutes = (authMiddleware) => {
           userId: msg.userId._id,
           user: {
             username: msg.userId.fullName,
-            profilePicture: msg.userId.profilePicture,
+            profilePicture: msg.userId.profilePicture || "http://localhost:5000/uploads/default-avatar.png",
           },
           createdAt: msg.createdAt,
         }))

@@ -2104,4 +2104,7 @@ app.use("/api/chat", chatRoutes);
 setupSocket(server, authMiddleware);
 
 // Start server
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Socket.io endpoint: http://localhost:${PORT}/socket.io/`);
+});
