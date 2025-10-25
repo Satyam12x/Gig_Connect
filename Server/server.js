@@ -52,6 +52,7 @@ const userSchema = new mongoose.Schema(
     gigsCompleted: { type: Number, default: 0 },
     totalGigs: { type: Number, default: 0 },
     completionRate: { type: Number, default: 0 },
+    credits: { type: Number, default: 0, min: 0 }, // New credits field
     socialLinks: {
       linkedin: String,
       github: String,
@@ -145,9 +146,10 @@ const ticketSchema = new mongoose.Schema({
   buyerId: { type: String, ref: "User", required: true },
   status: {
     type: String,
-    enum: ["open", "negotiating", "accepted", "paid", "closed"],
+    enum: ["open", "negotiating", "accepted", "paid", "completed", "closed"],
     default: "open",
   },
+  agreedPrice: { type: Number, min: 0 },
   messages: [
     {
       senderId: { type: String, ref: "User", required: true },
@@ -156,7 +158,6 @@ const ticketSchema = new mongoose.Schema({
       timestamp: { type: Date, default: Date.now },
     },
   ],
-  agreedPrice: { type: Number, min: 0 },
   createdAt: { type: Date, default: Date.now },
 });
 
@@ -383,6 +384,7 @@ app.post("/api/auth/verify-otp", authMiddleware, async (req, res) => {
       gigsCompleted: 0,
       totalGigs: 0,
       completionRate: 0,
+      credits: 0,
     });
     await user.save();
     await PendingUser.deleteOne({ _id: req.userId });
@@ -757,7 +759,7 @@ app.get("/api/users/profile", authMiddleware, async (req, res) => {
 app.get("/api/users/:id", async (req, res) => {
   try {
     const user = await User.findOne({ _id: req.params.id }).select(
-      "fullName college bio profilePicture role skills certifications socialLinks gigsCompleted totalGigs completionRate"
+      "fullName college bio profilePicture role skills certifications socialLinks gigsCompleted totalGigs completionRate credits"
     );
     if (!user) return res.status(404).json({ error: "User not found" });
     console.log("Fetched public profile:", { userId: req.params.id });
@@ -1337,26 +1339,6 @@ app.patch(
       const buyer = await User.findOne({ _id: application.applicantId });
       if (seller && buyer) {
         if (status === "accepted") {
-          seller.orderHistory.push({
-            title: gig.title,
-            status: "completed",
-            earnings: gig.price,
-            date: new Date(),
-          });
-          seller.gigsCompleted = (seller.gigsCompleted || 0) + 1;
-          seller.completionRate = seller.totalGigs
-            ? (seller.gigsCompleted / seller.totalGigs) * 100
-            : 0;
-          await seller.save();
-
-          buyer.orderHistory.push({
-            title: gig.title,
-            status: "completed",
-            earnings: 0,
-            date: new Date(),
-          });
-          await buyer.save();
-
           const mailOptions = {
             from: process.env.EMAIL_USER,
             to: buyer.email,
@@ -1427,8 +1409,8 @@ app.get("/api/users/:id/tickets", async (req, res) => {
       $or: [{ sellerId: userId }, { buyerId: userId }],
     })
       .populate("gigId", "title")
-      .populate("sellerId", "fullName email")
-      .populate("buyerId", "fullName email")
+      .populate("sellerId", "fullName email profilePicture")
+      .populate("buyerId", "fullName email profilePicture")
       .sort({ createdAt: -1 });
     console.log("Fetched user tickets:", {
       userId,
@@ -1450,8 +1432,8 @@ app.get(
     try {
       const ticket = await Ticket.findOne({ _id: req.params.id })
         .populate("gigId", "title price")
-        .populate("sellerId", "fullName email")
-        .populate("buyerId", "fullName email");
+        .populate("sellerId", "fullName email profilePicture")
+        .populate("buyerId", "fullName email profilePicture");
       if (!ticket) {
         console.error("Ticket not found for ID:", req.params.id);
         return res.status(404).json({ error: "Ticket not found" });
@@ -1537,7 +1519,7 @@ app.patch(
       }
 
       ticket.agreedPrice = parseFloat(agreedPrice);
-      ticket.status = "accepted";
+      ticket.status = "negotiating";
       await ticket.save();
 
       const otherUserId =
@@ -1547,21 +1529,19 @@ app.patch(
         const mailOptions = {
           from: process.env.EMAIL_USER,
           to: otherUser.email,
-          subject: `Price Agreed for Gig "${ticket.gigId.title}"`,
+          subject: `Price Proposed for Gig "${ticket.gigId.title}"`,
           html: `<p>Dear ${
             otherUser.fullName
-          },</p><p>The price of ₹${agreedPrice.toLocaleString(
+          },</p><p>A price of ₹${agreedPrice.toLocaleString(
             "en-IN"
-          )} has been agreed for the gig "${
+          )} has been proposed for the gig "${
             ticket.gigId.title
-          }".</p><p>Proceed to payment or continue negotiation at: /tickets/${
-            ticket._id
-          }</p>`,
+          }".</p><p>Accept or negotiate at: /tickets/${ticket._id}</p>`,
         };
         await transporter.sendMail(mailOptions);
       }
 
-      console.log("Ticket price updated:", {
+      console.log("Ticket price proposed:", {
         ticketId: req.params.id,
         agreedPrice,
       });
@@ -1573,6 +1553,61 @@ app.patch(
   }
 );
 
+// Accept Ticket Price
+app.patch(
+  "/api/tickets/:id/accept-price",
+  authMiddleware,
+  checkTicketParticipant,
+  async (req, res) => {
+    try {
+      const ticket = req.ticket;
+      if (ticket.status !== "negotiating") {
+        return res.status(400).json({
+          error: "Ticket must be in negotiating status to accept price",
+        });
+      }
+      if (req.userId !== ticket.buyerId) {
+        return res
+          .status(403)
+          .json({ error: "Only the buyer can accept the price" });
+      }
+      if (!ticket.agreedPrice) {
+        return res.status(400).json({ error: "No agreed price set" });
+      }
+
+      ticket.status = "accepted";
+      await ticket.save();
+
+      const seller = await User.findOne({ _id: ticket.sellerId });
+      if (seller) {
+        const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: seller.email,
+          subject: `Price Accepted for Gig "${ticket.gigId.title}"`,
+          html: `<p>Dear ${seller.fullName},</p><p>${
+            req.user.fullName
+          } has accepted the price of ₹${ticket.agreedPrice.toLocaleString(
+            "en-IN"
+          )} for "${
+            ticket.gigId.title
+          }".</p><p>Proceed to confirm payment at: /tickets/${ticket._id}</p>`,
+        };
+        await transporter.sendMail(mailOptions);
+      }
+
+      console.log("Ticket price accepted:", {
+        ticketId: req.params.id,
+        agreedPrice: ticket.agreedPrice,
+      });
+      res.json({ success: true, ticket });
+    } catch (err) {
+      console.error("Accept ticket price error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  }
+);
+
+// Confirm Payment
 // Confirm Payment
 app.patch(
   "/api/tickets/:id/pay",
@@ -1595,39 +1630,20 @@ app.patch(
       ticket.status = "paid";
       await ticket.save();
 
-      const gig = await Gig.findOne({ _id: ticket.gigId });
       const seller = await User.findOne({ _id: ticket.sellerId });
-      const buyer = await User.findOne({ _id: ticket.buyerId });
-      if (seller && buyer && gig) {
-        seller.orderHistory.push({
-          title: gig.title,
-          status: "completed",
-          earnings: ticket.agreedPrice || gig.price,
-          date: new Date(),
-        });
-        seller.gigsCompleted = (seller.gigsCompleted || 0) + 1;
-        seller.completionRate = seller.totalGigs
-          ? (seller.gigsCompleted / seller.totalGigs) * 100
-          : 0;
-        await seller.save();
-
-        buyer.orderHistory.push({
-          title: gig.title,
-          status: "completed",
-          earnings: 0,
-          date: new Date(),
-        });
-        await buyer.save();
-
+      if (seller) {
+        const gig = await Gig.findOne({ _id: ticket.gigId });
         const mailOptions = {
           from: process.env.EMAIL_USER,
           to: seller.email,
           subject: `Payment Confirmed for Gig "${gig.title}"`,
           html: `<p>Dear ${seller.fullName},</p><p>${
-            buyer.fullName
-          } has confirmed payment for "${gig.title}". Amount: ₹${(
+            req.user.fullName
+          } has confirmed payment of ₹${(
             ticket.agreedPrice || gig.price
-          ).toLocaleString("en-IN")}.</p><p>View details at: /tickets/${
+          ).toLocaleString("en-IN")} for "${
+            gig.title
+          }".</p><p>Proceed with the work and wait for the buyer to mark it as completed: /tickets/${
             ticket._id
           }</p>`,
         };
@@ -1640,6 +1656,138 @@ app.patch(
       res.json({ success: true, ticket });
     } catch (err) {
       console.error("Confirm payment error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  }
+);
+
+// Mark Work as Completed
+app.patch(
+  "/api/tickets/:id/complete",
+  authMiddleware,
+  checkTicketParticipant,
+  async (req, res) => {
+    try {
+      const ticket = req.ticket;
+      if (ticket.status !== "paid") {
+        return res.status(400).json({
+          error: "Ticket must be in paid status to mark as completed",
+        });
+      }
+      if (req.userId !== ticket.buyerId) {
+        return res
+          .status(403)
+          .json({ error: "Only the buyer can mark work as completed" });
+      }
+
+      ticket.status = "completed";
+      await ticket.save();
+
+      const seller = await User.findOne({ _id: ticket.sellerId });
+      if (seller) {
+        const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: seller.email,
+          subject: `Work Completed for Gig "${ticket.gigId.title}"`,
+          html: `<p>Dear ${seller.fullName},</p><p>${req.user.fullName} has marked the work as completed for "${ticket.gigId.title}".</p><p>Please confirm completion at: /tickets/${ticket._id}</p>`,
+        };
+        await transporter.sendMail(mailOptions);
+      }
+
+      console.log("Work marked as completed for ticket:", {
+        ticketId: req.params.id,
+      });
+      res.json({ success: true, ticket });
+    } catch (err) {
+      console.error("Mark work completed error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  }
+);
+
+// Confirm Completion and Update Credits
+app.patch(
+  "/api/tickets/:id/confirm-completion",
+  authMiddleware,
+  checkTicketParticipant,
+  async (req, res) => {
+    try {
+      const ticket = req.ticket;
+      if (ticket.status !== "completed") {
+        return res.status(400).json({
+          error: "Ticket must be in completed status to confirm completion",
+        });
+      }
+      if (req.userId !== ticket.sellerId) {
+        return res
+          .status(403)
+          .json({ error: "Only the seller can confirm completion" });
+      }
+
+      ticket.status = "closed";
+      await ticket.save();
+
+      const gig = await Gig.findOne({ _id: ticket.gigId });
+      const seller = await User.findOne({ _id: ticket.sellerId });
+      const buyer = await User.findOne({ _id: ticket.buyerId });
+
+      if (seller && buyer && gig) {
+        // Update seller's order history
+        seller.orderHistory.push({
+          title: gig.title,
+          status: "completed",
+          earnings: ticket.agreedPrice || gig.price,
+          date: new Date(),
+        });
+        seller.gigsCompleted = (seller.gigsCompleted || 0) + 1;
+        seller.completionRate = seller.totalGigs
+          ? (seller.gigsCompleted / seller.totalGigs) * 100
+          : 0;
+        await seller.save();
+
+        // Update buyer's profile with credits and stats
+        buyer.orderHistory.push({
+          title: gig.title,
+          status: "completed",
+          earnings: 0,
+          date: new Date(),
+        });
+        buyer.gigsCompleted = (buyer.gigsCompleted || 0) + 1;
+        buyer.totalGigs = (buyer.totalGigs || 0) + 1;
+        buyer.completionRate = buyer.totalGigs
+          ? (buyer.gigsCompleted / buyer.totalGigs) * 100
+          : 0;
+        buyer.credits =
+          (buyer.credits || 0) + (ticket.agreedPrice || gig.price);
+        await buyer.save();
+
+        // Notify buyer of completion confirmation
+        const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: buyer.email,
+          subject: `Completion Confirmed for Gig "${gig.title}"`,
+          html: `<p>Dear ${
+            buyer.fullName
+          },</p><p>The seller has confirmed completion for "${
+            gig.title
+          }". You have earned ${(
+            ticket.agreedPrice || gig.price
+          ).toLocaleString("en-IN", {
+            style: "currency",
+            currency: "INR",
+          })} in credits.</p><p>View details at: /tickets/${ticket._id}</p>`,
+        };
+        await transporter.sendMail(mailOptions);
+      }
+
+      console.log("Completion confirmed for ticket:", {
+        ticketId: req.params.id,
+        buyerId: ticket.buyerId,
+        creditsEarned: ticket.agreedPrice || gig.price,
+      });
+      res.json({ success: true, ticket });
+    } catch (err) {
+      console.error("Confirm completion error:", err);
       res.status(500).json({ error: "Server error", details: err.message });
     }
   }
