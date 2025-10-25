@@ -4,6 +4,8 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { jwtDecode } from "jwt-decode";
 import { Briefcase, Search, Users, User } from "lucide-react";
+import Navbar from "../components/Navbar";
+import Footer from "../components/Footer";
 
 const API_BASE = "http://localhost:5000/api";
 
@@ -18,7 +20,7 @@ const Gigs = () => {
   const [userId, setUserId] = useState(null);
   const [role, setRole] = useState(null);
   const [applicants, setApplicants] = useState({});
-  const [isApplying, setIsApplying] = useState({}); // Track applying state per gig
+  const [isApplying, setIsApplying] = useState({});
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -158,7 +160,6 @@ const Gigs = () => {
           app._id === applicationId ? { ...app, status } : app
         ),
       }));
-      // Refresh user applications if the user is viewing their own applications
       if (userId) {
         const applicationsResponse = await axios.get(
           `${API_BASE}/users/${userId}/applications`,
@@ -201,228 +202,283 @@ const Gigs = () => {
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Available Gigs</h1>
-        {userId && (
-          <button
-            onClick={() => navigate("/tickets")}
-            className="text-blue-500 hover:underline flex items-center"
-          >
-            <Users className="h-5 w-5 mr-2" />
-            My Tickets
-          </button>
-        )}
+    <div className="min-h-screen flex flex-col font-sans bg-white overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden">
+        <div
+          className="absolute top-[-5%] left-[-5%] w-1/3 h-1/3 bg-gradient-to-br from-[#1A2A4F] to-blue-800 opacity-15 filter blur-3xl transform rotate-12"
+          style={{
+            clipPath:
+              "polygon(30% 0%, 70% 20%, 100% 60%, 70% 100%, 30% 80%, 0% 40%)",
+          }}
+        ></div>
+        <div
+          className="absolute bottom-[-10%] left-[-5%] w-1/4 h-1/4 bg-gradient-to-tr from-purple-600 to-[#1A2A4F] opacity-10 filter blur-3xl transform -rotate-6"
+          style={{
+            clipPath:
+              "polygon(20% 0%, 80% 0%, 100% 50%, 80% 100%, 20% 100%, 0% 50%)",
+          }}
+        ></div>
+        <div
+          className="absolute top-1/2 left-1/4 w-1/4 h-1/4 bg-gradient-to-bl from-blue-800 to-purple-600 opacity-10 filter blur-3xl transform rotate-45"
+          style={{
+            clipPath:
+              "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)",
+          }}
+        ></div>
       </div>
-
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-500" />
-          <input
-            type="text"
-            placeholder="Search gigs..."
-            value={searchTerm}
-            onChange={handleSearchChange}
-            className="w-full pl-10 p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+      <Navbar />
+      <div className="relative flex-grow max-w-5xl mx-auto w-full mt-4 sm:mt-6 px-2 sm:px-4">
+        {/* WhatsApp-like Header */}
+        <div className="bg-[#075E54] text-white p-3 sm:p-4 flex items-center justify-between shadow-md sticky top-0 z-10 rounded-lg mb-4">
+          <h1 className="text-base sm:text-lg font-semibold">Available Gigs</h1>
+          {userId && (
+            <button
+              onClick={() => navigate("/tickets")}
+              className="flex items-center gap-2 text-white hover:text-[#DCF8C6] text-sm sm:text-base"
+            >
+              <Users className="h-4 w-4 sm:h-5 sm:w-5" />
+              My Tickets
+            </button>
+          )}
         </div>
-        <select
-          value={selectedCategory}
-          onChange={handleCategoryChange}
-          className="p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">All Categories</option>
-          {categories.map((category) => (
-            <option key={category} value={category}>
-              {category}
-            </option>
-          ))}
-        </select>
-      </div>
 
-      {gigs.length === 0 ? (
-        <p className="text-gray-500">No gigs available at the moment.</p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {gigs.map((gig) => {
-            const userApplication = userApplications.find(
-              (app) => app.gigId === gig._id
-            );
-            const isClosed = gig.status !== "open";
-            return (
-              <div
-                key={gig._id}
-                className={`border rounded-lg p-4 shadow-md hover:shadow-lg ${
-                  isClosed ? "opacity-75 bg-gray-100" : ""
-                }`}
-              >
-                {gig.thumbnail && (
-                  <img
-                    src={gig.thumbnail}
-                    alt={gig.title}
-                    className="w-full h-48 object-cover rounded-md mb-4"
-                  />
-                )}
-                <h2 className="text-xl font-semibold">{gig.title}</h2>
-                <p className="text-gray-600 mb-2">
-                  {gig.description.substring(0, 100)}...
-                </p>
-                <p className="text-gray-500">Category: {gig.category}</p>
-                <p className="text-gray-500">
-                  Price:{" "}
-                  {gig.price.toLocaleString("en-IN", {
-                    style: "currency",
-                    currency: "INR",
-                  })}
-                </p>
-                <p className="text-gray-500">Seller: {gig.sellerName}</p>
-                {isClosed && (
-                  <p className="text-red-500 font-semibold mt-2">Gig Closed</p>
-                )}
-                <div className="mt-4">
-                  {gig.sellerId === userId ? (
-                    <div>
-                      <button
-                        onClick={() => navigate(`/gigs/${gig._id}`)}
-                        className="text-blue-500 hover:underline mb-2"
-                      >
-                        View Applicants
-                      </button>
-                      {applicants[gig._id] && applicants[gig._id].length > 0 ? (
-                        <div className="mt-2">
-                          <h3 className="font-semibold">Applicants:</h3>
-                          {applicants[gig._id].map((app) => (
-                            <div key={app._id} className="border-t pt-2 mt-2">
-                              <div className="flex items-center justify-between">
-                                <p>
-                                  {app.applicantName} -{" "}
-                                  <span
-                                    className={`${
-                                      app.status === "pending"
-                                        ? "text-yellow-500"
-                                        : app.status === "accepted"
-                                        ? "text-green-500"
-                                        : "text-red-500"
-                                    }`}
-                                  >
-                                    {app.status.charAt(0).toUpperCase() +
-                                      app.status.slice(1)}
-                                  </span>
-                                </p>
-                                <button
-                                  onClick={() =>
-                                    navigate(`/users/${app.applicantId}`)
-                                  }
-                                  className="text-blue-500 hover:underline flex items-center"
-                                >
-                                  <User className="h-4 w-4 mr-1" />
-                                  View Profile
-                                </button>
-                              </div>
-                              {app.status === "pending" && (
-                                <div className="flex gap-2 mt-2">
+        {/* Search and Category Filter */}
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4 sm:mb-6">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-gray-500" />
+            <input
+              type="text"
+              placeholder="Search gigs..."
+              value={searchTerm}
+              onChange={handleSearchChange}
+              className="w-full pl-10 pr-3 py-2 sm:py-2.5 text-xs sm:text-sm bg-white text-gray-800 border border-gray-300 rounded-full focus:ring-2 focus:ring-[#25D366] focus:border-transparent placeholder-gray-400"
+            />
+          </div>
+          <select
+            value={selectedCategory}
+            onChange={handleCategoryChange}
+            className="p-2 sm:p-2.5 text-xs sm:text-sm bg-white border border-gray-300 rounded-full focus:ring-2 focus:ring-[#25D366] focus:border-transparent"
+          >
+            <option value="">All Categories</option>
+            {categories.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Gigs Grid */}
+        {gigs.length === 0 ? (
+          <div className="flex items-center justify-center h-[50vh]">
+            <p className="text-gray-500 text-sm sm:text-base">
+              No gigs available at the moment.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            {gigs.map((gig) => {
+              const userApplication = userApplications.find(
+                (app) => app.gigId === gig._id
+              );
+              const isClosed = gig.status !== "open";
+              return (
+                <div
+                  key={gig._id}
+                  className={`bg-white rounded-lg shadow-md hover:shadow-lg p-3 sm:p-4 border border-blue-100 hover:border-[#1A2A4F] transition-all duration-300 ${
+                    isClosed ? "opacity-75" : ""
+                  }`}
+                >
+                  {gig.thumbnail && (
+                    <img
+                      src={gig.thumbnail}
+                      alt={gig.title}
+                      className="w-full h-40 sm:h-48 object-cover rounded-md mb-3 sm:mb-4"
+                      onError={(e) => {
+                        console.error(
+                          "Thumbnail failed to load:",
+                          gig.thumbnail
+                        );
+                        e.target.src = "/default-thumbnail.jpg";
+                      }}
+                    />
+                  )}
+                  <h2 className="text-base sm:text-lg font-semibold text-[#1A2A4F]">
+                    {gig.title}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-[#2A3A6F] mb-2 sm:mb-3 line-clamp-2">
+                    {gig.description}
+                  </p>
+                  <p className="text-xs sm:text-sm text-[#2A3A6F]">
+                    Category: {gig.category}
+                  </p>
+                  <p className="text-xs sm:text-sm text-[#2A3A6F]">
+                    Price:{" "}
+                    {gig.price.toLocaleString("en-IN", {
+                      style: "currency",
+                      currency: "INR",
+                    })}
+                  </p>
+                  <p className="text-xs sm:text-sm text-[#2A3A6F]">
+                    Seller: {gig.sellerName}
+                  </p>
+                  {isClosed && (
+                    <p className="text-red-500 font-semibold text-xs sm:text-sm mt-2">
+                      Gig Closed
+                    </p>
+                  )}
+                  <div className="mt-3 sm:mt-4 flex flex-col gap-2">
+                    {gig.sellerId === userId ? (
+                      <div>
+                        <button
+                          onClick={() => navigate(`/gigs/${gig._id}`)}
+                          className="text-[#25D366] hover:text-[#20C058] text-xs sm:text-sm"
+                        >
+                          View Applicants
+                        </button>
+                        {applicants[gig._id] &&
+                        applicants[gig._id].length > 0 ? (
+                          <div className="mt-2 sm:mt-3">
+                            <h3 className="text-xs sm:text-sm font-semibold text-[#1A2A4F]">
+                              Applicants:
+                            </h3>
+                            {applicants[gig._id].map((app) => (
+                              <div key={app._id} className="border-t pt-2 mt-2">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-xs sm:text-sm">
+                                    {app.applicantName} -{" "}
+                                    <span
+                                      className={`${
+                                        app.status === "pending"
+                                          ? "text-yellow-500"
+                                          : app.status === "accepted"
+                                          ? "text-green-500"
+                                          : "text-red-500"
+                                      }`}
+                                    >
+                                      {app.status.charAt(0).toUpperCase() +
+                                        app.status.slice(1)}
+                                    </span>
+                                  </p>
                                   <button
                                     onClick={() =>
-                                      handleApplicationStatus(
-                                        gig._id,
-                                        app._id,
-                                        "accepted"
-                                      )
+                                      navigate(`/users/${app.applicantId}`)
                                     }
-                                    className="text-green-500 hover:underline"
+                                    className="text-[#25D366] hover:text-[#20C058] flex items-center text-xs sm:text-sm"
                                   >
-                                    Accept
-                                  </button>
-                                  <button
-                                    onClick={() =>
-                                      handleApplicationStatus(
-                                        gig._id,
-                                        app._id,
-                                        "rejected"
-                                      )
-                                    }
-                                    className="text-red-500 hover:underline"
-                                  >
-                                    Reject
+                                    <User className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                                    View Profile
                                   </button>
                                 </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-gray-500">No applicants yet.</p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex justify-between items-center">
-                      <button
-                        onClick={() => navigate(`/gigs/${gig._id}`)}
-                        className="text-blue-500 hover:underline"
-                      >
-                        View Details
-                      </button>
-                      {userApplication ? (
-                        <span
-                          className={`font-semibold px-4 py-2 rounded-md ${
-                            userApplication.status === "pending"
-                              ? "text-yellow-600 bg-yellow-100"
-                              : userApplication.status === "accepted"
-                              ? "text-green-600 bg-green-100"
-                              : "text-red-600 bg-red-100"
-                          }`}
-                          title={
-                            userApplication.status === "pending"
-                              ? "Your application is pending review"
-                              : userApplication.status === "accepted"
-                              ? "Your application has been accepted"
-                              : "Your application was rejected"
-                          }
-                        >
-                          {userApplication.status.charAt(0).toUpperCase() +
-                            userApplication.status.slice(1)}
-                        </span>
-                      ) : (
+                                {app.status === "pending" && (
+                                  <div className="flex gap-2 mt-2">
+                                    <button
+                                      onClick={() =>
+                                        handleApplicationStatus(
+                                          gig._id,
+                                          app._id,
+                                          "accepted"
+                                        )
+                                      }
+                                      className="text-green-500 hover:text-green-600 text-xs sm:text-sm"
+                                    >
+                                      Accept
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        handleApplicationStatus(
+                                          gig._id,
+                                          app._id,
+                                          "rejected"
+                                        )
+                                      }
+                                      className="text-red-500 hover:text-red-600 text-xs sm:text-sm"
+                                    >
+                                      Reject
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[#2A3A6F] text-xs sm:text-sm mt-2">
+                            No applicants yet.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex justify-between items-center">
                         <button
-                          onClick={() => handleApply(gig._id)}
-                          className={`px-4 py-2 rounded-md ${
-                            isClosed || isApplying[gig._id]
-                              ? "bg-gray-400 cursor-not-allowed"
-                              : "bg-blue-500 hover:bg-blue-600"
-                          } text-white`}
-                          disabled={isClosed || isApplying[gig._id]}
+                          onClick={() => navigate(`/gigs/${gig._id}`)}
+                          className="text-[#25D366] hover:text-[#20C058] text-xs sm:text-sm"
                         >
-                          {isApplying[gig._id] ? "Applying..." : "Apply"}
+                          View Details
                         </button>
-                      )}
-                    </div>
-                  )}
+                        {userApplication ? (
+                          <span
+                            className={`font-semibold px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full ${
+                              userApplication.status === "pending"
+                                ? "text-yellow-600 bg-yellow-100"
+                                : userApplication.status === "accepted"
+                                ? "text-green-600 bg-green-100"
+                                : "text-red-600 bg-red-100"
+                            }`}
+                            title={
+                              userApplication.status === "pending"
+                                ? "Your application is pending review"
+                                : userApplication.status === "accepted"
+                                ? "Your application has been accepted"
+                                : "Your application was rejected"
+                            }
+                          >
+                            {userApplication.status.charAt(0).toUpperCase() +
+                              userApplication.status.slice(1)}
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleApply(gig._id)}
+                            className={`px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full text-white ${
+                              isClosed || isApplying[gig._id]
+                                ? "bg-gray-400 cursor-not-allowed"
+                                : "bg-[#25D366] hover:bg-[#20C058]"
+                            }`}
+                            disabled={isClosed || isApplying[gig._id]}
+                          >
+                            {isApplying[gig._id] ? "Applying..." : "Apply"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
 
-      <div className="mt-6 flex justify-center gap-2">
-        <button
-          onClick={() => handlePageChange(page - 1)}
-          disabled={page === 1}
-          className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Previous
-        </button>
-        <span>
-          Page {page} of {totalPages}
-        </span>
-        <button
-          onClick={() => handlePageChange(page + 1)}
-          disabled={page === totalPages}
-          className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Next
-        </button>
+        {/* Pagination */}
+        <div className="mt-4 sm:mt-6 flex justify-center gap-2 sm:gap-3">
+          <button
+            onClick={() => handlePageChange(page - 1)}
+            disabled={page === 1}
+            className="px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm bg-white border border-[#1A2A4F] rounded-full disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#DCF8C6] text-[#1A2A4F]"
+          >
+            Previous
+          </button>
+          <span className="text-xs sm:text-sm text-[#1A2A4F]">
+            Page {page} of {totalPages}
+          </span>
+          <button
+            onClick={() => handlePageChange(page + 1)}
+            disabled={page === totalPages}
+            className="px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm bg-white border border-[#1A2A4F] rounded-full disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#DCF8C6] text-[#1A2A4F]"
+          >
+            Next
+          </button>
+        </div>
       </div>
+      <Footer />
     </div>
   );
 };
