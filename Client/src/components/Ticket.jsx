@@ -10,6 +10,7 @@ import {
   XCircle,
   User,
   CheckCircle,
+  Star,
 } from "lucide-react";
 
 const API_BASE = "http://localhost:5000/api";
@@ -22,6 +23,9 @@ const Ticket = () => {
   const [message, setMessage] = useState("");
   const [agreedPrice, setAgreedPrice] = useState("");
   const [loading, setLoading] = useState(true);
+  const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -196,21 +200,31 @@ const Ticket = () => {
   };
 
   const handleConfirmCompletion = async () => {
+    if (isSeller && rating === 0) {
+      setIsRatingModalOpen(true); // Open rating modal for seller
+      return;
+    }
+
     try {
+      setIsSubmittingRating(true);
       const response = await axios.patch(
         `${API_BASE}/tickets/${id}/confirm-completion`,
-        {},
+        isSeller ? { rating } : {}, // Send rating if seller
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
       setTicket(response.data.ticket);
+      setIsRatingModalOpen(false);
+      setRating(0);
       toast.success("Completion confirmed! Credits awarded to buyer.");
     } catch (error) {
       console.error("Error confirming completion:", error);
       toast.error(
         error.response?.data?.error || "Failed to confirm completion."
       );
+    } finally {
+      setIsSubmittingRating(false);
     }
   };
 
@@ -229,6 +243,10 @@ const Ticket = () => {
       console.error("Error closing ticket:", error);
       toast.error(error.response?.data?.error || "Failed to close ticket.");
     }
+  };
+
+  const handleRatingSelect = (value) => {
+    setRating(value);
   };
 
   if (loading) {
@@ -268,13 +286,7 @@ const Ticket = () => {
             <p className="text-gray-600 flex items-center">
               Seller: {ticket.sellerId.fullName}
               <button
-                onClick={() => {
-                  console.log(
-                    "Navigating to seller profile:",
-                    ticket.sellerId._id
-                  );
-                  navigate(`/users/${ticket.sellerId._id}`);
-                }}
+                onClick={() => navigate(`/users/${ticket.sellerId._id}`)}
                 className="ml-2 text-blue-500 hover:text-blue-700 flex items-center"
               >
                 <User className="h-4 w-4 mr-1" />
@@ -284,13 +296,7 @@ const Ticket = () => {
             <p className="text-gray-600 flex items-center">
               Buyer: {ticket.buyerId.fullName}
               <button
-                onClick={() => {
-                  console.log(
-                    "Navigating to buyer profile:",
-                    ticket.buyerId._id
-                  );
-                  navigate(`/users/${ticket.buyerId._id}`);
-                }}
+                onClick={() => navigate(`/users/${ticket.buyerId._id}`)}
                 className="ml-2 text-blue-500 hover:text-blue-700 flex items-center"
               >
                 <User className="h-4 w-4 mr-1" />
@@ -419,9 +425,10 @@ const Ticket = () => {
           <button
             onClick={handleConfirmCompletion}
             className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center mb-4"
+            disabled={isSubmittingRating}
           >
             <CheckCircle className="h-5 w-5 mr-2" />
-            Confirm Completion
+            {isSubmittingRating ? "Submitting..." : "Confirm Completion"}
           </button>
         )}
 
@@ -442,6 +449,55 @@ const Ticket = () => {
           Back to Gigs
         </button>
       </div>
+
+      {/* Rating Modal */}
+      {isRatingModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800">
+              Rate the Buyer
+            </h2>
+            <p className="text-gray-600 mb-4">
+              Please rate your experience with {ticket.buyerId.fullName} (1–5
+              stars):
+            </p>
+            <div className="flex gap-2 mb-4">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => handleRatingSelect(star)}
+                  className={`p-2 ${
+                    rating >= star ? "text-yellow-400" : "text-gray-400"
+                  }`}
+                >
+                  <Star
+                    className="h-6 w-6"
+                    fill={rating >= star ? "currentColor" : "none"}
+                  />
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-4">
+              <button
+                onClick={handleConfirmCompletion}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                disabled={rating === 0 || isSubmittingRating}
+              >
+                {isSubmittingRating ? "Submitting..." : "Submit Rating"}
+              </button>
+              <button
+                onClick={() => {
+                  setIsRatingModalOpen(false);
+                  setRating(0);
+                }}
+                className="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
