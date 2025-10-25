@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
@@ -11,9 +11,7 @@ import {
   Filter,
   X,
   ChevronRight,
-  MapPin,
-  Clock,
-  TrendingUp,
+  ChevronLeft,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -22,17 +20,20 @@ const API_BASE = "http://localhost:5000/api";
 
 const Gigs = () => {
   const [gigs, setGigs] = useState([]);
+  const [featuredGigs, setFeaturedGigs] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [priceRange, setPriceRange] = useState([0, 100000]);
+  const [sortBy, setSortBy] = useState("newest");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [userApplications, setUserApplications] = useState([]);
   const [userId, setUserId] = useState(null);
-  const [role, setRole] = useState(null);
   const [applicants, setApplicants] = useState({});
   const [isApplying, setIsApplying] = useState({});
   const [showFilters, setShowFilters] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -40,19 +41,16 @@ const Gigs = () => {
     if (token) {
       try {
         const decoded = jwtDecode(token);
-        if (decoded.id && decoded.role) {
+        if (decoded.id) {
           setUserId(decoded.id);
-          setRole(decoded.role);
         } else {
-          console.error("Invalid token payload:", decoded);
           localStorage.removeItem("token");
-          toast.error("Session invalid. Please log in again.");
+          toast.error("Session invalid. Please log in.");
           navigate("/login");
         }
       } catch (error) {
-        console.error("Error decoding token:", error);
         localStorage.removeItem("token");
-        toast.error("Session expired. Please log in again.");
+        toast.error("Session expired. Please log in.");
         navigate("/login");
       }
     }
@@ -60,33 +58,44 @@ const Gigs = () => {
 
   useEffect(() => {
     const fetchData = async () => {
+      setIsLoading(true);
       try {
-        const params = { page, limit: 12 };
+        const params = {
+          page,
+          limit: 12,
+          sort: sortBy,
+          minPrice: priceRange[0],
+          maxPrice: priceRange[1],
+        };
         if (selectedCategory) params.category = selectedCategory;
         if (searchTerm) params.search = searchTerm;
 
-        const requests = [
+        const [
+          gigsResponse,
+          categoriesResponse,
+          applicationsResponse,
+          featuredResponse,
+        ] = await Promise.all([
           axios.get(`${API_BASE}/gigs`, { params }),
           axios.get(`${API_BASE}/categories`),
-        ];
-
-        if (userId) {
-          requests.push(
-            axios.get(`${API_BASE}/users/${userId}/applications`, {
-              headers: {
-                Authorization: `Bearer ${localStorage.getItem("token")}`,
-              },
-            })
-          );
-        } else {
-          requests.push(Promise.resolve({ data: [] }));
-        }
-
-        const [gigsResponse, categoriesResponse, applicationsResponse] =
-          await Promise.all(requests);
+          userId
+            ? axios.get(`${API_BASE}/users/${userId}/applications`, {
+                headers: {
+                  Authorization: `Bearer ${localStorage.getItem("token")}`,
+                },
+              })
+            : Promise.resolve({ data: [] }),
+          axios
+            .get(`${API_BASE}/gigs/featured`, { params: { limit: 3 } })
+            .catch((err) => {
+              console.error("Failed to fetch featured gigs:", err);
+              return { data: { gigs: [] } }; // Fallback to empty array
+            }),
+        ]);
 
         setGigs(gigsResponse.data.gigs || []);
         setTotalPages(gigsResponse.data.pages || 1);
+        setFeaturedGigs(featuredResponse.data.gigs || []);
         setCategories(categoriesResponse.data.categories || []);
         setUserApplications(
           applicationsResponse.data.map((app) => ({
@@ -97,7 +106,7 @@ const Gigs = () => {
         );
 
         if (userId) {
-          const applicantRequests = gigs
+          const applicantPromises = gigs
             .filter((gig) => gig.sellerId === userId)
             .map((gig) =>
               axios.get(`${API_BASE}/gigs/${gig._id}/applications`, {
@@ -106,31 +115,33 @@ const Gigs = () => {
                 },
               })
             );
-          const applicantResponses = await Promise.all(applicantRequests);
-          const applicantsData = {};
-          applicantResponses.forEach((response, index) => {
-            const gigId = gigs.filter((gig) => gig.sellerId === userId)[index]
-              ._id;
-            applicantsData[gigId] = response.data;
-          });
-          setApplicants(applicantsData);
+          const responses = await Promise.all(applicantPromises);
+          setApplicants(
+            responses.reduce((acc, response, index) => {
+              const gigId = gigs.filter((gig) => gig.sellerId === userId)[index]
+                ._id;
+              acc[gigId] = response.data;
+              return acc;
+            }, {})
+          );
         }
       } catch (error) {
-        console.error("Error fetching data:", error);
+        console.error("Fetch data error:", error);
         toast.error("Failed to load gigs or categories.");
+      } finally {
+        setIsLoading(false);
       }
     };
 
     fetchData();
-  }, [page, selectedCategory, searchTerm, userId]);
+  }, [page, selectedCategory, searchTerm, priceRange, sortBy, userId]);
 
   const handleApply = async (gigId) => {
     if (!userId) {
-      toast.error("Please log in to apply for gigs.");
+      toast.error("Please log in to apply.");
       navigate("/login", { state: { from: `/gigs/${gigId}` } });
       return;
     }
-
     setIsApplying((prev) => ({ ...prev, [gigId]: true }));
     try {
       const response = await axios.post(
@@ -140,17 +151,14 @@ const Gigs = () => {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
-      toast.success("Application submitted! Redirecting to ticket...");
+      toast.success("Application submitted!");
       setUserApplications([
         ...userApplications,
         { gigId, status: "pending", _id: response.data.application._id },
       ]);
       navigate(`/tickets/${response.data.ticketId}`);
     } catch (error) {
-      console.error("Error applying for gig:", error);
-      const errorMsg =
-        error.response?.data?.error || "Failed to apply for gig.";
-      toast.error(errorMsg);
+      toast.error(error.response?.data?.error || "Failed to apply.");
     } finally {
       setIsApplying((prev) => ({ ...prev, [gigId]: false }));
     }
@@ -158,7 +166,7 @@ const Gigs = () => {
 
   const handleApplicationStatus = async (gigId, applicationId, status) => {
     try {
-      const response = await axios.patch(
+      await axios.patch(
         `${API_BASE}/gigs/${gigId}/applications/${applicationId}`,
         { status },
         {
@@ -173,7 +181,7 @@ const Gigs = () => {
         ),
       }));
       if (userId) {
-        const applicationsResponse = await axios.get(
+        const response = await axios.get(
           `${API_BASE}/users/${userId}/applications`,
           {
             headers: {
@@ -182,7 +190,7 @@ const Gigs = () => {
           }
         );
         setUserApplications(
-          applicationsResponse.data.map((app) => ({
+          response.data.map((app) => ({
             gigId: app.gigId._id,
             status: app.status,
             _id: app._id,
@@ -190,7 +198,6 @@ const Gigs = () => {
         );
       }
     } catch (error) {
-      console.error("Error updating application status:", error);
       toast.error(
         error.response?.data?.error || "Failed to update application."
       );
@@ -215,516 +222,457 @@ const Gigs = () => {
     }
   };
 
+  const categoryColors = useMemo(
+    () =>
+      categories.reduce((acc, category, index) => {
+        const colors = ["#1A2A4F", "#3A4A7F", "#2A3A6F", "#4A5A9F"];
+        acc[category] = colors[index % colors.length];
+        return acc;
+      }, {}),
+    [categories]
+  );
+
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
+    <div className="min-h-screen flex flex-col bg-slate-50 font-sans">
       <Navbar />
-
-      {/* Hero Section with Glassmorphism */}
-      <div className="relative bg-gradient-to-br from-[#1A2A4F] via-[#243654] to-[#1A2A4F] overflow-hidden">
-        {/* Animated Background Elements */}
-        <div className="absolute inset-0 opacity-20">
-          <div className="absolute top-20 left-10 w-72 h-72 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl animate-pulse"></div>
-          <div className="absolute top-40 right-10 w-72 h-72 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl animate-pulse delay-1000"></div>
-          <div className="absolute bottom-20 left-1/2 w-72 h-72 bg-cyan-400 rounded-full mix-blend-multiply filter blur-3xl animate-pulse delay-2000"></div>
-        </div>
-
-        <div className="relative max-w-7xl mx-auto px-4 py-16 md:py-24">
-          <div className="text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20 mb-6">
-              <TrendingUp className="h-4 w-4 text-cyan-300" />
-              <span className="text-sm text-white/90 font-medium">
-                Discover Amazing Opportunities
-              </span>
-            </div>
-            <h1 className="text-4xl md:text-6xl font-bold text-white mb-6 leading-tight">
-              Find Your Perfect{" "}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-blue-400">
-                Gig
-              </span>
+      <div className="mt-16 sm:mt-20">
+        {/* Hero Section */}
+        <div className="relative bg-gradient-to-br from-[#1A2A4F] to-[#2A3A6F] overflow-hidden">
+          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_50%_50%,#3A4A7F,transparent_70%)]"></div>
+          <div className="relative max-w-7xl mx-auto px-4 py-12 sm:py-16 text-center">
+            <h1 className="text-3xl sm:text-4xl font-bold text-white animate-in fade-in duration-500">
+              Discover Top Campus Gigs
             </h1>
-            <p className="text-lg md:text-xl text-white/80 max-w-2xl mx-auto mb-8">
-              Connect with opportunities that match your skills and help you
-              grow your career
+            <p className="text-sm sm:text-base text-white/80 max-w-xl mx-auto mt-3 animate-in fade-in duration-500 delay-100">
+              Connect with skilled students for design, development, tutoring,
+              and more.
             </p>
-
-            {/* Stats */}
-            <div className="flex flex-wrap justify-center gap-6 md:gap-12">
-              <div className="text-center">
-                <div className="text-3xl md:text-4xl font-bold text-white mb-1">
-                  {gigs.length}+
-                </div>
-                <div className="text-sm text-white/70">Active Gigs</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl md:text-4xl font-bold text-white mb-1">
-                  {categories.length}+
-                </div>
-                <div className="text-sm text-white/70">Categories</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl md:text-4xl font-bold text-white mb-1">
-                  24/7
-                </div>
-                <div className="text-sm text-white/70">Support</div>
-              </div>
-            </div>
+            <button
+              onClick={() => window.scrollTo({ top: 400, behavior: "smooth" })}
+              className="mt-6 px-6 py-3 text-sm bg-[#3A4A7F] text-white rounded-lg hover:bg-[#4A5A9F] animate-in fade-in duration-500 delay-200"
+            >
+              Browse Gigs
+            </button>
           </div>
         </div>
 
-        {/* Wave Divider */}
-        <div className="absolute bottom-0 left-0 right-0">
-          <svg viewBox="0 0 1440 120" className="w-full h-12 md:h-20">
-            <path
-              fill="#f8fafc"
-              d="M0,64L80,69.3C160,75,320,85,480,80C640,75,800,53,960,48C1120,43,1280,53,1360,58.7L1440,64L1440,120L1360,120C1280,120,1120,120,960,120C800,120,640,120,480,120C320,120,160,120,80,120L0,120Z"
-            ></path>
-          </svg>
-        </div>
-      </div>
-
-      <div className="flex-grow max-w-7xl mx-auto w-full px-4 -mt-8 md:-mt-12 pb-12">
-        {/* Search and Filter Bar with Glassmorphism */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-4 md:p-6 mb-8 border border-white/60 sticky top-4 z-20">
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Search with Icon */}
-            <div className="flex-1 relative group">
-              <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-[#1A2A4F]/40 group-focus-within:text-[#1A2A4F] transition-colors duration-200" />
-              </div>
-              <input
-                type="text"
-                placeholder="Search gigs by title, description..."
-                value={searchTerm}
-                onChange={handleSearchChange}
-                className="w-full pl-12 pr-4 py-3.5 bg-slate-50/80 text-[#1A2A4F] border-2 border-transparent rounded-2xl focus:border-[#1A2A4F] focus:bg-white transition-all duration-200 outline-none placeholder:text-[#1A2A4F]/40 font-medium"
-              />
-            </div>
-
-            {/* Filter Toggle (Mobile) */}
+        {/* Category Bar */}
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide">
             <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="md:hidden flex items-center justify-center gap-2 px-6 py-3.5 bg-[#1A2A4F]/5 text-[#1A2A4F] rounded-2xl hover:bg-[#1A2A4F]/10 transition-all duration-200 font-medium"
+              onClick={() => handleCategoryChange("")}
+              className={`px-4 py-2 text-xs sm:text-sm rounded-lg font-medium flex-shrink-0 ${
+                selectedCategory === ""
+                  ? "bg-[#1A2A4F] text-white"
+                  : "bg-white/90 text-[#2A3A6F] hover:bg-slate-200"
+              }`}
             >
-              <Filter className="h-5 w-5" />
-              Filters
-              {selectedCategory && (
-                <span className="ml-2 px-2 py-0.5 bg-[#1A2A4F] text-white rounded-full text-xs">
-                  1
-                </span>
-              )}
+              All
             </button>
-
-            {/* Category Pills (Desktop) */}
-            <div className="hidden md:flex items-center gap-2 flex-wrap">
+            {categories.map((category) => (
               <button
-                onClick={() => handleCategoryChange("")}
-                className={`px-5 py-3 rounded-2xl font-semibold transition-all duration-200 ${
-                  selectedCategory === ""
-                    ? "bg-[#1A2A4F] text-white shadow-lg shadow-[#1A2A4F]/30 scale-105"
-                    : "bg-slate-100 text-[#1A2A4F]/70 hover:bg-slate-200 hover:text-[#1A2A4F]"
+                key={category}
+                onClick={() => handleCategoryChange(category)}
+                className={`px-4 py-2 text-xs sm:text-sm rounded-lg font-medium flex-shrink-0 ${
+                  selectedCategory === category
+                    ? `bg-[${categoryColors[category]}] text-white`
+                    : "bg-white/90 text-[#2A3A6F] hover:bg-slate-200"
                 }`}
               >
-                All
+                {category}
               </button>
-              {categories.slice(0, 3).map((category) => (
-                <button
-                  key={category}
-                  onClick={() => handleCategoryChange(category)}
-                  className={`px-5 py-3 rounded-2xl font-semibold transition-all duration-200 whitespace-nowrap ${
-                    selectedCategory === category
-                      ? "bg-[#1A2A4F] text-white shadow-lg shadow-[#1A2A4F]/30 scale-105"
-                      : "bg-slate-100 text-[#1A2A4F]/70 hover:bg-slate-200 hover:text-[#1A2A4F]"
-                  }`}
-                >
-                  {category}
-                </button>
-              ))}
-              {categories.length > 3 && (
-                <button
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="px-5 py-3 bg-slate-100 text-[#1A2A4F]/70 rounded-2xl hover:bg-slate-200 hover:text-[#1A2A4F] transition-all duration-200 font-semibold"
-                >
-                  +{categories.length - 3} More
-                </button>
-              )}
-            </div>
+            ))}
+          </div>
+        </div>
 
-            {/* My Tickets Button */}
+        {/* Filter Bar */}
+        <div className="max-w-7xl mx-auto px-4 sticky top-16 sm:top-20 z-10">
+          <div className="bg-white/90 backdrop-blur-md rounded-lg p-3 flex flex-col sm:flex-row gap-2 sm:gap-3 shadow-md border border-white/20">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#2A3A6F]" />
+              <input
+                type="text"
+                placeholder="Search gigs..."
+                value={searchTerm}
+                onChange={handleSearchChange}
+                className="w-full pl-10 pr-3 py-2 text-xs sm:text-sm bg-transparent border border-[#D1D5DB] rounded-lg focus:ring-2 focus:ring-[#3A4A7F] focus:border-transparent placeholder-[#2A3A6F]/50"
+              />
+            </div>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="px-3 py-2 text-xs sm:text-sm bg-white border border-[#D1D5DB] rounded-lg focus:ring-2 focus:ring-[#3A4A7F] focus:border-transparent"
+            >
+              <option value="newest">Newest</option>
+              <option value="price-asc">Price: Low to High</option>
+              <option value="price-desc">Price: High to Low</option>
+            </select>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="px-4 py-2 text-xs sm:text-sm bg-white text-[#2A3A6F] rounded-lg hover:bg-slate-200 flex items-center gap-2"
+            >
+              <Filter className="h-4 w-4" /> Filters
+            </button>
             {userId && (
               <button
                 onClick={() => navigate("/tickets")}
-                className="flex items-center justify-center gap-2 px-6 py-3.5 bg-[#1A2A4F] text-white rounded-2xl hover:bg-[#243654] hover:shadow-xl hover:shadow-[#1A2A4F]/30 transition-all duration-200 font-semibold transform hover:scale-105"
+                className="px-4 py-2 text-xs sm:text-sm bg-[#1A2A4F] text-white rounded-lg hover:bg-[#3A4A7F] flex items-center gap-2"
               >
-                <Users className="h-5 w-5" />
-                <span className="hidden sm:inline">My Tickets</span>
+                <Users className="h-4 w-4" /> Tickets
               </button>
             )}
           </div>
-
-          {/* Expandable Filters */}
           {showFilters && (
-            <div className="mt-6 pt-6 border-t border-slate-200/60 animate-in slide-in-from-top-4 duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-[#1A2A4F] text-lg">
-                  All Categories
+            <div className="mt-2 bg-white/90 backdrop-blur-md rounded-lg p-3 shadow-md border border-white/20">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-[#2A3A6F]">
+                  Advanced Filters
                 </h3>
                 <button
                   onClick={() => setShowFilters(false)}
-                  className="text-[#1A2A4F]/50 hover:text-[#1A2A4F] transition-colors"
+                  className="text-[#2A3A6F]/50 hover:text-[#2A3A6F]"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-4 w-4" />
                 </button>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                <button
-                  onClick={() => handleCategoryChange("")}
-                  className={`px-4 py-2.5 rounded-xl font-semibold transition-all duration-200 ${
-                    selectedCategory === ""
-                      ? "bg-[#1A2A4F] text-white shadow-md"
-                      : "bg-slate-100 text-[#1A2A4F]/70 hover:bg-slate-200"
-                  }`}
-                >
-                  All
-                </button>
-                {categories.map((category) => (
-                  <button
-                    key={category}
-                    onClick={() => handleCategoryChange(category)}
-                    className={`px-4 py-2.5 rounded-xl font-semibold transition-all duration-200 ${
-                      selectedCategory === category
-                        ? "bg-[#1A2A4F] text-white shadow-md"
-                        : "bg-slate-100 text-[#1A2A4F]/70 hover:bg-slate-200"
-                    }`}
-                  >
-                    {category}
-                  </button>
-                ))}
+              <div className="flex flex-col gap-2">
+                <label className="text-xs text-[#2A3A6F]">Price Range</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    placeholder="Min"
+                    value={priceRange[0]}
+                    onChange={(e) =>
+                      setPriceRange([+e.target.value, priceRange[1]])
+                    }
+                    className="w-1/2 px-3 py-2 text-xs border border-[#D1D5DB] rounded-lg"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Max"
+                    value={priceRange[1]}
+                    onChange={(e) =>
+                      setPriceRange([priceRange[0], +e.target.value])
+                    }
+                    className="w-1/2 px-3 py-2 text-xs border border-[#D1D5DB] rounded-lg"
+                  />
+                </div>
               </div>
             </div>
           )}
         </div>
 
-        {/* Active Filter Badge */}
-        {selectedCategory && (
-          <div className="flex items-center gap-3 mb-8 animate-in slide-in-from-left duration-300">
-            <span className="text-sm font-medium text-[#1A2A4F]/70">
-              Showing results for:
-            </span>
-            <span className="inline-flex items-center gap-2 px-4 py-2 bg-[#1A2A4F]/10 text-[#1A2A4F] rounded-full font-semibold border-2 border-[#1A2A4F]/20">
-              {selectedCategory}
-              <button
-                onClick={() => handleCategoryChange("")}
-                className="hover:bg-[#1A2A4F]/20 rounded-full p-1 transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </span>
+        {/* Featured Gigs */}
+        {featuredGigs.length > 0 && (
+          <div className="max-w-7xl mx-auto px-4 py-8">
+            <h2 className="text-xl sm:text-2xl font-semibold text-[#1A2A4F] mb-4">
+              Featured Gigs
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              {featuredGigs.map((gig) => (
+                <div
+                  key={gig._id}
+                  className="bg-white/90 backdrop-blur-md rounded-xl shadow-md hover:shadow-lg border border-white/20 hover:border-[#3A4A7F]/20 transition-all duration-300"
+                >
+                  <div className="relative h-48 overflow-hidden">
+                    <img
+                      src={gig.thumbnail || "/default-thumbnail.jpg"}
+                      alt={gig.title}
+                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                      onError={(e) => (e.target.src = "/default-thumbnail.jpg")}
+                    />
+                    <span className="absolute top-3 right-3 px-3 py-1 bg-[#1A2A4F] text-white rounded-lg text-xs font-medium">
+                      Featured
+                    </span>
+                  </div>
+                  <div className="p-4">
+                    <h3 className="text-base sm:text-lg font-semibold text-[#1A2A4F] line-clamp-2">
+                      {gig.title}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-[#2A3A6F]/70 mt-1 line-clamp-2">
+                      {gig.description}
+                    </p>
+                    <div className="mt-3 space-y-1 text-xs sm:text-sm">
+                      <p className="text-[#2A3A6F]">
+                        <span className="font-medium">Price:</span>{" "}
+                        {gig.price.toLocaleString("en-IN", {
+                          style: "currency",
+                          currency: "INR",
+                        })}
+                      </p>
+                    </div>
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        onClick={() => navigate(`/gigs/${gig._id}`)}
+                        className="flex-1 px-4 py-2 text-xs sm:text-sm bg-slate-100 text-[#2A3A6F] rounded-lg hover:bg-slate-200"
+                      >
+                        Details
+                      </button>
+                      <button
+                        onClick={() => handleApply(gig._id)}
+                        disabled={gig.status !== "open" || isApplying[gig._id]}
+                        className={`flex-1 px-4 py-2 text-xs sm:text-sm rounded-lg text-white ${
+                          gig.status !== "open" || isApplying[gig._id]
+                            ? "bg-gray-300 cursor-not-allowed"
+                            : "bg-[#1A2A4F] hover:bg-[#3A4A7F]"
+                        }`}
+                      >
+                        {isApplying[gig._id] ? "Applying..." : "Apply"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
         {/* Gigs Grid */}
-        {gigs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24">
-            <div className="w-24 h-24 bg-[#1A2A4F]/5 rounded-full flex items-center justify-center mb-6">
-              <Briefcase className="h-12 w-12 text-[#1A2A4F]/30" />
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <h2 className="text-xl sm:text-2xl font-semibold text-[#1A2A4F] mb-4">
+            All Gigs
+          </h2>
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              {[...Array(6)].map((_, i) => (
+                <div
+                  key={i}
+                  className="bg-white/90 rounded-xl p-4 animate-pulse"
+                >
+                  <div className="h-48 bg-gray-200 rounded-lg"></div>
+                  <div className="mt-4 space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <p className="text-2xl font-bold text-[#1A2A4F] mb-2">
-              No gigs found
-            </p>
-            <p className="text-[#1A2A4F]/60 mb-6">
-              Try adjusting your filters or check back later
-            </p>
-            {selectedCategory && (
+          ) : gigs.length === 0 ? (
+            <div className="flex flex-col items-center py-16">
+              <Briefcase className="h-16 w-16 text-[#2A3A6F]/30 mb-4" />
+              <p className="text-lg font-medium text-[#2A3A6F]">
+                No gigs found.
+              </p>
               <button
                 onClick={() => handleCategoryChange("")}
-                className="px-6 py-3 bg-[#1A2A4F] text-white rounded-xl hover:bg-[#243654] transition-all duration-200 font-semibold"
+                className="mt-4 px-4 py-2 text-sm bg-[#1A2A4F] text-white rounded-lg hover:bg-[#3A4A7F]"
               >
                 Clear Filters
               </button>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-            {gigs.map((gig) => {
-              const userApplication = userApplications.find(
-                (app) => app.gigId === gig._id
-              );
-              const isClosed = gig.status !== "open";
-              const isOwner = gig.sellerId === userId;
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              {gigs.map((gig) => {
+                const userApplication = userApplications.find(
+                  (app) => app.gigId === gig._id
+                );
+                const isClosed = gig.status !== "open";
+                const isOwner = gig.sellerId === userId;
 
-              return (
-                <div
-                  key={gig._id}
-                  className={`group bg-white rounded-3xl overflow-hidden hover:shadow-2xl transition-all duration-300 border-2 border-slate-200 hover:border-[#1A2A4F]/20 transform hover:-translate-y-2 ${
-                    isClosed ? "opacity-60" : ""
-                  }`}
-                >
-                  {/* Thumbnail with Overlay */}
-                  <div className="relative h-56 overflow-hidden bg-gradient-to-br from-[#1A2A4F]/10 to-slate-100">
-                    {gig.thumbnail ? (
+                return (
+                  <div
+                    key={gig._id}
+                    className={`bg-white/90 backdrop-blur-md rounded-xl shadow-md hover:shadow-lg border border-white/20 hover:border-[#3A4A7F]/20 transition-all duration-300 ${
+                      isClosed ? "opacity-70" : ""
+                    }`}
+                  >
+                    <div className="relative h-48 overflow-hidden">
                       <img
-                        src={gig.thumbnail}
+                        src={gig.thumbnail || "/default-thumbnail.jpg"}
                         alt={gig.title}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                        onError={(e) => {
-                          e.target.src = "/default-thumbnail.jpg";
-                        }}
+                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                        onError={(e) =>
+                          (e.target.src = "/default-thumbnail.jpg")
+                        }
                       />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Briefcase className="h-20 w-20 text-[#1A2A4F]/20" />
-                      </div>
-                    )}
-
-                    {/* Gradient Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-
-                    {isClosed && (
-                      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center">
-                        <div className="px-6 py-3 bg-red-500 text-white rounded-full font-bold text-lg shadow-xl">
-                          Gig Closed
+                      {isClosed && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                          <span className="px-4 py-1 bg-red-500 text-white rounded-lg text-sm font-medium">
+                            Closed
+                          </span>
                         </div>
-                      </div>
-                    )}
-
-                    {/* Category Badge */}
-                    <div className="absolute top-4 right-4">
-                      <span className="px-4 py-2 bg-white/95 backdrop-blur-sm text-[#1A2A4F] rounded-full text-sm font-bold shadow-lg">
+                      )}
+                      <span
+                        className="absolute top-3 right-3 px-3 py-1 text-white rounded-lg text-xs font-medium"
+                        style={{
+                          backgroundColor:
+                            categoryColors[gig.category] || "#1A2A4F",
+                        }}
+                      >
                         {gig.category}
                       </span>
                     </div>
-                  </div>
-
-                  {/* Content */}
-                  <div className="p-6">
-                    <h3 className="text-xl font-bold text-[#1A2A4F] mb-3 line-clamp-2 group-hover:text-[#243654] transition-colors leading-snug">
-                      {gig.title}
-                    </h3>
-                    <p className="text-[#1A2A4F]/60 text-sm mb-5 line-clamp-2 leading-relaxed">
-                      {gig.description}
-                    </p>
-
-                    {/* Price and Seller Info */}
-                    <div className="flex items-center justify-between mb-5 pb-5 border-b-2 border-slate-100">
-                      <div>
-                        <p className="text-xs font-semibold text-[#1A2A4F]/50 mb-1 uppercase tracking-wide">
-                          Price
-                        </p>
-                        <p className="text-2xl font-bold text-[#1A2A4F]">
+                    <div className="p-4">
+                      <h3 className="text-base sm:text-lg font-semibold text-[#1A2A4F] line-clamp-2">
+                        {gig.title}
+                      </h3>
+                      <p className="text-xs sm:text-sm text-[#2A3A6F]/70 mt-1 line-clamp-2">
+                        {gig.description}
+                      </p>
+                      <div className="mt-3 space-y-1 text-xs sm:text-sm">
+                        <p className="text-[#2A3A6F]">
+                          <span className="font-medium">Price:</span>{" "}
                           {gig.price.toLocaleString("en-IN", {
                             style: "currency",
                             currency: "INR",
                           })}
                         </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs font-semibold text-[#1A2A4F]/50 mb-1 uppercase tracking-wide">
-                          Seller
-                        </p>
-                        <p className="text-sm font-bold text-[#1A2A4F]">
+                        <p className="text-[#2A3A6F]">
+                          <span className="font-medium">Seller:</span>{" "}
                           {gig.sellerName}
                         </p>
                       </div>
-                    </div>
-
-                    {/* Actions */}
-                    {isOwner ? (
-                      <div className="space-y-4">
-                        <button
-                          onClick={() => navigate(`/gigs/${gig._id}`)}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-slate-100 text-[#1A2A4F] rounded-2xl hover:bg-slate-200 transition-all duration-200 font-bold group/btn"
-                        >
-                          <Users className="h-5 w-5" />
-                          View All Applicants
-                          <ChevronRight className="h-5 w-5 group-hover/btn:translate-x-1 transition-transform" />
-                        </button>
-
-                        {applicants[gig._id] &&
-                          applicants[gig._id].length > 0 && (
-                            <div className="space-y-3">
-                              <div className="flex items-center justify-between">
-                                <p className="text-xs font-bold text-[#1A2A4F]/50 uppercase tracking-wider">
-                                  Recent Applicants
-                                </p>
-                                <span className="px-2.5 py-1 bg-[#1A2A4F] text-white rounded-full text-xs font-bold">
-                                  {applicants[gig._id].length}
-                                </span>
-                              </div>
-                              {applicants[gig._id].slice(0, 2).map((app) => (
-                                <div
-                                  key={app._id}
-                                  className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 hover:border-[#1A2A4F]/20 transition-all duration-200"
-                                >
-                                  <div className="flex-1">
-                                    <p className="text-sm font-bold text-[#1A2A4F] mb-1">
-                                      {app.applicantName}
-                                    </p>
-                                    <span
-                                      className={`inline-block px-2.5 py-1 rounded-lg text-xs font-bold ${
-                                        app.status === "pending"
-                                          ? "bg-amber-100 text-amber-700"
-                                          : app.status === "accepted"
-                                          ? "bg-green-100 text-green-700"
-                                          : "bg-red-100 text-red-700"
-                                      }`}
-                                    >
-                                      {app.status.charAt(0).toUpperCase() +
-                                        app.status.slice(1)}
-                                    </span>
-                                  </div>
-                                  {app.status === "pending" && (
-                                    <div className="flex gap-2 ml-3">
-                                      <button
-                                        onClick={() =>
-                                          handleApplicationStatus(
-                                            gig._id,
-                                            app._id,
-                                            "accepted"
-                                          )
-                                        }
-                                        className="px-3 py-1.5 text-xs bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-bold"
-                                      >
-                                        Accept
-                                      </button>
-                                      <button
-                                        onClick={() =>
-                                          handleApplicationStatus(
-                                            gig._id,
-                                            app._id,
-                                            "rejected"
-                                          )
-                                        }
-                                        className="px-3 py-1.5 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-bold"
-                                      >
-                                        Reject
-                                      </button>
-                                    </div>
-                                  )}
+                      <div className="mt-4 space-y-2">
+                        {isOwner ? (
+                          <>
+                            <button
+                              onClick={() => navigate(`/gigs/${gig._id}`)}
+                              className="w-full flex items-center justify-center gap-2 px-4 py-2 text-xs sm:text-sm bg-slate-100 text-[#2A3A6F] rounded-lg hover:bg-slate-200"
+                            >
+                              <Users className="h-4 w-4" /> Applicants
+                              <ChevronRight className="h-4 w-4" />
+                            </button>
+                            {applicants[gig._id]?.slice(0, 1).map((app) => (
+                              <div
+                                key={app._id}
+                                className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200"
+                              >
+                                <div>
+                                  <p className="text-xs font-medium text-[#2A3A6F]">
+                                    {app.applicantName}
+                                  </p>
+                                  <span
+                                    className={`text-xs px-2 py-1 rounded ${
+                                      app.status === "pending"
+                                        ? "bg-yellow-100 text-yellow-700"
+                                        : app.status === "accepted"
+                                        ? "bg-green-100 text-green-700"
+                                        : "bg-red-100 text-red-700"
+                                    }`}
+                                  >
+                                    {app.status.charAt(0).toUpperCase() +
+                                      app.status.slice(1)}
+                                  </span>
                                 </div>
-                              ))}
-                            </div>
-                          )}
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <button
-                          onClick={() => navigate(`/gigs/${gig._id}`)}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-3 text-[#1A2A4F] hover:bg-slate-50 rounded-2xl transition-all duration-200 font-bold border-2 border-slate-200 hover:border-[#1A2A4F]/20 group/btn"
-                        >
-                          View Full Details
-                          <ChevronRight className="h-5 w-5 group-hover/btn:translate-x-1 transition-transform" />
-                        </button>
-
-                        {userApplication ? (
-                          <div
-                            className={`w-full px-4 py-3.5 text-center rounded-2xl font-bold ${
-                              userApplication.status === "pending"
-                                ? "bg-amber-100 text-amber-700 border-2 border-amber-200"
-                                : userApplication.status === "accepted"
-                                ? "bg-green-100 text-green-700 border-2 border-green-200"
-                                : "bg-red-100 text-red-700 border-2 border-red-200"
-                            }`}
-                          >
-                            {userApplication.status === "pending" && "⏳ "}
-                            {userApplication.status === "accepted" && "✓ "}
-                            {userApplication.status === "rejected" && "✗ "}
-                            {userApplication.status.charAt(0).toUpperCase() +
-                              userApplication.status.slice(1)}
-                          </div>
+                                {app.status === "pending" && (
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() =>
+                                        handleApplicationStatus(
+                                          gig._id,
+                                          app._id,
+                                          "accepted"
+                                        )
+                                      }
+                                      className="text-xs text-green-600 hover:text-green-700"
+                                    >
+                                      Accept
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        handleApplicationStatus(
+                                          gig._id,
+                                          app._id,
+                                          "rejected"
+                                        )
+                                      }
+                                      className="text-xs text-red-600 hover:text-red-700"
+                                    >
+                                      Reject
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </>
                         ) : (
-                          <button
-                            onClick={() => handleApply(gig._id)}
-                            disabled={isClosed || isApplying[gig._id]}
-                            className={`w-full px-4 py-3.5 rounded-2xl font-bold transition-all duration-200 transform ${
-                              isClosed || isApplying[gig._id]
-                                ? "bg-slate-200 text-slate-500 cursor-not-allowed"
-                                : "bg-[#1A2A4F] text-white hover:bg-[#243654] hover:shadow-xl hover:shadow-[#1A2A4F]/30 hover:scale-105"
-                            }`}
-                          >
-                            {isApplying[gig._id] ? (
-                              <span className="flex items-center justify-center gap-2">
-                                <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                Applying...
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => navigate(`/gigs/${gig._id}`)}
+                              className="flex-1 px-4 py-2 text-xs sm:text-sm bg-slate-100 text-[#2A3A6F] rounded-lg hover:bg-slate-200"
+                            >
+                              Details
+                            </button>
+                            {userApplication ? (
+                              <span
+                                className={`flex-1 px-4 py-2 text-xs sm:text-sm text-center rounded-lg ${
+                                  userApplication.status === "pending"
+                                    ? "bg-yellow-100 text-yellow-700"
+                                    : userApplication.status === "accepted"
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-red-100 text-red-700"
+                                }`}
+                              >
+                                {userApplication.status
+                                  .charAt(0)
+                                  .toUpperCase() +
+                                  userApplication.status.slice(1)}
                               </span>
                             ) : (
-                              "Apply Now"
+                              <button
+                                onClick={() => handleApply(gig._id)}
+                                disabled={isClosed || isApplying[gig._id]}
+                                className={`flex-1 px-4 py-2 text-xs sm:text-sm rounded-lg text-white ${
+                                  isClosed || isApplying[gig._id]
+                                    ? "bg-gray-300 cursor-not-allowed"
+                                    : "bg-[#1A2A4F] hover:bg-[#3A4A7F]"
+                                }`}
+                              >
+                                {isApplying[gig._id] ? "Applying..." : "Apply"}
+                              </button>
                             )}
-                          </button>
+                          </div>
                         )}
                       </div>
-                    )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          )}
+        </div>
 
-        {/* Modern Pagination */}
+        {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-xl border border-white/60">
+          <div className="max-w-7xl mx-auto px-4 py-6 flex justify-center gap-2">
             <button
               onClick={() => handlePageChange(page - 1)}
               disabled={page === 1}
-              className="flex items-center gap-2 px-6 py-3 bg-white text-[#1A2A4F] rounded-2xl font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#1A2A4F] hover:text-white transition-all duration-200 shadow-md hover:shadow-xl border-2 border-[#1A2A4F]/20 hover:border-[#1A2A4F] disabled:hover:bg-white disabled:hover:text-[#1A2A4F] group"
+              className="w-10 h-10 flex items-center justify-center bg-white text-[#2A3A6F] rounded-full disabled:opacity-50 hover:bg-[#3A4A7F] hover:text-white"
             >
-              <ChevronRight className="h-5 w-5 rotate-180 group-hover:-translate-x-1 transition-transform" />
-              Previous
+              <ChevronLeft className="h-4 w-4" />
             </button>
-
-            <div className="flex items-center gap-2">
-              {[...Array(Math.min(totalPages, 5))].map((_, i) => {
-                let pageNum;
-                if (totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (page <= 3) {
-                  pageNum = i + 1;
-                } else if (page >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                } else {
-                  pageNum = page - 2 + i;
-                }
-
-                return (
-                  <button
-                    key={i}
-                    onClick={() => handlePageChange(pageNum)}
-                    className={`w-12 h-12 rounded-2xl font-bold transition-all duration-200 transform hover:scale-110 ${
-                      page === pageNum
-                        ? "bg-[#1A2A4F] text-white shadow-xl shadow-[#1A2A4F]/30 scale-110"
-                        : "bg-white text-[#1A2A4F] hover:bg-slate-100 border-2 border-[#1A2A4F]/20"
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
-
-              {totalPages > 5 && page < totalPages - 2 && (
-                <>
-                  <span className="text-[#1A2A4F]/50 font-bold px-2">...</span>
-                  <button
-                    onClick={() => handlePageChange(totalPages)}
-                    className="w-12 h-12 rounded-2xl font-bold bg-white text-[#1A2A4F] hover:bg-slate-100 border-2 border-[#1A2A4F]/20 transition-all duration-200 hover:scale-110"
-                  >
-                    {totalPages}
-                  </button>
-                </>
-              )}
-            </div>
-
+            {[...Array(Math.min(totalPages, 3))].map((_, i) => {
+              const pageNum = page <= 2 ? i + 1 : page - 1 + i;
+              if (pageNum > totalPages) return null;
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => handlePageChange(pageNum)}
+                  className={`w-10 h-10 flex items-center justify-center rounded-full ${
+                    page === pageNum
+                      ? "bg-[#1A2A4F] text-white"
+                      : "bg-white text-[#2A3A6F] hover:bg-slate-200"
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+            {totalPages > 3 && page < totalPages && (
+              <span className="px-2 text-[#2A3A6F] self-center">...</span>
+            )}
             <button
               onClick={() => handlePageChange(page + 1)}
               disabled={page === totalPages}
-              className="flex items-center gap-2 px-6 py-3 bg-white text-[#1A2A4F] rounded-2xl font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#1A2A4F] hover:text-white transition-all duration-200 shadow-md hover:shadow-xl border-2 border-[#1A2A4F]/20 hover:border-[#1A2A4F] disabled:hover:bg-white disabled:hover:text-[#1A2A4F] group"
+              className="w-10 h-10 flex items-center justify-center bg-white text-[#2A3A6F] rounded-full disabled:opacity-50 hover:bg-[#3A4A7F] hover:text-white"
             >
-              Next
-              <ChevronRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              <ChevronRight className="h-4 w-4" />
             </button>
           </div>
         )}
       </div>
-
       <Footer />
     </div>
   );
