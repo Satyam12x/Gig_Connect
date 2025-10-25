@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import io from "socket.io-client";
 import { toast, Toaster } from "react-hot-toast";
 import Navbar from "../components/Navbar";
-import Footer from "../components/Footer";
 import { Send, User, Search, MoreVertical } from "lucide-react";
 
 const API_BASE = "http://localhost:5000";
@@ -39,26 +38,7 @@ const GlobalChat = () => {
   };
 
   useEffect(() => {
-    const fetchMessages = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        console.log("Fetching messages with token:", token);
-        const response = await fetch(`${API_BASE}/api/chat/messages`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!response.ok)
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        const data = await response.json();
-        console.log("Fetched messages:", data);
-        setMessages(data);
-      } catch (err) {
-        console.error("Fetch messages error:", err);
-        toast.error("Failed to load chat messages");
-      }
-    };
-
-    fetchMessages();
-
+    // Only handle new messages via Socket.io
     socket.on("connect", () => {
       console.log("Connected to WebSocket server");
     });
@@ -111,7 +91,7 @@ const GlobalChat = () => {
   };
 
   const handleViewProfile = (userId) => {
-    navigate(`/users/${userId}`); // Updated to match /users/:id route
+    navigate(`/users/${userId}`);
     setShowProfileOptions(null);
   };
 
@@ -137,28 +117,31 @@ const GlobalChat = () => {
       <Toaster position="top-right" />
       <Navbar />
 
-      <div className="flex-grow flex flex-col max-w-4xl mx-auto w-full">
+      <div className="flex-grow flex flex-col max-w-4xl mx-auto w-full mt-4 sm:mt-6 px-2 sm:px-4">
         {/* WhatsApp-like Header */}
-        <div className="bg-[#075E54] text-white p-3 sm:p-4 flex items-center justify-between shadow-md">
-          <h1 className="text-lg sm:text-xl font-semibold">Global Chat</h1>
+        <div className="bg-[#075E54] text-white p-3 sm:p-4 flex items-center justify-between shadow-md sticky top-0 z-10">
+          <h1 className="text-base sm:text-lg font-semibold">Global Chat</h1>
           <div className="flex items-center gap-3 sm:gap-4">
-            <Search className="w-5 h-5 cursor-pointer" />
-            <MoreVertical className="w-5 h-5 cursor-pointer" />
+            <Search className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer" />
+            <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer" />
           </div>
         </div>
 
         {/* Chat Area */}
         <div
-          className="flex-grow bg-[url('/chat-background.jpg')] bg-repeat bg-[length:300px_300px] overflow-y-auto p-3 sm:p-4"
-          style={{ backgroundColor: "#E5DDD5" }}
+          className="flex-grow bg-[url('/chat-background.jpg')] bg-repeat bg-[length:200px_200px] overflow-y-auto p-2 sm:p-3"
+          style={{
+            backgroundColor: "#E5DDD5",
+            minHeight: "calc(100vh - 180px)",
+          }}
         >
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-full text-center">
-              <div className="max-w-xs sm:max-w-sm md:max-w-md bg-white p-4 rounded-lg shadow-md">
-                <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3">
+              <div className="max-w-[90%] sm:max-w-sm bg-white p-3 sm:p-4 rounded-lg shadow-md">
+                <h2 className="text-sm sm:text-base font-semibold text-gray-800 mb-2 sm:mb-3">
                   Chat Rules & Regulations
                 </h2>
-                <ul className="text-xs sm:text-sm text-gray-600 space-y-2">
+                <ul className="text-xs sm:text-sm text-gray-600 space-y-1 sm:space-y-2">
                   {chatRules.map((rule, index) => (
                     <li key={index} className="flex items-start gap-2">
                       <span className="text-gray-800 font-medium">•</span>
@@ -178,13 +161,13 @@ const GlobalChat = () => {
                     : "justify-start"
                 }`}
               >
-                <div className="flex items-end gap-2 max-w-[80%] sm:max-w-[70%]">
+                <div className="flex items-end gap-1 sm:gap-2 max-w-[80%] sm:max-w-[70%]">
                   {msg.userId !== getUserIdFromToken() && (
                     <div className="relative">
                       <img
                         src={msg.user.profilePicture || "/default-avatar.png"}
                         alt={msg.user.username}
-                        className="w-8 h-8 sm:w-9 sm:h-9 rounded-full cursor-pointer"
+                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full cursor-pointer"
                         onClick={(e) => handleProfileClick(msg.userId, e)}
                         onError={(e) => {
                           console.error(
@@ -195,12 +178,12 @@ const GlobalChat = () => {
                         }}
                       />
                       {showProfileOptions === msg.userId && (
-                        <div className="absolute bottom-10 left-0 bg-white shadow-lg rounded-lg p-2 border border-gray-300 z-10 min-w-[120px]">
+                        <div className="absolute bottom-8 sm:bottom-10 left-0 bg-white shadow-lg rounded-lg p-2 border border-gray-300 z-10 min-w-[100px] sm:min-w-[120px]">
                           <button
                             onClick={() => handleViewProfile(msg.userId)}
-                            className="flex items-center gap-2 px-3 py-1 text-xs sm:text-sm text-gray-800 hover:bg-gray-100 rounded-lg w-full"
+                            className="flex items-center gap-2 px-2 py-1 sm:px-3 sm:py-1 text-xs sm:text-sm text-gray-800 hover:bg-gray-100 rounded-lg w-full"
                           >
-                            <User className="w-4 h-4" />
+                            <User className="w-3 h-3 sm:w-4 sm:h-4" />
                             View Profile
                           </button>
                         </div>
@@ -218,7 +201,7 @@ const GlobalChat = () => {
                       <p className="text-xs sm:text-sm font-semibold">
                         {msg.user.username}
                       </p>
-                      <p className="text-[10px] sm:text-xs text-gray-500">
+                      <p className="text-[9px] sm:text-[10px] text-gray-500">
                         {new Date(msg.createdAt).toLocaleTimeString([], {
                           hour: "2-digit",
                           minute: "2-digit",
@@ -237,25 +220,23 @@ const GlobalChat = () => {
         {/* Message Input */}
         <form
           onSubmit={handleSendMessage}
-          className="bg-[#F0F0F0] p-2 sm:p-3 flex items-center gap-2 border-t border-gray-300"
+          className="bg-[#F0F0F0] p-2 sm:p-3 flex items-center gap-2 border-t border-gray-300 sticky bottom-0"
         >
           <input
             type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Type a message..."
-            className="flex-grow px-3 py-2 sm:py-2.5 text-xs sm:text-sm bg-white text-gray-800 border border-gray-300 rounded-full focus:ring-2 focus:ring-[#25D366] focus:border-transparent placeholder-gray-400"
+            className="flex-grow px-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-white text-gray-800 border border-gray-300 rounded-full focus:ring-2 focus:ring-[#25D366] focus:border-transparent placeholder-gray-400"
           />
           <button
             type="submit"
-            className="p-2 sm:p-2.5 bg-[#25D366] text-white rounded-full hover:bg-[#20C058] transition-all duration-200"
+            className="p-1.5 sm:p-2 bg-[#25D366] text-white rounded-full hover:bg-[#20C058] transition-all duration-200"
           >
             <Send className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </form>
       </div>
-
-      {/* <Footer /> */}
     </div>
   );
 };
