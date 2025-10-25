@@ -10,8 +10,11 @@ const cloudinary = require("cloudinary").v2;
 const { Readable } = require("stream");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
+const http = require("http");
+const { setupSocket, setupRoutes } = require("./chatRoutes"); // Adjust path
 
 const app = express();
+const server = http.createServer(app); // Use HTTP server for Socket.io
 const PORT = process.env.PORT || 5000;
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
@@ -396,7 +399,7 @@ app.post("/api/auth/verify-otp", authMiddleware, async (req, res) => {
       totalGigs: 0,
       completionRate: 0,
       credits: 0,
-      ratings: [], // Initialize ratings array
+      ratings: [],
     });
     await user.save();
     await PendingUser.deleteOne({ _id: req.userId });
@@ -1179,7 +1182,6 @@ app.get("/api/users/:id/gigs", async (req, res) => {
   }
 });
 
-// Submit Application and Create Ticket
 // Submit Application and Create Ticket
 app.post(
   "/api/gigs/:id/apply",
@@ -2094,6 +2096,12 @@ setInterval(async () => {
     console.error("Cleanup error:", err);
   }
 }, 3600000);
+
+const chatRoutes = setupRoutes(authMiddleware); 
+app.use("/api/chat", chatRoutes);
+
+// Initialize Socket.io
+setupSocket(server, authMiddleware);
 
 // Start server
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

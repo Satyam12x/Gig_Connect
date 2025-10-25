@@ -11,6 +11,7 @@ import GigDetails from './components/GigDetails'
 import Ticket from './components/Ticket';
 import Tickets from './components/Tickets';
 import UserProfile from './components/UserProfile';
+import GlobalChat from './Pages/GlobalChat';
 // import { Home } from 'lucide-react';
 
 
@@ -29,6 +30,7 @@ const App = () => {
         <Route path="/tickets" element={<Tickets />} />
         <Route path="/tickets/:id" element={<Ticket />} />
         <Route path="/users/:id" element={<UserProfile />} />
+        <Route path="/global-chat" element={<GlobalChat />} />
       </Routes>
     </Router>
   );
