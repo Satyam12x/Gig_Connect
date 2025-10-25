@@ -13,9 +13,10 @@ const GigDetails = () => {
   const [userApplications, setUserApplications] = useState([]);
   const [userId, setUserId] = useState(null);
   const [role, setRole] = useState(null);
+  const [isVerified, setIsVerified] = useState(false); // New state for verification
   const [applicants, setApplicants] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isApplying, setIsApplying] = useState(false); // Loading state for apply button
+  const [isApplying, setIsApplying] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
@@ -27,6 +28,18 @@ const GigDetails = () => {
         if (decoded.id && decoded.role) {
           setUserId(decoded.id);
           setRole(decoded.role);
+          // Fetch user profile to check verification status
+          axios
+            .get(`${API_BASE}/users/profile`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            .then((response) => {
+              setIsVerified(response.data.isVerified);
+            })
+            .catch((error) => {
+              console.error("Error fetching user profile:", error);
+              toast.error("Failed to verify user status.");
+            });
         } else {
           console.error("Invalid token payload:", decoded);
           localStorage.removeItem("token");
@@ -101,13 +114,22 @@ const GigDetails = () => {
       }
     };
 
-    fetchData();
-  }, [id, userId]); // Removed 'gig' from dependencies
+    if (userId !== null) {
+      // Only fetch data once userId is set
+      fetchData();
+    }
+  }, [id, userId]);
 
   const handleApply = async () => {
     if (!userId) {
       toast.error("Please log in to apply for gigs.");
       navigate("/login", { state: { from: `/gigs/${id}` } });
+      return;
+    }
+
+    if (!isVerified) {
+      toast.error("Please verify your email before applying for gigs.");
+      navigate("/profile"); // Redirect to profile for verification
       return;
     }
 
@@ -131,7 +153,6 @@ const GigDetails = () => {
       const errorMsg =
         error.response?.data?.error || "Failed to apply for gig.";
       toast.error(errorMsg);
-    } finally {
       setIsApplying(false);
     }
   };
@@ -180,7 +201,6 @@ const GigDetails = () => {
   const handleRetry = () => {
     setError(null);
     setLoading(true);
-    // Trigger useEffect to refetch data
     const fetchData = async () => {
       try {
         const gigResponse = await axios.get(`${API_BASE}/gigs/${id}`);
@@ -444,24 +464,37 @@ const GigDetails = () => {
               <button
                 onClick={handleApply}
                 className={`px-4 py-2 rounded-md font-semibold ${
-                  isClosed || hasApplied || isApplying
+                  isClosed || hasApplied || isApplying || !isVerified
                     ? "bg-gray-300 text-gray-600 cursor-not-allowed"
                     : "bg-navyBlue text-white hover:bg-navyBlueLight"
                 }`}
                 style={{
                   backgroundColor:
-                    isClosed || hasApplied || isApplying
+                    isClosed || hasApplied || isApplying || !isVerified
                       ? "#D1D5DB"
                       : "#1A2A4F",
                   color:
-                    isClosed || hasApplied || isApplying
+                    isClosed || hasApplied || isApplying || !isVerified
                       ? "#4B5563"
                       : "#FFFFFF",
                 }}
-                disabled={isClosed || hasApplied || isApplying}
+                disabled={isClosed || hasApplied || isApplying || !isVerified}
+                title={
+                  !isVerified
+                    ? "Please verify your email to apply"
+                    : isClosed
+                    ? "Applications are closed"
+                    : hasApplied
+                    ? "You have already applied"
+                    : isApplying
+                    ? "Applying in progress"
+                    : "Apply for this gig"
+                }
               >
                 {isApplying
                   ? "Applying..."
+                  : !isVerified
+                  ? "Verify Email to Apply"
                   : isClosed
                   ? "Applications Closed"
                   : "Apply"}

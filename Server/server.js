@@ -13,6 +13,9 @@ const rateLimit = require("express-rate-limit");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Middleware
 app.use(
@@ -60,6 +63,14 @@ const userSchema = new mongoose.Schema(
     },
     emailOtp: String,
     emailOtpExpire: Date,
+    ratings: [
+      {
+        value: { type: Number, required: true, min: 1, max: 5 },
+        ticketId: { type: String, ref: "Ticket", required: true },
+        giverId: { type: String, ref: "User", required: true },
+        givenAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );
@@ -267,12 +278,9 @@ const checkGigOwner = async (req, res, next) => {
     const gig = await Gig.findOne({ _id: req.params.id });
     if (!gig) return res.status(404).json({ error: "Gig not found" });
     if (gig.sellerId !== req.userId) {
-      return (
-        res -
-        oxo
-          .status(403)
-          .json({ error: "Only the gig owner can perform this action" })
-      );
+      return res
+        .status(403)
+        .json({ error: "Only the gig owner can perform this action" });
     }
     req.gig = gig;
     next();
@@ -388,6 +396,7 @@ app.post("/api/auth/verify-otp", authMiddleware, async (req, res) => {
       totalGigs: 0,
       completionRate: 0,
       credits: 0,
+      ratings: [], // Initialize ratings array
     });
     await user.save();
     await PendingUser.deleteOne({ _id: req.userId });
@@ -762,11 +771,31 @@ app.get("/api/users/profile", authMiddleware, async (req, res) => {
 app.get("/api/users/:id", async (req, res) => {
   try {
     const user = await User.findOne({ _id: req.params.id }).select(
-      "fullName college bio profilePicture role skills certifications socialLinks gigsCompleted totalGigs completionRate credits"
+      "fullName college bio profilePicture role skills certifications socialLinks gigsCompleted totalGigs completionRate credits ratings"
     );
     if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Calculate average rating
+    const ratings = user.ratings || [];
+    const averageRating =
+      ratings.length > 0
+        ? (
+            ratings.reduce((sum, r) => sum + r.value, 0) / ratings.length
+          ).toFixed(1)
+        : 0;
+
     console.log("Fetched public profile:", { userId: req.params.id });
-    res.json(user);
+    res.json({
+      ...user.toJSON(),
+      averageRating,
+      ratingsCount: ratings.length,
+      ratings: ratings.map((r) => ({
+        value: r.value,
+        ticketId: r.ticketId,
+        giverId: r.giverId,
+        givenAt: r.givenAt,
+      })),
+    });
   } catch (err) {
     console.error("Public profile fetch error:", err);
     res.status(500).json({ error: "Server error", details: err.message });
@@ -1151,27 +1180,39 @@ app.get("/api/users/:id/gigs", async (req, res) => {
 });
 
 // Submit Application and Create Ticket
+// Submit Application and Create Ticket
 app.post(
   "/api/gigs/:id/apply",
   authMiddleware,
   applyLimiter,
   async (req, res) => {
     try {
-      // Validate gig ID
-      if (!mongoose.isValidObjectId(req.params.id)) {
-        console.error("Invalid gig ID:", req.params.id);
-        return res.status(400).json({ error: "Invalid gig ID" });
+      // Validate gig ID (32-character hexadecimal string)
+      const isValidId = /^[0-9a-fA-F]{32}$/.test(req.params.id);
+      if (!isValidId) {
+        console.error("Invalid gig ID format:", {
+          gigId: req.params.id,
+          userId: req.userId,
+        });
+        return res.status(400).json({ error: "Invalid gig ID format" });
       }
 
       const gig = await Gig.findOne({ _id: req.params.id });
       if (!gig) {
-        console.error("Gig not found for ID:", req.params.id);
+        console.error("Gig not found:", {
+          gigId: req.params.id,
+          userId: req.userId,
+        });
         return res.status(404).json({ error: "Gig not found" });
       }
 
       // Check if gig is closed
       if (gig.status === "closed") {
-        console.error("Attempted to apply to closed gig:", req.params.id);
+        console.error("Attempted to apply to closed gig:", {
+          gigId: req.params.id,
+          userId: req.userId,
+          gigStatus: gig.status,
+        });
         return res
           .status(400)
           .json({ error: "This gig is closed for applications" });
@@ -1182,6 +1223,7 @@ app.post(
         console.error("User attempted to apply to own gig:", {
           userId: req.userId,
           gigId: req.params.id,
+          sellerId: gig.sellerId,
         });
         return res
           .status(400)
@@ -1198,11 +1240,11 @@ app.post(
           userId: req.userId,
           gigId: req.params.id,
           applicationId: existingApplication._id,
-          status: existingApplication.status,
+          applicationStatus: existingApplication.status,
         });
-        return res
-          .status(400)
-          .json({ error: "You have already applied to this gig" });
+        return res.status(400).json({
+          error: `You have already applied to this gig (Status: ${existingApplication.status})`,
+        });
       }
 
       // Validate cover letter (if provided)
@@ -1214,26 +1256,30 @@ app.post(
         console.error("Invalid cover letter length:", {
           userId: req.userId,
           gigId: req.params.id,
-          length: coverLetter.length,
+          coverLetterLength: coverLetter.length,
         });
-        return res
-          .status(400)
-          .json({
-            error: "Cover letter must be between 10 and 1000 characters",
-          });
+        return res.status(400).json({
+          error: "Cover letter must be between 10 and 1000 characters",
+        });
       }
 
       // Check user verification
       const user = await User.findOne({ _id: req.userId });
       if (!user) {
-        console.error("User not found:", req.userId);
+        console.error("User not found:", {
+          userId: req.userId,
+          gigId: req.params.id,
+        });
         return res.status(400).json({ error: "User not found" });
       }
       if (!user.isVerified) {
-        console.error("Unverified user attempted to apply:", req.userId);
+        console.error("Unverified user attempted to apply:", {
+          userId: req.userId,
+          gigId: req.params.id,
+        });
         return res
           .status(400)
-          .json({ error: "Please verify your email first" });
+          .json({ error: "Please verify your email before applying for gigs" });
       }
 
       // Create application
@@ -1283,7 +1329,11 @@ app.post(
           }"</p><p>View the application and discuss at: /tickets/${ticketId}</p>`,
         };
         await transporter.sendMail(mailOptions).catch((err) => {
-          console.error("Failed to send application email:", err);
+          console.error("Failed to send application email:", {
+            error: err.message,
+            userId: req.userId,
+            gigId: req.params.id,
+          });
         });
       }
 
@@ -1891,6 +1941,13 @@ app.patch(
           .json({ error: "Only the seller can confirm completion" });
       }
 
+      const { rating } = req.body; // Get rating from request body
+      if (rating && (typeof rating !== "number" || rating < 1 || rating > 5)) {
+        return res.status(400).json({
+          error: "Rating must be a number between 1 and 5",
+        });
+      }
+
       ticket.status = "closed";
       await ticket.save();
 
@@ -1912,7 +1969,7 @@ app.patch(
           : 0;
         await seller.save();
 
-        // Update buyer's profile with credits and stats
+        // Update buyer's profile with credits, stats, and rating
         buyer.orderHistory.push({
           title: gig.title,
           status: "completed",
@@ -1926,6 +1983,18 @@ app.patch(
           : 0;
         buyer.credits =
           (buyer.credits || 0) + (ticket.agreedPrice || gig.price);
+
+        // Store rating in buyer's profile if provided
+        if (rating) {
+          buyer.ratings = buyer.ratings || [];
+          buyer.ratings.push({
+            value: rating,
+            ticketId: ticket._id,
+            giverId: req.userId,
+            givenAt: new Date(),
+          });
+        }
+
         await buyer.save();
 
         // Notify buyer of completion confirmation
@@ -1942,7 +2011,11 @@ app.patch(
           ).toLocaleString("en-IN", {
             style: "currency",
             currency: "INR",
-          })} in credits.</p><p>View details at: /tickets/${ticket._id}</p>`,
+          })} in credits.${
+            rating
+              ? ` The seller rated you ${rating} star${rating > 1 ? "s" : ""}.`
+              : ""
+          }</p><p>View details at: /tickets/${ticket._id}</p>`,
         };
         await transporter.sendMail(mailOptions).catch((err) => {
           console.error("Failed to send completion confirmation email:", err);
@@ -1953,6 +2026,7 @@ app.patch(
         ticketId: req.params.id,
         buyerId: ticket.buyerId,
         creditsEarned: ticket.agreedPrice || gig.price,
+        rating: rating || "Not provided",
       });
       res.json({ success: true, ticket });
     } catch (err) {
@@ -1985,6 +2059,27 @@ app.patch(
     }
   }
 );
+
+//google gemini setup :
+app.post("/api/ai/generate-description", authMiddleware, async (req, res) => {
+  try {
+    const { title } = req.body;
+    if (!title) {
+      return res.status(400).json({ error: "Title is required" });
+    }
+
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const prompt = `Generate a professional gig description for a service titled "${title}" in 100-150 words. The description should be engaging, highlight the service's unique value, specify deliverables, and mention a typical timeline. Use a professional tone suitable for a freelance marketplace.`;
+
+    const result = await model.generateContent(prompt);
+    const description = result.response.text();
+
+    res.json({ description });
+  } catch (err) {
+    console.error("Error generating description:", err);
+    res.status(500).json({ error: "Failed to generate description" });
+  }
+});
 
 // Cleanup expired pending users and OTPs
 setInterval(async () => {

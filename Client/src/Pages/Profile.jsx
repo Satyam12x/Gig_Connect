@@ -72,6 +72,7 @@ const Profile = () => {
         setUser(profileRes.data);
         setReviews(reviewsRes.data);
         setNameForm({ fullName: profileRes.data.fullName });
+        console.log("Fetched reviews:", reviewsRes.data); // Debug reviews data
       } catch (err) {
         setError("Failed to fetch profile data");
         if (err.response?.status === 401) {
@@ -333,6 +334,7 @@ const Profile = () => {
         1
       )
     : 0;
+  console.log("Average Rating:", averageRating); // Debug average rating
 
   return (
     <div className="min-h-screen bg-blue-50 relative overflow-hidden">
@@ -514,16 +516,18 @@ const Profile = () => {
                       {[...Array(5)].map((_, i) => (
                         <Star
                           key={i}
-                          className="text-[#1A2A4F]"
-                          fill={
-                            i < Math.round(averageRating) ? "#1A2A4F" : "none"
-                          }
+                          className={`w-5 h-5 ${
+                            i < Math.floor(averageRating)
+                              ? "text-[#1A2A4F] fill-[#1A2A4F]"
+                              : "text-gray-300 fill-none"
+                          }`}
                           size={18}
                         />
                       ))}
                     </div>
                     <span className="text-sm text-[#1A2A4F]">
                       {averageRating}/5
+                      {reviews.length > 0 && ` (${reviews.length} reviews)`}
                     </span>
                   </div>
                 </div>
