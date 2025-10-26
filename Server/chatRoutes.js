@@ -1,7 +1,6 @@
-const express = require("express");
-const mongoose = require("mongoose");
-const { Server } = require("socket.io");
 const { v4: uuidv4 } = require("uuid");
+const mongoose = require("mongoose");
+const express = require("express");
 
 const router = express.Router();
 
@@ -16,22 +15,16 @@ const messageSchema = new mongoose.Schema({
 });
 const Message = mongoose.model("Message", messageSchema);
 
-// Initialize Socket.io
-const setupSocket = (server, authMiddleware) => {
-  const io = new Server(server, {
-    cors: {
-      origin: ["http://localhost:3000", "http://localhost:5173"],
-      methods: ["GET", "POST"],
-      credentials: true,
-    },
-  });
+// Initialize Socket.io for Global Chat (Namespace: /global)
+const setupSocket = (io) => {
+  const globalIo = io.of("/global"); // Use namespace on the provided Socket.io Server instance
   console.log(
-    "Socket.io server initialized on http://localhost:5000/socket.io/"
+    "Socket.io global chat initialized on http://localhost:5000/global"
   );
 
-  io.use((socket, next) => {
+  globalIo.use((socket, next) => {
     const token = socket.handshake.auth.token;
-    console.log("Socket connection attempt with token:", token);
+    console.log("Global chat socket connection attempt with token:", token);
     if (!token) return next(new Error("Authentication error"));
     try {
       const decoded = require("jsonwebtoken").verify(
@@ -39,27 +32,30 @@ const setupSocket = (server, authMiddleware) => {
         process.env.JWT_SECRET
       );
       socket.userId = decoded.id;
+      socket.user = decoded;
       next();
     } catch (err) {
-      console.error("Socket auth error:", err.message);
+      console.error("Global chat socket auth error:", err.message);
       next(new Error("Invalid token"));
     }
   });
 
-  io.on("connection", async (socket) => {
-    console.log(`User connected: ${socket.userId}`);
+  globalIo.on("connection", async (socket) => {
+    console.log(`User connected to global chat: ${socket.userId}`);
 
-    socket.on("sendMessage", async (payload) => {
+    socket.on("sendMessage", async (payload, callback) => {
       try {
         const { content, userId } = payload;
         if (!content || !content.trim()) {
-          return socket.emit("error", "Message content is required");
+          console.error("Empty message content:", { userId });
+          return callback({ error: "Message content is required" });
         }
 
         const User = mongoose.model("User");
         const user = await User.findOne({ _id: userId });
         if (!user) {
-          return socket.emit("error", "User not found");
+          console.error("User not found for global chat:", { userId });
+          return callback({ error: "User not found" });
         }
 
         const message = new Message({
@@ -73,12 +69,13 @@ const setupSocket = (server, authMiddleware) => {
         });
 
         await message.save();
-        console.log("Message saved:", {
+        console.log("Global chat message saved:", {
           _id: message._id,
           userId,
           profilePicture: message.profilePicture,
         });
-        io.emit("message", {
+
+        globalIo.emit("message", {
           _id: message._id,
           content: message.content,
           userId: message.userId,
@@ -90,21 +87,26 @@ const setupSocket = (server, authMiddleware) => {
           },
           createdAt: message.createdAt,
         });
+
+        callback({ success: true, message });
       } catch (err) {
-        console.error("Error sending message:", err);
-        socket.emit("error", "Failed to send message");
+        console.error("Error sending global chat message:", {
+          error: err.message,
+          userId: socket.userId,
+        });
+        callback({ error: "Failed to send message", details: err.message });
       }
     });
 
     socket.on("disconnect", () => {
-      console.log(`User disconnected: ${socket.userId}`);
+      console.log(`User disconnected from global chat: ${socket.userId}`);
     });
   });
 
-  return io;
+  return globalIo;
 };
 
-// HTTP Route to Fetch Messages (not used since only new messages are shown)
+// HTTP Route to Fetch Messages
 const setupRoutes = (authMiddleware) => {
   router.get("/messages", authMiddleware, async (req, res) => {
     try {
@@ -113,7 +115,7 @@ const setupRoutes = (authMiddleware) => {
         .populate("userId", "fullName profilePicture")
         .lean();
       console.log(
-        "Messages fetched:",
+        "Global chat messages fetched:",
         messages.map((msg) => ({
           userId: msg.userId._id,
           profilePicture: msg.userId.profilePicture,
@@ -134,8 +136,11 @@ const setupRoutes = (authMiddleware) => {
         }))
       );
     } catch (err) {
-      console.error("Error fetching messages:", err);
-      res.status(500).json({ error: "Server error" });
+      console.error("Error fetching global chat messages:", {
+        error: err.message,
+        userId: req.userId,
+      });
+      res.status(500).json({ error: "Server error", details: err.message });
     }
   });
 

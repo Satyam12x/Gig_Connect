@@ -2,63 +2,95 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import io from "socket.io-client";
 import { toast, Toaster } from "react-hot-toast";
+import { jwtDecode } from "jwt-decode";
 import Navbar from "../components/Navbar";
 import { Send, User, Search, MoreVertical } from "lucide-react";
 
 const API_BASE = "http://localhost:5000";
-const socket = io(API_BASE, {
-  auth: { token: localStorage.getItem("token") },
-});
-console.log(
-  "Socket.io client initialized with token:",
-  localStorage.getItem("token")
-);
 
 const GlobalChat = () => {
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState("");
   const [showProfileOptions, setShowProfileOptions] = useState(null);
+  const [socket, setSocket] = useState(null);
+  const [userId, setUserId] = useState(null);
+  const [username, setUsername] = useState("");
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
 
-  const getUserIdFromToken = () => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        console.error("No token found in localStorage");
-        return null;
-      }
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      console.log("Decoded token payload:", payload);
-      return payload.id;
-    } catch (err) {
-      console.error("Error parsing token:", err);
-      return null;
-    }
-  };
-
+  // Initialize userId and username from token
   useEffect(() => {
-    // Only handle new messages via Socket.io
-    socket.on("connect", () => {
-      console.log("Connected to WebSocket server");
-    });
+    const token = localStorage.getItem("token");
+    if (!token) {
+      console.error("No token found in localStorage");
+      toast.error("Please log in to access the chat.");
+      navigate("/login");
+      return;
+    }
+    try {
+      const decoded = jwtDecode(token);
+      setUserId(decoded.id);
+      setUsername(decoded.fullName || "User");
+    } catch (err) {
+      console.error("Error decoding token:", err);
+      toast.error("Invalid token. Please log in again.");
+      localStorage.removeItem("token");
+      navigate("/login");
+    }
+  }, [navigate]);
 
-    socket.on("message", (newMessage) => {
-      console.log("Received message:", newMessage);
-      setMessages((prev) => [...prev, newMessage]);
-    });
+  // Initialize Socket.io
+  useEffect(() => {
+    if (userId) {
+      const token = localStorage.getItem("token");
+      const socketInstance = io(`${API_BASE}/global`, {
+        auth: { token },
+      });
 
-    socket.on("connect_error", (err) => {
-      console.error("Socket.io connect error:", err.message);
-      toast.error("Connection error: " + err.message);
-    });
+      socketInstance.on("connect", () => {
+        console.log(
+          "Connected to global chat WebSocket server:",
+          socketInstance.id
+        );
+      });
 
-    return () => {
-      socket.off("message");
-      socket.off("connect_error");
-    };
-  }, []);
+      socketInstance.on("message", (newMessage) => {
+        console.log("Received message:", newMessage);
+        setMessages((prev) => [...prev, newMessage]);
+      });
 
+      socketInstance.on("error", (error) => {
+        console.error("Socket.io error:", error);
+        toast.error(error || "Chat error occurred.");
+      });
+
+      socketInstance.on("connect_error", (err) => {
+        console.error("Socket.io connect error:", err.message);
+        if (
+          err.message === "Authentication error" ||
+          err.message === "Invalid token"
+        ) {
+          toast.error("Session expired. Please log in again.");
+          localStorage.removeItem("token");
+          navigate("/login");
+        } else {
+          toast.error("Connection error: " + err.message);
+        }
+      });
+
+      setSocket(socketInstance);
+
+      return () => {
+        socketInstance.off("message");
+        socketInstance.off("error");
+        socketInstance.off("connect_error");
+        socketInstance.disconnect();
+        console.log("Disconnected from global chat socket");
+      };
+    }
+  }, [userId, navigate]);
+
+  // Scroll to the latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -69,10 +101,9 @@ const GlobalChat = () => {
       toast.error("Message cannot be empty");
       return;
     }
-
-    const userId = getUserIdFromToken();
-    if (!userId) {
-      toast.error("Authentication error: Invalid token");
+    if (!userId || !socket) {
+      toast.error("Authentication error: Please log in again.");
+      navigate("/login");
       return;
     }
 
@@ -81,8 +112,14 @@ const GlobalChat = () => {
       userId,
     };
     console.log("Sending message:", payload);
-    socket.emit("sendMessage", payload);
-    setMessage("");
+    socket.emit("sendMessage", payload, (response) => {
+      if (response.error) {
+        console.error("Error sending message:", response.error);
+        toast.error(response.error);
+      } else {
+        setMessage("");
+      }
+    });
   };
 
   const handleProfileClick = (userId, e) => {
@@ -156,13 +193,11 @@ const GlobalChat = () => {
               <div
                 key={index}
                 className={`flex mb-2 sm:mb-3 ${
-                  msg.userId === getUserIdFromToken()
-                    ? "justify-end"
-                    : "justify-start"
+                  msg.userId === userId ? "justify-end" : "justify-start"
                 }`}
               >
                 <div className="flex items-end gap-1 sm:gap-2 max-w-[80%] sm:max-w-[70%]">
-                  {msg.userId !== getUserIdFromToken() && (
+                  {msg.userId !== userId && (
                     <div className="relative">
                       <img
                         src={msg.user.profilePicture || "/default-avatar.png"}
@@ -192,7 +227,7 @@ const GlobalChat = () => {
                   )}
                   <div
                     className={`p-2 sm:p-3 rounded-lg shadow-sm ${
-                      msg.userId === getUserIdFromToken()
+                      msg.userId === userId
                         ? "bg-[#DCF8C6] text-gray-800"
                         : "bg-white text-gray-800"
                     }`}

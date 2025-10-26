@@ -10,7 +10,7 @@ import {
   ArrowUpDown,
   User,
   Star,
-  Menu,
+  ArrowLeft,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -28,7 +28,6 @@ const Tickets = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [sellerProfiles, setSellerProfiles] = useState({});
   const [buyerProfiles, setBuyerProfiles] = useState({});
-  const [isFilterOpen, setIsFilterOpen] = useState(false); // For mobile filter toggle
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -141,9 +140,27 @@ const Tickets = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
+      <div className="min-h-screen bg-gray-50 flex flex-col relative overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <div
+            className="absolute top-0 left-0 w-1/2 h-1/2 opacity-20"
+            style={{
+              background: "linear-gradient(135deg, #1E3A8A, #4B5EAA)",
+              clipPath:
+                "path('M0,200 C100,300 300,100 400,200 S600,300 800,200')",
+            }}
+          ></div>
+          <div
+            className="absolute bottom-0 right-0 w-1/3 h-1/3 opacity-20"
+            style={{
+              background: "linear-gradient(45deg, #2563EB, #4B5EAA)",
+              clipPath:
+                "path('M0,100 C50,150 150,50 200,100 S250,150 300,100')",
+            }}
+          ></div>
+        </div>
         <Navbar />
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 flex-1">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 flex-1 relative z-10">
           <div className="animate-pulse space-y-6 max-w-4xl mx-auto">
             <div className="h-10 bg-gray-200 rounded w-1/4"></div>
             <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -174,9 +191,27 @@ const Tickets = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
+      <div className="min-h-screen bg-gray-50 flex flex-col relative overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <div
+            className="absolute top-0 left-0 w-1/2 h-1/2 opacity-20"
+            style={{
+              background: "linear-gradient(135deg, #1E3A8A, #4B5EAA)",
+              clipPath:
+                "path('M0,200 C100,300 300,100 400,200 S600,300 800,200')",
+            }}
+          ></div>
+          <div
+            className="absolute bottom-0 right-0 w-1/3 h-1/3 opacity-20"
+            style={{
+              background: "linear-gradient(45deg, #2563EB, #4B5EAA)",
+              clipPath:
+                "path('M0,100 C50,150 150,50 200,100 S250,150 300,100')",
+            }}
+          ></div>
+        </div>
         <Navbar />
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 flex-1 flex items-center justify-center">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 flex-1 flex items-center justify-center relative z-10">
           <div className="flex flex-col items-center gap-4 text-red-600">
             <TicketIcon className="h-6 w-6" />
             <span>{error}</span>
@@ -195,7 +230,7 @@ const Tickets = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-gray-50 flex flex-col relative overflow-hidden">
       <style>
         {`
           @keyframes fadeInUp {
@@ -235,9 +270,6 @@ const Tickets = () => {
           }
           .card:hover::before {
             left: 100%;
-          }
-          .progress-ring circle {
-            transition: stroke-dashoffset 0.5s cubic-bezier(0.4, 0, 0.2, 1);
           }
           .avatar-badge {
             position: absolute;
@@ -282,102 +314,107 @@ const Tickets = () => {
             transform: translateY(-4px);
             box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
           }
-          .filter-collapse {
-            transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            max-height: 0;
-            opacity: 0;
-            overflow: hidden;
-          }
-          .filter-collapse.open {
-            max-height: 300px;
-            opacity: 1;
-          }
         `}
       </style>
+      <div className="absolute inset-0 z-0">
+        <div
+          className="absolute top-0 left-0 w-1/2 h-1/2 opacity-20"
+          style={{
+            background: "linear-gradient(135deg, #1E3A8A, #4B5EAA)",
+            clipPath:
+              "path('M0,200 C100,300 300,100 400,200 S600,300 800,200')",
+          }}
+        ></div>
+        <div
+          className="absolute bottom-0 right-0 w-1/3 h-1/3 opacity-20"
+          style={{
+            background: "linear-gradient(45deg, #2563EB, #4B5EAA)",
+            clipPath: "path('M0,100 C50,150 150,50 200,100 S250,150 300,100')",
+          }}
+        ></div>
+        <div
+          className="absolute top-1/3 right-1/4 w-1/4 h-1/4 opacity-15"
+          style={{
+            background: "linear-gradient(180deg, #4B5EAA, #1E3A8A)",
+            clipPath: "path('M0,100 C50,200 150,50 200,100 S250,150 300,100')",
+          }}
+        ></div>
+      </div>
       <Navbar />
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 flex-1">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 flex-1 relative z-10">
         <div className="max-w-4xl mx-auto">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
+          {/* Header with Subtitle */}
+          <div className="mb-8">
             <h1
               className="text-3xl sm:text-4xl font-bold text-indigo-800 animate-fade-in-up"
               style={{ color: "#1E3A8A" }}
             >
               My Tickets
             </h1>
-            <button
-              onClick={() => navigate("/gigs")}
-              className="mt-4 sm:mt-0 text-indigo-600 hover:text-indigo-800 transition-colors duration-200"
-              style={{ color: "#4B5EAA" }}
-              aria-label="Back to gigs"
+            <p
+              className="mt-2 text-base sm:text-lg text-gray-600 animate-fade-in-up"
+              style={{ color: "#4B5EAA", animationDelay: "100ms" }}
             >
-              Back to Gigs
-            </button>
+              Manage your active and past gig engagements
+            </p>
           </div>
 
-          {/* Filters and Search */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between sm:hidden">
-              <button
-                onClick={() => setIsFilterOpen(!isFilterOpen)}
-                className="p-2 bg-indigo-600 text-white rounded-lg"
-                style={{ backgroundColor: "#1E3A8A" }}
-                aria-label="Toggle filters"
-              >
-                <Menu className="h-5 w-5" />
-              </button>
+          {/* Filters and Search with Back to Gigs Button */}
+          <div className="flex flex-col sm:flex-row gap-4 mb-6 items-start sm:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by gig title or user name..."
+                className="w-full pl-10 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 transition-colors duration-200"
+                aria-label="Search tickets"
+              />
             </div>
-            <div
-              className={`sm:flex flex-col sm:flex-row gap-4 filter-collapse ${
-                isFilterOpen ? "open" : ""
-              }`}
-            >
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by gig title or user name..."
-                  className="w-full pl-10 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 transition-colors duration-200"
-                  aria-label="Search tickets"
-                />
-              </div>
-              <div className="flex gap-4">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 transition-colors duration-200"
-                  aria-label="Filter by status"
-                >
-                  <option value="">All Statuses</option>
-                  <option value="open">Open</option>
-                  <option value="negotiating">Negotiating</option>
-                  <option value="accepted">Accepted</option>
-                  <option value="paid">Paid</option>
-                  <option value="completed">Completed</option>
-                  <option value="closed">Closed</option>
-                </select>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 transition-colors duration-200"
-                  aria-label="Sort by"
-                >
-                  <option value="createdAt">Date Created</option>
-                  <option value="agreedPrice">Price</option>
-                </select>
-                <button
-                  onClick={handleSortToggle}
-                  className="p-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors duration-200 ripple"
-                  style={{ backgroundColor: "#1E3A8A" }}
-                  aria-label={`Sort ${
-                    sortOrder === "desc" ? "ascending" : "descending"
-                  }`}
-                >
-                  <ArrowUpDown className="h-5 w-5" />
-                </button>
-              </div>
+            <div className="flex gap-4 items-center">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 transition-colors duration-200"
+                aria-label="Filter by status"
+              >
+                <option value="">All Statuses</option>
+                <option value="open">Open</option>
+                <option value="negotiating">Negotiating</option>
+                <option value="accepted">Accepted</option>
+                <option value="paid">Paid</option>
+                <option value="completed">Completed</option>
+                <option value="closed">Closed</option>
+              </select>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 transition-colors duration-200"
+                aria-label="Sort by"
+              >
+                <option value="createdAt">Date Created</option>
+                <option value="agreedPrice">Price</option>
+              </select>
+              <button
+                onClick={handleSortToggle}
+                className="p-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors duration-200 ripple"
+                style={{ backgroundColor: "#1E3A8A" }}
+                aria-label={`Sort ${
+                  sortOrder === "desc" ? "ascending" : "descending"
+                }`}
+              >
+                <ArrowUpDown className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => navigate("/gigs")}
+                className="flex items-center gap-2 p-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors duration-200 ripple"
+                style={{ backgroundColor: "#1E3A8A" }}
+                aria-label="Back to gigs"
+              >
+                <ArrowLeft className="h-5 w-5" />
+                Back to Gigs
+              </button>
             </div>
           </div>
 
@@ -400,14 +437,6 @@ const Tickets = () => {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {tickets.map((ticket, index) => {
-                const statusProgress = {
-                  open: 20,
-                  negotiating: 40,
-                  accepted: 60,
-                  paid: 80,
-                  completed: 90,
-                  closed: 100,
-                }[ticket.status];
                 const statusColor = {
                   open: "#F59E0B",
                   negotiating: "#F97316",
@@ -437,46 +466,6 @@ const Tickets = () => {
                       <TicketIcon className="h-5 w-5 mr-2" />
                       {ticket.gigId.title}
                     </h2>
-                    <div className="flex justify-center mb-4">
-                      <svg
-                        className="progress-ring"
-                        width="60"
-                        height="60"
-                        viewBox="0 0 60 60"
-                      >
-                        <circle
-                          cx="30"
-                          cy="30"
-                          r="25"
-                          stroke="#D1D5DB"
-                          strokeWidth="5"
-                          fill="none"
-                        />
-                        <circle
-                          cx="30"
-                          cy="30"
-                          r="25"
-                          stroke={statusColor}
-                          strokeWidth="5"
-                          fill="none"
-                          strokeDasharray="157"
-                          strokeDashoffset={157 - (157 * statusProgress) / 100}
-                          style={{
-                            transform: "rotate(-90deg)",
-                            transformOrigin: "center",
-                          }}
-                        />
-                        <text
-                          x="30"
-                          y="35"
-                          textAnchor="middle"
-                          className="text-sm font-semibold"
-                          fill="#1E3A8A"
-                        >
-                          {statusProgress}%
-                        </text>
-                      </svg>
-                    </div>
                     <p
                       className="text-gray-600 mb-2 flex items-center"
                       style={{ color: "#4B5EAA" }}

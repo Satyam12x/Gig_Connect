@@ -11,12 +11,15 @@ const { Readable } = require("stream");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
 const http = require("http");
-const { setupSocket, setupRoutes } = require("./chatRoutes"); // Adjust path
+const { check, validationResult } = require("express-validator");
+const sanitizeHtml = require("sanitize-html");
+const { setupRoutes } = require("./chatRoutes");
 
 const app = express();
-const server = http.createServer(app); // Use HTTP server for Socket.io
+const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+// const { Server } = require("socket.io");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -30,11 +33,25 @@ app.use(
 );
 app.use(express.json());
 
-// Rate limiter for application and ticket submissions
+// Rate limiters
 const applyLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10,
   message: "Too many requests, please try again later.",
+  keyGenerator: (req) => req.userId || req.ip,
+});
+
+const messageLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5,
+  message: "Too many messages sent, please wait a minute.",
+  keyGenerator: (req) => req.userId || req.ip,
+});
+
+const attachmentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5,
+  message: "Too many attachment uploads, please try again later.",
   keyGenerator: (req) => req.userId || req.ip,
 });
 
@@ -170,16 +187,24 @@ const ticketSchema = new mongoose.Schema({
       senderName: { type: String, required: true },
       content: { type: String, required: true },
       timestamp: { type: Date, default: Date.now },
+      attachment: { type: String, default: "" }, // Added for file attachments
+      read: { type: Boolean, default: false }, // Added for read status
+    },
+  ],
+  timeline: [
+    {
+      action: { type: String, required: true },
+      timestamp: { type: Date, default: Date.now },
     },
   ],
   createdAt: { type: Date, default: Date.now },
 });
 
-applicationSchema.index({ gigId: 1 });
-applicationSchema.index({ applicantId: 1 });
-ticketSchema.index({ gigId: 1 });
-ticketSchema.index({ sellerId: 1 });
-ticketSchema.index({ buyerId: 1 });
+// Indexes for performance
+applicationSchema.index({ gigId: 1, applicantId: 1 });
+ticketSchema.index({ gigId: 1, sellerId: 1, buyerId: 1 });
+ticketSchema.index({ "messages.timestamp": -1 }); // For sorting messages
+ticketSchema.index({ "timeline.timestamp": -1 }); // For sorting timeline
 
 const Gig = mongoose.model("Gig", gigSchema);
 const Application = mongoose.model("Application", applicationSchema);
@@ -215,13 +240,13 @@ try {
   console.error("Cloudinary configuration error:", err);
 }
 
-// Multer configuration
+// Multer configuration for images and PDFs
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
-    const filetypes = /jpeg|jpg|png/;
+    const filetypes = /jpeg|jpg|png|pdf/;
     const mimetype = filetypes.test(file.mimetype);
     const extname = filetypes.test(
       file.originalname.split(".").pop().toLowerCase()
@@ -229,7 +254,7 @@ const upload = multer({
     if (mimetype && extname) {
       return cb(null, true);
     }
-    cb(new Error("File must be an image (jpg, jpeg, png)"));
+    cb(new Error("File must be an image (jpg, jpeg, png) or PDF"));
   },
 });
 
@@ -250,8 +275,9 @@ const authMiddleware = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user =
-      (await User.findOne({ _id: decoded.id })) ||
-      (await PendingUser.findOne({ _id: decoded.id }));
+      (await User.findOne({ _id: decoded.id }).select(
+        "-password -emailOtp -emailOtpExpire"
+      )) || (await PendingUser.findOne({ _id: decoded.id }));
     if (!user) {
       console.error("User not found for ID:", decoded.id);
       return res.status(401).json({ error: "Token is not valid" });
@@ -278,7 +304,7 @@ const checkRole = (roles) => (req, res, next) => {
 // Gig owner middleware
 const checkGigOwner = async (req, res, next) => {
   try {
-    const gig = await Gig.findOne({ _id: req.params.id });
+    const gig = await Gig.findOne({ _id: req.params.id }).lean();
     if (!gig) return res.status(404).json({ error: "Gig not found" });
     if (gig.sellerId !== req.userId) {
       return res
@@ -293,10 +319,10 @@ const checkGigOwner = async (req, res, next) => {
   }
 };
 
-// Ticket participant middleware
+// Ticket participant middleware with timeline logging
 const checkTicketParticipant = async (req, res, next) => {
   try {
-    const ticket = await Ticket.findOne({ _id: req.params.id });
+    const ticket = await Ticket.findOne({ _id: req.params.id }).lean();
     if (!ticket) return res.status(404).json({ error: "Ticket not found" });
     if (![ticket.sellerId, ticket.buyerId].includes(req.userId)) {
       return res
@@ -311,114 +337,161 @@ const checkTicketParticipant = async (req, res, next) => {
   }
 };
 
-// Routes
+// Validation middleware
+const validateMessage = [
+  check("content")
+    .trim()
+    .isLength({ min: 1, max: 1000 })
+    .withMessage("Message must be between 1 and 1000 characters"),
+];
+
+const validatePrice = [
+  check("agreedPrice")
+    .isFloat({ min: 0.01 })
+    .withMessage("Agreed price must be a positive number"),
+];
+
+const validateRating = [
+  check("rating")
+    .optional()
+    .isInt({ min: 1, max: 5 })
+    .withMessage("Rating must be a number between 1 and 5"),
+];
+
+// Routes (Existing routes remain unchanged unless modified for timeline or optimization)
 // User Signup
-app.post("/api/auth/signup", async (req, res) => {
-  const { fullName, email, password, college, role, bio, socialLinks } =
-    req.body;
-  if (!fullName || !email || !password) {
-    return res
-      .status(400)
-      .json({ error: "Full name, email, and password are required" });
-  }
-  if (role && !["Seller", "Buyer", "Both"].includes(role)) {
-    return res.status(400).json({ error: "Invalid role" });
-  }
-  try {
-    let user = await User.findOne({ email });
-    if (user) return res.status(400).json({ error: "Email already in use" });
-
-    const userId = crypto.randomBytes(16).toString("hex");
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const userData = {
-      _id: userId,
-      fullName,
-      email,
-      password,
-      college,
-      role: role || "Both",
-      bio: bio || "",
-      socialLinks: socialLinks || {},
-      isVerified: false,
-      otp,
-      otpExpire: Date.now() + 10 * 60 * 1000,
-    };
-
-    await PendingUser.create(userData);
-    console.log("Pending user added:", userId);
-
-    const token = jwt.sign({ id: userId }, process.env.JWT_SECRET, {
-      expiresIn: "24h",
-    });
-
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Verify your Gig Connect account",
-      html: `<p>Your OTP is <strong>${otp}</strong>. Enter it to verify your account. It expires in 10 minutes.</p>`,
-    };
-    await transporter.sendMail(mailOptions);
-    res.json({
-      success: true,
-      token,
-      message: "Signup successful. Check your email for OTP.",
-    });
-  } catch (err) {
-    console.error("Signup error:", err);
-    res.status(500).json({ error: "Server error", details: err.message });
-  }
-});
-
-// Verify OTP
-app.post("/api/auth/verify-otp", authMiddleware, async (req, res) => {
-  const { otp } = req.body;
-  if (!otp) {
-    return res.status(400).json({ error: "OTP is required" });
-  }
-  try {
-    const pendingUser = await PendingUser.findOne({ _id: req.userId });
-    if (!pendingUser) return res.status(400).json({ error: "User not found" });
-    if (pendingUser.otp !== otp || pendingUser.otpExpire < Date.now()) {
-      return res.status(400).json({ error: "Invalid or expired OTP" });
+app.post(
+  "/api/auth/signup",
+  [
+    check("fullName").trim().notEmpty().withMessage("Full name is required"),
+    check("email")
+      .isEmail()
+      .normalizeEmail()
+      .withMessage("Valid email is required"),
+    check("password")
+      .isLength({ min: 6 })
+      .withMessage("Password must be at least 6 characters"),
+    check("role")
+      .optional()
+      .isIn(["Seller", "Buyer", "Both"])
+      .withMessage("Invalid role"),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
 
-    const user = new User({
-      _id: pendingUser._id,
-      fullName: pendingUser.fullName,
-      email: pendingUser.email,
-      password: pendingUser.password,
-      college: pendingUser.college,
-      role: pendingUser.role,
-      bio: pendingUser.bio,
-      socialLinks: pendingUser.socialLinks,
-      isVerified: true,
-      skills: [],
-      certifications: [],
-      orderHistory: [],
-      gigsCompleted: 0,
-      totalGigs: 0,
-      completionRate: 0,
-      credits: 0,
-      ratings: [],
-    });
-    await user.save();
-    await PendingUser.deleteOne({ _id: req.userId });
-    console.log("User verified and moved to User collection:", user._id);
+    const { fullName, email, password, college, role, bio, socialLinks } =
+      req.body;
+    try {
+      let user = await User.findOne({ email }).lean();
+      if (user) return res.status(400).json({ error: "Email already in use" });
 
-    res.json({
-      success: true,
-      message: "OTP verified. Please set your profile picture or skip.",
-    });
-  } catch (err) {
-    console.error("OTP verification error:", err);
-    res.status(500).json({ error: "Server error", details: err.message });
+      const userId = crypto.randomBytes(16).toString("hex");
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const userData = {
+        _id: userId,
+        fullName,
+        email,
+        password,
+        college,
+        role: role || "Both",
+        bio: bio || "",
+        socialLinks: socialLinks || {},
+        isVerified: false,
+        otp,
+        otpExpire: Date.now() + 10 * 60 * 1000,
+      };
+
+      await PendingUser.create(userData);
+      console.log("Pending user added:", userId);
+
+      const token = jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+        expiresIn: "24h",
+      });
+
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: "Verify your Gig Connect account",
+        html: `<p>Your OTP is <strong>${otp}</strong>. Enter it to verify your account. It expires in 10 minutes.</p>`,
+      };
+      await transporter.sendMail(mailOptions);
+      res.json({
+        success: true,
+        token,
+        message: "Signup successful. Check your email for OTP.",
+      });
+    } catch (err) {
+      console.error("Signup error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
   }
-});
+);
+
+// Verify OTP
+app.post(
+  "/api/auth/verify-otp",
+  authMiddleware,
+  [
+    check("otp")
+      .isLength({ min: 6, max: 6 })
+      .withMessage("OTP must be 6 digits"),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { otp } = req.body;
+    try {
+      const pendingUser = await PendingUser.findOne({ _id: req.userId }).lean();
+      if (!pendingUser)
+        return res.status(400).json({ error: "User not found" });
+      if (pendingUser.otp !== otp || pendingUser.otpExpire < Date.now()) {
+        return res.status(400).json({ error: "Invalid or expired OTP" });
+      }
+
+      const user = new User({
+        _id: pendingUser._id,
+        fullName: pendingUser.fullName,
+        email: pendingUser.email,
+        password: pendingUser.password,
+        college: pendingUser.college,
+        role: pendingUser.role,
+        bio: pendingUser.bio,
+        socialLinks: pendingUser.socialLinks,
+        isVerified: true,
+        skills: [],
+        certifications: [],
+        orderHistory: [],
+        gigsCompleted: 0,
+        totalGigs: 0,
+        completionRate: 0,
+        credits: 0,
+        ratings: [],
+      });
+      await user.save();
+      await PendingUser.deleteOne({ _id: req.userId });
+      console.log("User verified and moved to User collection:", user._id);
+
+      res.json({
+        success: true,
+        message: "OTP verified. Please set your profile picture or skip.",
+      });
+    } catch (err) {
+      console.error("OTP verification error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  }
+);
 
 // Skip Profile Setup
 app.post("/api/users/skip-profile", authMiddleware, async (req, res) => {
   try {
-    const user = await User.findOne({ _id: req.userId });
+    const user = await User.findOne({ _id: req.userId }).lean();
     if (!user) return res.status(400).json({ error: "User not found" });
     if (!user.isVerified) {
       return res.status(400).json({ error: "Please verify your email first" });
@@ -545,126 +618,194 @@ app.put(
 );
 
 // Update Profile
-app.put("/api/users/profile", authMiddleware, async (req, res) => {
-  const { fullName, college, bio, socialLinks } = req.body;
-  try {
-    const user = await User.findOne({ _id: req.userId });
-    if (!user) return res.status(400).json({ error: "User not found" });
-    if (fullName) user.fullName = fullName;
-    if (college) user.college = college;
-    if (bio) user.bio = bio;
-    if (socialLinks) user.socialLinks = socialLinks;
-    await user.save();
-    res.json({ success: true, message: "Profile updated" });
-  } catch (err) {
-    console.error("Profile update error:", err);
-    res.status(500).json({ error: "Server error", details: err.message });
+app.put(
+  "/api/users/profile",
+  authMiddleware,
+  [
+    check("fullName")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("Full name cannot be empty"),
+    check("bio")
+      .optional()
+      .isLength({ max: 500 })
+      .withMessage("Bio must be 500 characters or less"),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { fullName, college, bio, socialLinks } = req.body;
+    try {
+      const user = await User.findOne({ _id: req.userId });
+      if (!user) return res.status(400).json({ error: "User not found" });
+      if (fullName) user.fullName = fullName;
+      if (college) user.college = college;
+      if (bio) user.bio = bio;
+      if (socialLinks) user.socialLinks = socialLinks;
+      await user.save();
+      res.json({ success: true, message: "Profile updated" });
+    } catch (err) {
+      console.error("Profile update error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
   }
-});
+);
 
 // Request Email OTP
-app.post("/api/users/request-email-otp", authMiddleware, async (req, res) => {
-  const { newEmail } = req.body;
-  if (!newEmail) {
-    return res.status(400).json({ error: "New email is required" });
-  }
-  try {
-    const user = await User.findOne({ _id: req.userId });
-    if (!user) return res.status(400).json({ error: "User not found" });
-    if (await User.findOne({ email: newEmail })) {
-      return res.status(400).json({ error: "Email already in use" });
+app.post(
+  "/api/users/request-email-otp",
+  authMiddleware,
+  [
+    check("newEmail")
+      .isEmail()
+      .normalizeEmail()
+      .withMessage("Valid email is required"),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.emailOtp = otp;
-    user.emailOtpExpire = Date.now() + 10 * 60 * 1000;
-    await user.save();
+    const { newEmail } = req.body;
+    try {
+      const user = await User.findOne({ _id: req.userId });
+      if (!user) return res.status(400).json({ error: "User not found" });
+      if (await User.findOne({ email: newEmail })) {
+        return res.status(400).json({ error: "Email already in use" });
+      }
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: newEmail,
-      subject: "Verify your new email for Gig Connect",
-      html: `<p>Your OTP is <strong>${otp}</strong>. Enter it to verify your new email. It expires in 10 minutes.</p>`,
-    };
-    await transporter.sendMail(mailOptions);
-    res.json({ success: true, message: "OTP sent to new email" });
-  } catch (err) {
-    console.error("Email OTP request error:", err);
-    res.status(500).json({ error: "Server error", details: err.message });
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      user.emailOtp = otp;
+      user.emailOtpExpire = Date.now() + 10 * 60 * 1000;
+      await user.save();
+
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: newEmail,
+        subject: "Verify your new email for Gig Connect",
+        html: `<p>Your OTP is <strong>${otp}</strong>. Enter it to verify your new email. It expires in 10 minutes.</p>`,
+      };
+      await transporter.sendMail(mailOptions);
+      res.json({ success: true, message: "OTP sent to new email" });
+    } catch (err) {
+      console.error("Email OTP request error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
   }
-});
+);
 
 // Verify Email OTP
-app.post("/api/users/verify-email-otp", authMiddleware, async (req, res) => {
-  const { newEmail, otp } = req.body;
-  if (!newEmail || !otp) {
-    return res.status(400).json({ error: "New email and OTP are required" });
-  }
-  try {
-    const user = await User.findOne({ _id: req.userId });
-    if (!user) return res.status(400).json({ error: "User not found" });
-    if (user.emailOtp !== otp || user.emailOtpExpire < Date.now()) {
-      return res.status(400).json({ error: "Invalid or expired OTP" });
+app.post(
+  "/api/users/verify-email-otp",
+  authMiddleware,
+  [
+    check("newEmail")
+      .isEmail()
+      .normalizeEmail()
+      .withMessage("Valid email is required"),
+    check("otp")
+      .isLength({ min: 6, max: 6 })
+      .withMessage("OTP must be 6 digits"),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
 
-    user.email = newEmail;
-    user.emailOtp = undefined;
-    user.emailOtpExpire = undefined;
-    await user.save();
+    const { newEmail, otp } = req.body;
+    try {
+      const user = await User.findOne({ _id: req.userId });
+      if (!user) return res.status(400).json({ error: "User not found" });
+      if (user.emailOtp !== otp || user.emailOtpExpire < Date.now()) {
+        return res.status(400).json({ error: "Invalid or expired OTP" });
+      }
 
-    res.json({ success: true, message: "Email updated successfully" });
-  } catch (err) {
-    console.error("Email OTP verification error:", err);
-    res.status(500).json({ error: "Server error", details: err.message });
+      user.email = newEmail;
+      user.emailOtp = undefined;
+      user.emailOtpExpire = undefined;
+      await user.save();
+
+      res.json({ success: true, message: "Email updated successfully" });
+    } catch (err) {
+      console.error("Email OTP verification error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
   }
-});
+);
 
 // Update Password
-app.put("/api/users/password", authMiddleware, async (req, res) => {
-  const { currentPassword, newPassword } = req.body;
-  if (!currentPassword || !newPassword) {
-    return res
-      .status(400)
-      .json({ error: "Current and new passwords are required" });
+app.put(
+  "/api/users/password",
+  authMiddleware,
+  [
+    check("currentPassword")
+      .notEmpty()
+      .withMessage("Current password is required"),
+    check("newPassword")
+      .isLength({ min: 6 })
+      .withMessage("New password must be at least 6 characters"),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+    try {
+      const user = await User.findOne({ _id: req.userId });
+      if (!user) return res.status(400).json({ error: "User not found" });
+
+      const isMatch = await user.matchPassword(currentPassword);
+      if (!isMatch)
+        return res.status(400).json({ error: "Current password is incorrect" });
+
+      user.password = newPassword;
+      await user.save();
+
+      res.json({ success: true, message: "Password updated" });
+    } catch (err) {
+      console.error("Password update error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
   }
-  try {
-    const user = await User.findOne({ _id: req.userId });
-    if (!user) return res.status(400).json({ error: "User not found" });
-
-    const isMatch = await user.matchPassword(currentPassword);
-    if (!isMatch)
-      return res.status(400).json({ error: "Current password is incorrect" });
-
-    user.password = newPassword;
-    await user.save();
-
-    res.json({ success: true, message: "Password updated" });
-  } catch (err) {
-    console.error("Password update error:", err);
-    res.status(500).json({ error: "Server error", details: err.message });
-  }
-});
+);
 
 // Add Skill
-app.post("/api/users/skills", authMiddleware, async (req, res) => {
-  const { skill } = req.body;
-  if (!skill) {
-    return res.status(400).json({ error: "Skill name is required" });
-  }
-  try {
-    const user = await User.findOne({ _id: req.userId });
-    if (!user) return res.status(400).json({ error: "User not found" });
-    if (user.skills.some((s) => s.name === skill)) {
-      return res.status(400).json({ error: "Skill already exists" });
+app.post(
+  "/api/users/skills",
+  authMiddleware,
+  [check("skill").trim().notEmpty().withMessage("Skill name is required")],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
-    user.skills.push({ name: skill, endorsements: 0 });
-    await user.save();
-    res.json({ success: true, message: "Skill added" });
-  } catch (err) {
-    console.error("Skill add error:", err);
-    res.status(500).json({ error: "Server error", details: err.message });
+
+    const { skill } = req.body;
+    try {
+      const user = await User.findOne({ _id: req.userId });
+      if (!user) return res.status(400).json({ error: "User not found" });
+      if (
+        user.skills.some((s) => s.name.toLowerCase() === skill.toLowerCase())
+      ) {
+        return res.status(400).json({ error: "Skill already exists" });
+      }
+      user.skills.push({ name: skill, endorsements: 0 });
+      await user.save();
+      res.json({ success: true, message: "Skill added" });
+    } catch (err) {
+      console.error("Skill add error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
   }
-});
+);
 
 // Delete Skill
 app.delete("/api/users/skills/:skillName", authMiddleware, async (req, res) => {
@@ -682,58 +823,77 @@ app.delete("/api/users/skills/:skillName", authMiddleware, async (req, res) => {
 });
 
 // Endorse Skill
-app.post("/api/users/endorse", authMiddleware, async (req, res) => {
-  const { userId, skill } = req.body;
-  if (!userId || !skill) {
-    return res
-      .status(400)
-      .json({ error: "User ID and skill name are required" });
-  }
-  try {
-    const user = await User.findOne({ _id: userId });
-    if (!user) return res.status(400).json({ error: "User not found" });
-    if (user._id === req.userId) {
-      return res.status(400).json({ error: "Cannot endorse your own skill" });
+app.post(
+  "/api/users/endorse",
+  authMiddleware,
+  [
+    check("userId").notEmpty().withMessage("User ID is required"),
+    check("skill").trim().notEmpty().withMessage("Skill name is required"),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
-    user.skills = user.skills.map((s) =>
-      s.name === skill ? { ...s, endorsements: (s.endorsements || 0) + 1 } : s
-    );
-    await user.save();
-    res.json({ success: true, message: "Skill endorsed" });
-  } catch (err) {
-    console.error("Skill endorsement error:", err);
-    res.status(500).json({ error: "Server error", details: err.message });
+
+    const { userId, skill } = req.body;
+    try {
+      const user = await User.findOne({ _id: userId });
+      if (!user) return res.status(400).json({ error: "User not found" });
+      if (user._id === req.userId) {
+        return res.status(400).json({ error: "Cannot endorse your own skill" });
+      }
+      user.skills = user.skills.map((s) =>
+        s.name === skill ? { ...s, endorsements: (s.endorsements || 0) + 1 } : s
+      );
+      await user.save();
+      res.json({ success: true, message: "Skill endorsed" });
+    } catch (err) {
+      console.error("Skill endorsement error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
   }
-});
+);
 
 // Add Certification
-app.post("/api/users/certifications", authMiddleware, async (req, res) => {
-  const { name, issuer } = req.body;
-  if (!name || !issuer) {
-    return res
-      .status(400)
-      .json({ error: "Certification name and issuer are required" });
-  }
-  try {
-    const user = await User.findOne({ _id: req.userId });
-    if (!user) return res.status(400).json({ error: "User not found" });
-    if (user.certifications?.length >= 2) {
-      return res
-        .status(400)
-        .json({ error: "Maximum 2 certifications allowed" });
+app.post(
+  "/api/users/certifications",
+  authMiddleware,
+  [
+    check("name")
+      .trim()
+      .notEmpty()
+      .withMessage("Certification name is required"),
+    check("issuer").trim().notEmpty().withMessage("Issuer is required"),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
-    if (user.certifications?.some((c) => c.name === name)) {
-      return res.status(400).json({ error: "Certification already exists" });
+
+    const { name, issuer } = req.body;
+    try {
+      const user = await User.findOne({ _id: req.userId });
+      if (!user) return res.status(400).json({ error: "User not found" });
+      if (user.certifications?.length >= 2) {
+        return res
+          .status(400)
+          .json({ error: "Maximum 2 certifications allowed" });
+      }
+      if (user.certifications?.some((c) => c.name === name)) {
+        return res.status(400).json({ error: "Certification already exists" });
+      }
+      user.certifications = user.certifications || [];
+      user.certifications.push({ name, issuer });
+      await user.save();
+      res.json({ success: true, message: "Certification added" });
+    } catch (err) {
+      console.error("Certification add error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
     }
-    user.certifications = user.certifications || [];
-    user.certifications.push({ name, issuer });
-    await user.save();
-    res.json({ success: true, message: "Certification added" });
-  } catch (err) {
-    console.error("Certification add error:", err);
-    res.status(500).json({ error: "Server error", details: err.message });
   }
-});
+);
 
 // Delete Certification
 app.delete(
@@ -759,9 +919,9 @@ app.delete(
 // Get User Profile
 app.get("/api/users/profile", authMiddleware, async (req, res) => {
   try {
-    const user = await User.findOne({ _id: req.user._id }).select(
-      "-password -emailOtp -emailOtpExpire"
-    );
+    const user = await User.findOne({ _id: req.user._id })
+      .select("-password -emailOtp -emailOtpExpire")
+      .lean();
     if (!user) return res.status(400).json({ error: "User not found" });
     res.json(user);
   } catch (err) {
@@ -773,12 +933,13 @@ app.get("/api/users/profile", authMiddleware, async (req, res) => {
 // Get Public User Profile
 app.get("/api/users/:id", async (req, res) => {
   try {
-    const user = await User.findOne({ _id: req.params.id }).select(
-      "fullName college bio profilePicture role skills certifications socialLinks gigsCompleted totalGigs completionRate credits ratings"
-    );
+    const user = await User.findOne({ _id: req.params.id })
+      .select(
+        "fullName college bio profilePicture role skills certifications socialLinks gigsCompleted totalGigs completionRate credits ratings"
+      )
+      .lean();
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    // Calculate average rating
     const ratings = user.ratings || [];
     const averageRating =
       ratings.length > 0
@@ -789,7 +950,7 @@ app.get("/api/users/:id", async (req, res) => {
 
     console.log("Fetched public profile:", { userId: req.params.id });
     res.json({
-      ...user.toJSON(),
+      ...user,
       averageRating,
       ratingsCount: ratings.length,
       ratings: ratings.map((r) => ({
@@ -806,42 +967,56 @@ app.get("/api/users/:id", async (req, res) => {
 });
 
 // Login
-app.post("/api/auth/login", async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: "Email and password are required" });
-  }
-  try {
-    const user = await User.findOne({ email });
-    if (!user)
-      return res.status(400).json({ error: "Invalid email or password" });
+app.post(
+  "/api/auth/login",
+  [
+    check("email")
+      .isEmail()
+      .normalizeEmail()
+      .withMessage("Valid email is required"),
+    check("password").notEmpty().withMessage("Password is required"),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
 
-    const isMatch = await user.matchPassword(password);
-    if (!isMatch)
-      return res.status(400).json({ error: "Invalid email or password" });
+    const { email, password } = req.body;
+    try {
+      const user = await User.findOne({ email });
+      if (!user)
+        return res.status(400).json({ error: "Invalid email or password" });
 
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "24h" }
-    );
-    res.json({
-      success: true,
-      token,
-      user: { id: user._id, fullName: user.fullName, role: user.role },
-    });
-  } catch (err) {
-    console.error("Login error:", err);
-    res.status(500).json({ error: "Server error", details: err.message });
+      const isMatch = await user.matchPassword(password);
+      if (!isMatch)
+        return res.status(400).json({ error: "Invalid email or password" });
+
+      const token = jwt.sign(
+        { id: user._id, role: user.role },
+        process.env.JWT_SECRET,
+        {
+          expiresIn: "24h",
+        }
+      );
+      res.json({
+        success: true,
+        token,
+        user: { id: user._id, fullName: user.fullName, role: user.role },
+      });
+    } catch (err) {
+      console.error("Login error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
   }
-});
+);
 
 // Get Reviews
 app.get("/api/reviews", authMiddleware, async (req, res) => {
   try {
-    const reviews = await Review.find({ userId: req.userId }).sort({
-      date: -1,
-    });
+    const reviews = await Review.find({ userId: req.userId })
+      .sort({ date: -1 })
+      .lean();
     res.json(reviews);
   } catch (err) {
     console.error("Reviews fetch error:", err);
@@ -850,32 +1025,46 @@ app.get("/api/reviews", authMiddleware, async (req, res) => {
 });
 
 // Create Review
-app.post("/api/reviews", authMiddleware, async (req, res) => {
-  const { userId, text, rating } = req.body;
-  if (!userId || !text || !rating || rating < 1 || rating > 5) {
-    return res
-      .status(400)
-      .json({ error: "User ID, text, and valid rating (1-5) are required" });
-  }
-  try {
-    const user = await User.findOne({ _id: userId });
-    if (!user) return res.status(400).json({ error: "User not found" });
-    if (user._id === req.userId) {
-      return res.status(400).json({ error: "Cannot review yourself" });
+app.post(
+  "/api/reviews",
+  authMiddleware,
+  [
+    check("userId").notEmpty().withMessage("User ID is required"),
+    check("text")
+      .trim()
+      .isLength({ min: 10, max: 500 })
+      .withMessage("Review text must be between 10 and 500 characters"),
+    check("rating")
+      .isInt({ min: 1, max: 5 })
+      .withMessage("Rating must be between 1 and 5"),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
-    const review = new Review({
-      userId,
-      reviewerName: req.user.fullName,
-      text,
-      rating,
-    });
-    await review.save();
-    res.json({ success: true, message: "Review created" });
-  } catch (err) {
-    console.error("Review creation error:", err);
-    res.status(500).json({ error: "Server error", details: err.message });
+
+    const { userId, text, rating } = req.body;
+    try {
+      const user = await User.findOne({ _id: userId }).lean();
+      if (!user) return res.status(400).json({ error: "User not found" });
+      if (user._id === req.userId) {
+        return res.status(400).json({ error: "Cannot review yourself" });
+      }
+      const review = new Review({
+        userId,
+        reviewerName: req.user.fullName,
+        text,
+        rating,
+      });
+      await review.save();
+      res.json({ success: true, message: "Review created" });
+    } catch (err) {
+      console.error("Review creation error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
   }
-});
+);
 
 // Create Gig
 app.post(
@@ -883,34 +1072,32 @@ app.post(
   authMiddleware,
   checkRole(["Seller", "Both"]),
   upload.single("thumbnail"),
+  [
+    check("title")
+      .trim()
+      .isLength({ min: 5, max: 100 })
+      .withMessage("Title must be between 5 and 100 characters"),
+    check("description")
+      .trim()
+      .isLength({ min: 20, max: 1000 })
+      .withMessage("Description must be between 20 and 1000 characters"),
+    check("category").trim().notEmpty().withMessage("Category is required"),
+    check("price")
+      .isFloat({ min: 0.01 })
+      .withMessage("Price must be a positive number"),
+  ],
   async (req, res) => {
-    const { title, description, category, price } = req.body;
-    if (!title || !description || !category || !price) {
-      return res.status(400).json({
-        error: "Title, description, category, and price are required",
-      });
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
+
+    const { title, description, category, price } = req.body;
     try {
       const user = await User.findOne({ _id: req.userId });
       if (!user) return res.status(400).json({ error: "User not found" });
       if (!user.isVerified)
         return res.status(400).json({ error: "User not verified" });
-
-      if (title.length < 5 || title.length > 100) {
-        return res
-          .status(400)
-          .json({ error: "Title must be between 5 and 100 characters" });
-      }
-      if (description.length < 20 || description.length > 1000) {
-        return res.status(400).json({
-          error: "Description must be between 20 and 1000 characters",
-        });
-      }
-      if (isNaN(price) || price <= 0) {
-        return res
-          .status(400)
-          .json({ error: "Price must be a positive number" });
-      }
 
       let thumbnailUrl = "";
       if (req.file) {
@@ -962,9 +1149,13 @@ app.get("/api/gigs", async (req, res) => {
     if (search) query.title = { $regex: search, $options: "i" };
 
     const gigs = await Gig.find(query)
+      .select(
+        "title sellerName sellerId thumbnail description category price rating status createdAt"
+      )
       .sort({ createdAt: -1 })
       .skip((parseInt(page) - 1) * parseInt(limit))
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .lean();
     const total = await Gig.countDocuments(query);
 
     console.log("Fetching gigs:", {
@@ -974,7 +1165,6 @@ app.get("/api/gigs", async (req, res) => {
       total,
       gigsCount: gigs.length,
     });
-
     res.json({
       success: true,
       gigs: gigs || [],
@@ -1003,7 +1193,7 @@ app.get("/api/categories", async (req, res) => {
 // Debug Gigs
 app.get("/api/debug/gigs", async (req, res) => {
   try {
-    const gigs = await Gig.find({});
+    const gigs = await Gig.find({}).lean();
     const total = await Gig.countDocuments({});
     res.json({
       success: true,
@@ -1021,8 +1211,12 @@ app.get("/api/debug/gigs", async (req, res) => {
 app.get("/api/gigs/recent", async (req, res) => {
   try {
     const gigs = await Gig.find({ status: "open" })
+      .select(
+        "title sellerName sellerId thumbnail description category price rating status createdAt"
+      )
       .sort({ createdAt: -1 })
-      .limit(10);
+      .limit(10)
+      .lean();
     console.log("Fetched recent gigs:", { count: gigs.length });
     res.json(gigs);
   } catch (err) {
@@ -1034,7 +1228,7 @@ app.get("/api/gigs/recent", async (req, res) => {
 // Get Gig by ID
 app.get("/api/gigs/:id", async (req, res) => {
   try {
-    const gig = await Gig.findOne({ _id: req.params.id });
+    const gig = await Gig.findOne({ _id: req.params.id }).lean();
     if (!gig) {
       console.error("Gig not found for ID:", req.params.id);
       return res.status(404).json({ error: "Gig not found" });
@@ -1054,35 +1248,36 @@ app.put(
   checkRole(["Seller", "Both"]),
   checkGigOwner,
   upload.single("thumbnail"),
+  [
+    check("title")
+      .optional()
+      .trim()
+      .isLength({ min: 5, max: 100 })
+      .withMessage("Title must be between 5 and 100 characters"),
+    check("description")
+      .optional()
+      .trim()
+      .isLength({ min: 20, max: 1000 })
+      .withMessage("Description must be between 20 and 1000 characters"),
+    check("price")
+      .optional()
+      .isFloat({ min: 0.01 })
+      .withMessage("Price must be a positive number"),
+    check("status")
+      .optional()
+      .isIn(["open", "closed"])
+      .withMessage("Invalid status. Must be 'open' or 'closed'"),
+  ],
   async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
     const { title, description, category, price, status } = req.body;
     try {
       const gig = await Gig.findOne({ _id: req.params.id });
       if (!gig) return res.status(404).json({ error: "Gig not found" });
-
-      if (title && (title.length < 5 || title.length > 100)) {
-        return res
-          .status(400)
-          .json({ error: "Title must be between 5 and 100 characters" });
-      }
-      if (
-        description &&
-        (description.length < 20 || description.length > 1000)
-      ) {
-        return res.status(400).json({
-          error: "Description must be between 20 and 1000 characters",
-        });
-      }
-      if (price && (isNaN(price) || price <= 0)) {
-        return res
-          .status(400)
-          .json({ error: "Price must be a positive number" });
-      }
-      if (status && !["open", "closed"].includes(status)) {
-        return res
-          .status(400)
-          .json({ error: "Invalid status. Must be 'open' or 'closed'" });
-      }
 
       if (req.file) {
         const fileStream = Readable.from(req.file.buffer);
@@ -1126,7 +1321,6 @@ app.delete(
       const gig = await Gig.findOne({ _id: req.params.id });
       if (!gig) return res.status(404).json({ error: "Gig not found" });
 
-      // Reject all pending applications
       const applications = await Application.find({
         gigId: req.params.id,
         status: "pending",
@@ -1134,7 +1328,7 @@ app.delete(
       for (const app of applications) {
         app.status = "rejected";
         await app.save();
-        const applicant = await User.findOne({ _id: app.applicantId });
+        const applicant = await User.findOne({ _id: app.applicantId }).lean();
         if (applicant) {
           const mailOptions = {
             from: process.env.EMAIL_USER,
@@ -1168,9 +1362,12 @@ app.delete(
 // Get Gigs by Seller
 app.get("/api/users/:id/gigs", async (req, res) => {
   try {
-    const gigs = await Gig.find({ sellerId: req.params.id }).sort({
-      createdAt: -1,
-    });
+    const gigs = await Gig.find({ sellerId: req.params.id })
+      .select(
+        "title thumbnail description category price rating status createdAt"
+      )
+      .sort({ createdAt: -1 })
+      .lean();
     console.log("Fetched seller gigs:", {
       sellerId: req.params.id,
       count: gigs.length,
@@ -1187,9 +1384,20 @@ app.post(
   "/api/gigs/:id/apply",
   authMiddleware,
   applyLimiter,
+  [
+    check("coverLetter")
+      .optional()
+      .trim()
+      .isLength({ min: 10, max: 1000 })
+      .withMessage("Cover letter must be between 10 and 1000 characters"),
+  ],
   async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
     try {
-      // Validate gig ID (32-character hexadecimal string)
       const isValidId = /^[0-9a-fA-F]{32}$/.test(req.params.id);
       if (!isValidId) {
         console.error("Invalid gig ID format:", {
@@ -1199,7 +1407,7 @@ app.post(
         return res.status(400).json({ error: "Invalid gig ID format" });
       }
 
-      const gig = await Gig.findOne({ _id: req.params.id });
+      const gig = await Gig.findOne({ _id: req.params.id }).lean();
       if (!gig) {
         console.error("Gig not found:", {
           gigId: req.params.id,
@@ -1208,7 +1416,6 @@ app.post(
         return res.status(404).json({ error: "Gig not found" });
       }
 
-      // Check if gig is closed
       if (gig.status === "closed") {
         console.error("Attempted to apply to closed gig:", {
           gigId: req.params.id,
@@ -1220,7 +1427,6 @@ app.post(
           .json({ error: "This gig is closed for applications" });
       }
 
-      // Prevent self-application
       if (gig.sellerId === req.userId) {
         console.error("User attempted to apply to own gig:", {
           userId: req.userId,
@@ -1232,11 +1438,10 @@ app.post(
           .json({ error: "You cannot apply to your own gig" });
       }
 
-      // Check for existing application
       const existingApplication = await Application.findOne({
         gigId: req.params.id,
         applicantId: req.userId,
-      });
+      }).lean();
       if (existingApplication) {
         console.error("Duplicate application attempt:", {
           userId: req.userId,
@@ -1249,24 +1454,7 @@ app.post(
         });
       }
 
-      // Validate cover letter (if provided)
-      const { coverLetter } = req.body;
-      if (
-        coverLetter &&
-        (coverLetter.length < 10 || coverLetter.length > 1000)
-      ) {
-        console.error("Invalid cover letter length:", {
-          userId: req.userId,
-          gigId: req.params.id,
-          coverLetterLength: coverLetter.length,
-        });
-        return res.status(400).json({
-          error: "Cover letter must be between 10 and 1000 characters",
-        });
-      }
-
-      // Check user verification
-      const user = await User.findOne({ _id: req.userId });
+      const user = await User.findOne({ _id: req.userId }).lean();
       if (!user) {
         console.error("User not found:", {
           userId: req.userId,
@@ -1284,19 +1472,17 @@ app.post(
           .json({ error: "Please verify your email before applying for gigs" });
       }
 
-      // Create application
       const applicationId = crypto.randomBytes(16).toString("hex");
       const application = new Application({
         _id: applicationId,
         gigId: req.params.id,
         applicantId: req.userId,
         applicantName: req.user.fullName,
-        coverLetter: coverLetter || "",
+        coverLetter: req.body.coverLetter || "",
         status: "pending",
       });
       await application.save();
 
-      // Create ticket
       const ticketId = crypto.randomBytes(16).toString("hex");
       const ticket = new Ticket({
         _id: ticketId,
@@ -1308,15 +1494,23 @@ app.post(
           {
             senderId: req.userId,
             senderName: req.user.fullName,
-            content: `I have applied to your gig "${gig.title}". Let's discuss the details!`,
+            content: sanitizeHtml(
+              `I have applied to your gig "${gig.title}". Let's discuss the details!`
+            ),
+            timestamp: new Date(),
+            read: false,
+          },
+        ],
+        timeline: [
+          {
+            action: `Ticket created by ${req.user.fullName}`,
             timestamp: new Date(),
           },
         ],
       });
       await ticket.save();
 
-      // Notify seller
-      const seller = await User.findOne({ _id: gig.sellerId });
+      const seller = await User.findOne({ _id: gig.sellerId }).lean();
       if (seller) {
         const mailOptions = {
           from: process.env.EMAIL_USER,
@@ -1327,7 +1521,7 @@ app.post(
           } has applied to your gig "${
             gig.title
           }" with the following cover letter:</p><p>"${
-            coverLetter || "No cover letter provided"
+            req.body.coverLetter || "No cover letter provided"
           }"</p><p>View the application and discuss at: /tickets/${ticketId}</p>`,
         };
         await transporter.sendMail(mailOptions).catch((err) => {
@@ -1344,7 +1538,7 @@ app.post(
         ticketId,
         gigId: req.params.id,
         applicantId: req.userId,
-        coverLetter: coverLetter || "None",
+        coverLetter: req.body.coverLetter || "None",
       });
       res.status(201).json({ success: true, application, ticketId });
     } catch (err) {
@@ -1367,7 +1561,8 @@ app.get(
     try {
       const applications = await Application.find({ gigId: req.params.id })
         .populate("applicantId", "fullName email profilePicture")
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
+        .lean();
       console.log("Fetched applications for gig:", {
         gigId: req.params.id,
         count: applications.length,
@@ -1422,7 +1617,8 @@ app.get("/api/users/:id/applications", async (req, res) => {
 
     const applications = await Application.find({ applicantId: req.params.id })
       .populate("gigId", "title category price status")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
     console.log("Fetched user applications:", {
       userId: req.params.id,
       count: applications.length,
@@ -1445,13 +1641,18 @@ app.patch(
   "/api/gigs/:id/applications/:applicationId",
   authMiddleware,
   checkGigOwner,
+  [
+    check("status")
+      .isIn(["accepted", "rejected"])
+      .withMessage("Invalid status. Must be 'accepted' or 'rejected'"),
+  ],
   async (req, res) => {
-    const { status } = req.body;
-    if (!["accepted", "rejected"].includes(status)) {
-      return res
-        .status(400)
-        .json({ error: "Invalid status. Must be 'accepted' or 'rejected'" });
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
+
+    const { status } = req.body;
     try {
       const application = await Application.findOne({
         _id: req.params.applicationId,
@@ -1468,40 +1669,38 @@ app.patch(
           applicationId: req.params.applicationId,
           currentStatus: application.status,
         });
-        return res.status(400).json({
-          error: `Application is already ${application.status}`,
-        });
+        return res
+          .status(400)
+          .json({ error: `Application is already ${application.status}` });
       }
 
-      const gig = await Gig.findOne({ _id: req.params.id });
+      const gig = await Gig.findOne({ _id: req.params.id }).lean();
       if (!gig) return res.status(404).json({ error: "Gig not found" });
 
       application.status = status;
       await application.save();
 
-      if (status === "accepted") {
-        const ticket = await Ticket.findOne({
+      const ticket = await Ticket.findOne({
+        gigId: req.params.id,
+        buyerId: application.applicantId,
+      });
+      if (ticket) {
+        ticket.status = status === "accepted" ? "accepted" : ticket.status;
+        ticket.timeline.push({
+          action: `Application ${status} by ${req.user.fullName}`,
+          timestamp: new Date(),
+        });
+        await ticket.save();
+        console.log("Ticket updated:", {
+          ticketId: ticket._id,
+          status,
           gigId: req.params.id,
           buyerId: application.applicantId,
         });
-        if (ticket) {
-          ticket.status = "accepted";
-          await ticket.save();
-          console.log("Ticket updated to accepted:", {
-            ticketId: ticket._id,
-            gigId: req.params.id,
-            buyerId: application.applicantId,
-          });
-        } else {
-          console.error("Ticket not found for accepted application:", {
-            gigId: req.params.id,
-            buyerId: application.applicantId,
-          });
-        }
       }
 
-      const seller = await User.findOne({ _id: gig.sellerId });
-      const buyer = await User.findOne({ _id: application.applicantId });
+      const seller = await User.findOne({ _id: gig.sellerId }).lean();
+      const buyer = await User.findOne({ _id: application.applicantId }).lean();
       if (seller && buyer) {
         const mailOptions = {
           from: process.env.EMAIL_USER,
@@ -1576,11 +1775,9 @@ app.get("/api/users/:id/tickets", async (req, res) => {
       .populate("gigId", "title")
       .populate("sellerId", "fullName email profilePicture")
       .populate("buyerId", "fullName email profilePicture")
-      .sort({ createdAt: -1 });
-    console.log("Fetched user tickets:", {
-      userId,
-      count: tickets.length,
-    });
+      .sort({ createdAt: -1 })
+      .lean();
+    console.log("Fetched user tickets:", { userId, count: tickets.length });
     res.json(tickets);
   } catch (err) {
     console.error("Get user tickets error:", err);
@@ -1598,7 +1795,8 @@ app.get(
       const ticket = await Ticket.findOne({ _id: req.params.id })
         .populate("gigId", "title price")
         .populate("sellerId", "fullName email profilePicture")
-        .populate("buyerId", "fullName email profilePicture");
+        .populate("buyerId", "fullName email profilePicture")
+        .lean();
       if (!ticket) {
         console.error("Ticket not found for ID:", req.params.id);
         return res.status(404).json({ error: "Ticket not found" });
@@ -1617,19 +1815,18 @@ app.post(
   "/api/tickets/:id/messages",
   authMiddleware,
   checkTicketParticipant,
-  applyLimiter,
+  messageLimiter,
+  validateMessage,
   async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
     const { content } = req.body;
-    if (!content) {
-      return res.status(400).json({ error: "Message content is required" });
-    }
-    if (content.length < 1 || content.length > 1000) {
-      return res
-        .status(400)
-        .json({ error: "Message must be between 1 and 1000 characters" });
-    }
     try {
-      const ticket = req.ticket;
+      const ticket = await Ticket.findOne({ _id: req.params.id });
+      if (!ticket) return res.status(404).json({ error: "Ticket not found" });
       if (ticket.status === "closed") {
         return res.status(400).json({ error: "Ticket is closed" });
       }
@@ -1637,17 +1834,26 @@ app.post(
       ticket.messages.push({
         senderId: req.userId,
         senderName: req.user.fullName,
-        content,
+        content: sanitizeHtml(content),
         timestamp: new Date(),
+        read: false,
       });
       if (ticket.status === "open") {
         ticket.status = "negotiating";
+        ticket.timeline.push({
+          action: `Ticket moved to negotiating by ${req.user.fullName}`,
+          timestamp: new Date(),
+        });
       }
+      ticket.timeline.push({
+        action: `Message sent by ${req.user.fullName}`,
+        timestamp: new Date(),
+      });
       await ticket.save();
 
       const recipientId =
         ticket.sellerId === req.userId ? ticket.buyerId : ticket.sellerId;
-      const recipient = await User.findOne({ _id: recipientId });
+      const recipient = await User.findOne({ _id: recipientId }).lean();
       if (recipient) {
         const mailOptions = {
           from: process.env.EMAIL_USER,
@@ -1673,31 +1879,139 @@ app.post(
   }
 );
 
+// Send Message with Attachment
+app.post(
+  "/api/tickets/:id/messages/attachment",
+  authMiddleware,
+  checkTicketParticipant,
+  attachmentLimiter,
+  upload.single("attachment"),
+  async (req, res) => {
+    try {
+      const ticket = await Ticket.findOne({ _id: req.params.id });
+      if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+      if (ticket.status === "closed") {
+        return res.status(400).json({ error: "Ticket is closed" });
+      }
+
+      const content = req.body.content ? sanitizeHtml(req.body.content) : "";
+      let attachmentUrl = "";
+      if (req.file) {
+        const fileStream = Readable.from(req.file.buffer);
+        const uploadResult = await new Promise((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            { folder: "gigconnect/attachments", resource_type: "auto" },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result);
+            }
+          );
+          fileStream.pipe(uploadStream);
+        });
+        attachmentUrl = uploadResult.secure_url;
+      }
+
+      if (!content && !attachmentUrl) {
+        return res
+          .status(400)
+          .json({ error: "Message content or attachment is required" });
+      }
+
+      ticket.messages.push({
+        senderId: req.userId,
+        senderName: req.user.fullName,
+        content,
+        attachment: attachmentUrl,
+        timestamp: new Date(),
+        read: false,
+      });
+      if (ticket.status === "open") {
+        ticket.status = "negotiating";
+        ticket.timeline.push({
+          action: `Ticket moved to negotiating by ${req.user.fullName}`,
+          timestamp: new Date(),
+        });
+      }
+      ticket.timeline.push({
+        action: `Message with ${
+          attachmentUrl ? "attachment" : "text"
+        } sent by ${req.user.fullName}`,
+        timestamp: new Date(),
+      });
+      await ticket.save();
+
+      const recipientId =
+        ticket.sellerId === req.userId ? ticket.buyerId : ticket.sellerId;
+      const recipient = await User.findOne({ _id: recipientId }).lean();
+      if (recipient) {
+        const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: recipient.email,
+          subject: `New Message in Ticket for Gig "${ticket.gigId.title}"`,
+          html: `<p>Dear ${
+            recipient.fullName
+          },</p><p>You have a new message from ${
+            req.user.fullName
+          } in ticket for "${ticket.gigId.title}":</p><p>"${
+            content || "Attachment only"
+          }"</p>${
+            attachmentUrl
+              ? `<p><a href="${attachmentUrl}">View Attachment</a></p>`
+              : ""
+          }<p>View the ticket at: /tickets/${ticket._id}</p>`,
+        };
+        await transporter.sendMail(mailOptions).catch((err) => {
+          console.error("Failed to send message notification email:", err);
+        });
+      }
+
+      console.log("Message with attachment sent:", {
+        ticketId: req.params.id,
+        senderId: req.userId,
+        attachment: attachmentUrl || "None",
+        contentLength: content.length,
+      });
+      res.json({ success: true, ticket });
+    } catch (err) {
+      console.error("Send message with attachment error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  }
+);
+
 // Update Ticket Price
 app.patch(
   "/api/tickets/:id/price",
   authMiddleware,
   checkTicketParticipant,
+  validatePrice,
   async (req, res) => {
-    const { agreedPrice } = req.body;
-    if (!agreedPrice || isNaN(agreedPrice) || agreedPrice <= 0) {
-      return res
-        .status(400)
-        .json({ error: "Agreed price must be a positive number" });
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
+
+    const { agreedPrice } = req.body;
     try {
-      const ticket = req.ticket;
+      const ticket = await Ticket.findOne({ _id: req.params.id });
+      if (!ticket) return res.status(404).json({ error: "Ticket not found" });
       if (ticket.status === "closed") {
         return res.status(400).json({ error: "Ticket is closed" });
       }
 
       ticket.agreedPrice = parseFloat(agreedPrice);
       ticket.status = "negotiating";
+      ticket.timeline.push({
+        action: `Price of ₹${agreedPrice.toLocaleString("en-IN")} proposed by ${
+          req.user.fullName
+        }`,
+        timestamp: new Date(),
+      });
       await ticket.save();
 
       const otherUserId =
         ticket.sellerId === req.userId ? ticket.buyerId : ticket.sellerId;
-      const otherUser = await User.findOne({ _id: otherUserId });
+      const otherUser = await User.findOne({ _id: otherUserId }).lean();
       if (otherUser) {
         const mailOptions = {
           from: process.env.EMAIL_USER,
@@ -1735,7 +2049,8 @@ app.patch(
   checkTicketParticipant,
   async (req, res) => {
     try {
-      const ticket = req.ticket;
+      const ticket = await Ticket.findOne({ _id: req.params.id });
+      if (!ticket) return res.status(404).json({ error: "Ticket not found" });
       if (ticket.status !== "negotiating") {
         return res.status(400).json({
           error: "Ticket must be in negotiating status to accept price",
@@ -1751,9 +2066,13 @@ app.patch(
       }
 
       ticket.status = "accepted";
+      ticket.timeline.push({
+        action: `Price accepted by ${req.user.fullName}`,
+        timestamp: new Date(),
+      });
       await ticket.save();
 
-      const seller = await User.findOne({ _id: ticket.sellerId });
+      const seller = await User.findOne({ _id: ticket.sellerId }).lean();
       if (seller) {
         const mailOptions = {
           from: process.env.EMAIL_USER,
@@ -1793,7 +2112,8 @@ app.patch(
   checkTicketParticipant,
   async (req, res) => {
     try {
-      const ticket = req.ticket;
+      const ticket = await Ticket.findOne({ _id: req.params.id });
+      if (!ticket) return res.status(404).json({ error: "Ticket not found" });
       if (ticket.status !== "accepted") {
         return res.status(400).json({
           error: "Ticket must be in accepted status to confirm payment",
@@ -1806,60 +2126,34 @@ app.patch(
       }
 
       ticket.status = "paid";
+      ticket.timeline.push({
+        action: `Payment confirmed by ${req.user.fullName}`,
+        timestamp: new Date(),
+      });
       await ticket.save();
-
-      // Close applications for the associated gig
-      const gig = await Gig.findOne({ _id: ticket.gigId });
-      if (gig) {
-        gig.status = "closed";
-        await gig.save();
-        console.log("Gig applications closed:", {
-          gigId: gig._id,
-          title: gig.title,
-        });
-
-        // Reject all pending applications except the accepted one
-        const applications = await Application.find({
-          gigId: ticket.gigId,
-          status: "pending",
-        });
-        for (const app of applications) {
-          app.status = "rejected";
-          await app.save();
-          const applicant = await User.findOne({ _id: app.applicantId });
-          if (applicant) {
-            const mailOptions = {
-              from: process.env.EMAIL_USER,
-              to: applicant.email,
-              subject: `Application Update for Gig "${gig.title}"`,
-              html: `<p>Dear ${applicant.fullName},</p><p>The gig "${gig.title}" has been closed as payment has been confirmed, and your application has been rejected.</p><p>Explore other gigs on Gig Connect.</p>`,
-            };
-            await transporter.sendMail(mailOptions).catch((err) => {
-              console.error("Failed to send rejection email:", err);
-            });
-          }
-        }
-        console.log("Rejected pending applications:", {
-          gigId: ticket.gigId,
-          count: applications.length,
-        });
-      }
 
       const seller = await User.findOne({ _id: ticket.sellerId });
       if (seller) {
+        seller.credits = (seller.credits || 0) + ticket.agreedPrice;
+        seller.orderHistory.push({
+          title: ticket.gigId.title,
+          status: "paid",
+          earnings: ticket.agreedPrice,
+          date: new Date(),
+        });
+        await seller.save();
+
         const mailOptions = {
           from: process.env.EMAIL_USER,
           to: seller.email,
-          subject: `Payment Confirmed for Gig "${gig.title}"`,
-          html: `<p>Dear ${seller.fullName},</p><p>${
+          subject: `Payment Received for Gig "${ticket.gigId.title}"`,
+          html: `<p>Dear ${
+            seller.fullName
+          },</p><p>Payment of ₹${ticket.agreedPrice.toLocaleString(
+            "en-IN"
+          )} for "${ticket.gigId.title}" has been confirmed by ${
             req.user.fullName
-          } has confirmed payment of ₹${(
-            ticket.agreedPrice || gig.price
-          ).toLocaleString("en-IN")} for "${
-            gig.title
-          }".</p><p>Proceed with the work and wait for the buyer to mark it as completed: /tickets/${
-            ticket._id
-          }</p>`,
+          }.</p><p>Complete the work at: /tickets/${ticket._id}</p>`,
         };
         await transporter.sendMail(mailOptions).catch((err) => {
           console.error("Failed to send payment confirmation email:", err);
@@ -1868,171 +2162,98 @@ app.patch(
 
       console.log("Payment confirmed for ticket:", {
         ticketId: req.params.id,
-        agreedPrice: ticket.agreedPrice || gig.price,
+        agreedPrice: ticket.agreedPrice,
       });
       res.json({ success: true, ticket });
     } catch (err) {
-      console.error("Confirm payment error:", err);
+      console.error("Confirm payment error:", {
+        error: err.message,
+        ticketId: req.params.id,
+        userId: req.userId,
+      });
       res.status(500).json({ error: "Server error", details: err.message });
     }
   }
 );
 
-// Mark Work as Completed
+// Mark Ticket as Completed
 app.patch(
   "/api/tickets/:id/complete",
   authMiddleware,
   checkTicketParticipant,
   async (req, res) => {
     try {
-      const ticket = req.ticket;
+      const ticket = await Ticket.findOne({ _id: req.params.id });
+      if (!ticket) {
+        console.error("Ticket not found for completion:", {
+          ticketId: req.params.id,
+          userId: req.userId,
+        });
+        return res.status(404).json({ error: "Ticket not found" });
+      }
       if (ticket.status !== "paid") {
+        console.error("Invalid ticket status for completion:", {
+          ticketId: req.params.id,
+          status: ticket.status,
+          userId: req.userId,
+        });
         return res.status(400).json({
           error: "Ticket must be in paid status to mark as completed",
         });
       }
-      if (req.userId !== ticket.buyerId) {
+      if (req.userId !== ticket.sellerId) {
+        console.error("Unauthorized completion attempt:", {
+          ticketId: req.params.id,
+          userId: req.userId,
+          sellerId: ticket.sellerId,
+        });
         return res
           .status(403)
-          .json({ error: "Only the buyer can mark work as completed" });
+          .json({ error: "Only the seller can mark the ticket as completed" });
       }
 
       ticket.status = "completed";
+      ticket.timeline.push({
+        action: `Ticket marked as completed by ${req.user.fullName}`,
+        timestamp: new Date(),
+      });
       await ticket.save();
 
-      const seller = await User.findOne({ _id: ticket.sellerId });
-      if (seller) {
+      const buyer = await User.findOne({ _id: ticket.buyerId }).lean();
+      if (buyer) {
         const mailOptions = {
           from: process.env.EMAIL_USER,
-          to: seller.email,
-          subject: `Work Marked as Completed for Gig "${ticket.gigId.title}"`,
-          html: `<p>Dear ${seller.fullName},</p><p>${req.user.fullName} has marked the work as completed for "${ticket.gigId.title}".</p><p>Please confirm completion at: /tickets/${ticket._id}</p>`,
+          to: buyer.email,
+          subject: `Gig "${ticket.gigId.title}" Completed`,
+          html: `<p>Dear ${buyer.fullName},</p><p>The gig "${ticket.gigId.title}" has been marked as completed by ${req.user.fullName}.</p><p>Please review the work and provide feedback at: /tickets/${ticket._id}</p>`,
         };
         await transporter.sendMail(mailOptions).catch((err) => {
           console.error("Failed to send completion email:", err);
         });
       }
 
-      console.log("Work marked as completed for ticket:", {
-        ticketId: req.params.id,
-      });
-      res.json({ success: true, ticket });
-    } catch (err) {
-      console.error("Mark work completed error:", err);
-      res.status(500).json({ error: "Server error", details: err.message });
-    }
-  }
-);
-
-// Confirm Completion and Update Credits
-app.patch(
-  "/api/tickets/:id/confirm-completion",
-  authMiddleware,
-  checkTicketParticipant,
-  async (req, res) => {
-    try {
-      const ticket = req.ticket;
-      if (ticket.status !== "completed") {
-        return res.status(400).json({
-          error: "Ticket must be in completed status to confirm completion",
-        });
-      }
-      if (req.userId !== ticket.sellerId) {
-        return res
-          .status(403)
-          .json({ error: "Only the seller can confirm completion" });
-      }
-
-      const { rating } = req.body; // Get rating from request body
-      if (rating && (typeof rating !== "number" || rating < 1 || rating > 5)) {
-        return res.status(400).json({
-          error: "Rating must be a number between 1 and 5",
-        });
-      }
-
-      ticket.status = "closed";
-      await ticket.save();
-
-      const gig = await Gig.findOne({ _id: ticket.gigId });
       const seller = await User.findOne({ _id: ticket.sellerId });
-      const buyer = await User.findOne({ _id: ticket.buyerId });
-
-      if (seller && buyer && gig) {
-        // Update seller's order history
-        seller.orderHistory.push({
-          title: gig.title,
-          status: "completed",
-          earnings: ticket.agreedPrice || gig.price,
-          date: new Date(),
-        });
+      if (seller) {
         seller.gigsCompleted = (seller.gigsCompleted || 0) + 1;
         seller.completionRate = seller.totalGigs
-          ? (seller.gigsCompleted / seller.totalGigs) * 100
+          ? ((seller.gigsCompleted / seller.totalGigs) * 100).toFixed(2)
           : 0;
+        seller.orderHistory = seller.orderHistory.map((order) =>
+          order.title === ticket.gigId.title && order.status === "paid"
+            ? { ...order, status: "completed" }
+            : order
+        );
         await seller.save();
-
-        // Update buyer's profile with credits, stats, and rating
-        buyer.orderHistory.push({
-          title: gig.title,
-          status: "completed",
-          earnings: 0,
-          date: new Date(),
-        });
-        buyer.gigsCompleted = (buyer.gigsCompleted || 0) + 1;
-        buyer.totalGigs = (buyer.totalGigs || 0) + 1;
-        buyer.completionRate = buyer.totalGigs
-          ? (buyer.gigsCompleted / buyer.totalGigs) * 100
-          : 0;
-        buyer.credits =
-          (buyer.credits || 0) + (ticket.agreedPrice || gig.price);
-
-        // Store rating in buyer's profile if provided
-        if (rating) {
-          buyer.ratings = buyer.ratings || [];
-          buyer.ratings.push({
-            value: rating,
-            ticketId: ticket._id,
-            giverId: req.userId,
-            givenAt: new Date(),
-          });
-        }
-
-        await buyer.save();
-
-        // Notify buyer of completion confirmation
-        const mailOptions = {
-          from: process.env.EMAIL_USER,
-          to: buyer.email,
-          subject: `Completion Confirmed for Gig "${gig.title}"`,
-          html: `<p>Dear ${
-            buyer.fullName
-          },</p><p>The seller has confirmed completion for "${
-            gig.title
-          }". You have earned ${(
-            ticket.agreedPrice || gig.price
-          ).toLocaleString("en-IN", {
-            style: "currency",
-            currency: "INR",
-          })} in credits.${
-            rating
-              ? ` The seller rated you ${rating} star${rating > 1 ? "s" : ""}.`
-              : ""
-          }</p><p>View details at: /tickets/${ticket._id}</p>`,
-        };
-        await transporter.sendMail(mailOptions).catch((err) => {
-          console.error("Failed to send completion confirmation email:", err);
-        });
       }
 
-      console.log("Completion confirmed for ticket:", {
-        ticketId: req.params.id,
-        buyerId: ticket.buyerId,
-        creditsEarned: ticket.agreedPrice || gig.price,
-        rating: rating || "Not provided",
-      });
+      console.log("Ticket marked as completed:", { ticketId: req.params.id });
       res.json({ success: true, ticket });
     } catch (err) {
-      console.error("Confirm completion error:", err);
+      console.error("Complete ticket error:", {
+        error: err.message,
+        ticketId: req.params.id,
+        userId: req.userId,
+      });
       res.status(500).json({ error: "Server error", details: err.message });
     }
   }
@@ -2043,68 +2264,544 @@ app.patch(
   "/api/tickets/:id/close",
   authMiddleware,
   checkTicketParticipant,
+  validateRating,
   async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.error("Validation errors for close ticket:", {
+        errors: errors.array(),
+        ticketId: req.params.id,
+        userId: req.userId,
+      });
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { rating } = req.body;
     try {
-      const ticket = req.ticket;
-      if (ticket.status === "closed") {
-        return res.status(400).json({ error: "Ticket is already closed" });
+      const ticket = await Ticket.findOne({ _id: req.params.id });
+      if (!ticket) {
+        console.error("Ticket not found for closing:", {
+          ticketId: req.params.id,
+          userId: req.userId,
+        });
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+      if (ticket.status !== "completed") {
+        console.error("Invalid ticket status for closing:", {
+          ticketId: req.params.id,
+          status: ticket.status,
+          userId: req.userId,
+        });
+        return res
+          .status(400)
+          .json({ error: "Ticket must be in completed status to close" });
+      }
+      if (req.userId !== ticket.buyerId) {
+        console.error("Unauthorized close attempt:", {
+          ticketId: req.params.id,
+          userId: req.userId,
+          buyerId: ticket.buyerId,
+        });
+        return res
+          .status(403)
+          .json({ error: "Only the buyer can close the ticket" });
       }
 
       ticket.status = "closed";
+      ticket.timeline.push({
+        action: `Ticket closed by ${req.user.fullName}`,
+        timestamp: new Date(),
+      });
       await ticket.save();
 
-      console.log("Ticket closed:", { ticketId: req.params.id });
+      if (rating) {
+        const seller = await User.findOne({ _id: ticket.sellerId });
+        if (seller) {
+          seller.ratings.push({
+            value: parseInt(rating),
+            ticketId: ticket._id,
+            giverId: req.userId,
+            givenAt: new Date(),
+          });
+          await seller.save();
+
+          const gig = await Gig.findOne({ _id: ticket.gigId });
+          if (gig) {
+            const ratings = await User.findOne({ _id: ticket.sellerId })
+              .select("ratings")
+              .lean();
+            gig.rating = ratings.ratings.length
+              ? (
+                  ratings.ratings.reduce((sum, r) => sum + r.value, 0) /
+                  ratings.ratings.length
+                ).toFixed(1)
+              : 0;
+            await gig.save();
+          }
+        }
+      }
+
+      const seller = await User.findOne({ _id: ticket.sellerId }).lean();
+      if (seller) {
+        const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: seller.email,
+          subject: `Ticket for "${ticket.gigId.title}" Closed`,
+          html: `<p>Dear ${seller.fullName},</p><p>The ticket for "${
+            ticket.gigId.title
+          }" has been closed by ${req.user.fullName}.</p>${
+            rating ? `<p>You received a rating of ${rating}/5.</p>` : ""
+          }<p>View details at: /tickets/${ticket._id}</p>`,
+        };
+        await transporter.sendMail(mailOptions).catch((err) => {
+          console.error("Failed to send ticket close email:", err);
+        });
+      }
+
+      console.log("Ticket closed:", {
+        ticketId: req.params.id,
+        rating: rating || "None",
+      });
       res.json({ success: true, ticket });
     } catch (err) {
-      console.error("Close ticket error:", err);
+      console.error("Close ticket error:", {
+        error: err.message,
+        ticketId: req.params.id,
+        userId: req.userId,
+      });
       res.status(500).json({ error: "Server error", details: err.message });
     }
   }
 );
 
-//google gemini setup :
-app.post("/api/ai/generate-description", authMiddleware, async (req, res) => {
-  try {
-    const { title } = req.body;
-    if (!title) {
-      return res.status(400).json({ error: "Title is required" });
+// Get Ticket Timeline
+app.get(
+  "/api/tickets/:id/timeline",
+  authMiddleware,
+  checkTicketParticipant,
+  async (req, res) => {
+    try {
+      // Validate ticket ID format (32-character hexadecimal)
+      const ticketId = req.params.id;
+      if (!/^[0-9a-fA-F]{32}$/.test(ticketId)) {
+        console.error("Invalid ticket ID format:", {
+          ticketId,
+          userId: req.userId,
+        });
+        return res.status(400).json({ error: "Invalid ticket ID format" });
+      }
+
+      const ticket = await Ticket.findOne({ _id: ticketId })
+        .select("timeline")
+        .lean();
+      if (!ticket) {
+        console.error("Ticket not found for timeline:", {
+          ticketId,
+          userId: req.userId,
+        });
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+      console.log("Fetched ticket timeline:", {
+        ticketId,
+        events: ticket.timeline.length,
+        userId: req.userId,
+      });
+      res.json({ success: true, timeline: ticket.timeline });
+    } catch (err) {
+      console.error("Get ticket timeline error:", {
+        error: err.message,
+        ticketId: req.params.id,
+        userId: req.userId,
+      });
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  }
+);
+
+// Mark Messages as Read
+app.patch(
+  "/api/tickets/:id/messages/read",
+  authMiddleware,
+  checkTicketParticipant,
+  async (req, res) => {
+    try {
+      const ticketId = req.params.id;
+      if (!/^[0-9a-fA-F]{32}$/.test(ticketId)) {
+        console.error("Invalid ticket ID format:", {
+          ticketId,
+          userId: req.userId,
+        });
+        return res.status(400).json({ error: "Invalid ticket ID format" });
+      }
+
+      const ticket = await Ticket.findOne({ _id: ticketId });
+      if (!ticket) {
+        console.error("Ticket not found for marking messages read:", {
+          ticketId,
+          userId: req.userId,
+        });
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+
+      ticket.messages = ticket.messages.map((msg) =>
+        msg.senderId !== req.userId && !msg.read ? { ...msg, read: true } : msg
+      );
+      ticket.timeline.push({
+        action: `Messages marked as read by ${req.user.fullName}`,
+        timestamp: new Date(),
+      });
+      await ticket.save();
+
+      console.log("Messages marked as read:", { ticketId, userId: req.userId });
+      res.json({ success: true, ticket });
+    } catch (err) {
+      console.error("Mark messages read error:", {
+        error: err.message,
+        ticketId: req.params.id,
+        userId: req.userId,
+      });
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  }
+);
+
+// Search Messages in Ticket
+app.get(
+  "/api/tickets/:id/messages/search",
+  authMiddleware,
+  checkTicketParticipant,
+  [
+    check("query")
+      .optional()
+      .trim()
+      .isLength({ min: 1 })
+      .withMessage("Search query cannot be empty"),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.error("Validation errors for message search:", {
+        errors: errors.array(),
+        ticketId: req.params.id,
+        userId: req.userId,
+      });
+      return res.status(400).json({ errors: errors.array() });
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const prompt = `Generate a professional gig description for a service titled "${title}" in 100-150 words. The description should be engaging, highlight the service's unique value, specify deliverables, and mention a typical timeline. Use a professional tone suitable for a freelance marketplace.`;
+    const { query } = req.query;
+    try {
+      const ticketId = req.params.id;
+      if (!/^[0-9a-fA-F]{32}$/.test(ticketId)) {
+        console.error("Invalid ticket ID format:", {
+          ticketId,
+          userId: req.userId,
+        });
+        return res.status(400).json({ error: "Invalid ticket ID format" });
+      }
 
-    const result = await model.generateContent(prompt);
-    const description = result.response.text();
+      const ticket = await Ticket.findOne({ _id: ticketId }).lean();
+      if (!ticket) {
+        console.error("Ticket not found for message search:", {
+          ticketId,
+          userId: req.userId,
+        });
+        return res.status(404).json({ error: "Ticket not found" });
+      }
 
-    res.json({ description });
+      if (!query) {
+        console.log("Returning all messages for ticket:", {
+          ticketId,
+          userId: req.userId,
+        });
+        return res.json({ success: true, messages: ticket.messages });
+      }
+
+      const messages = ticket.messages.filter((msg) =>
+        msg.content.toLowerCase().includes(query.toLowerCase())
+      );
+      console.log("Searched messages in ticket:", {
+        ticketId,
+        query,
+        results: messages.length,
+        userId: req.userId,
+      });
+      res.json({ success: true, messages });
+    } catch (err) {
+      console.error("Search messages error:", {
+        error: err.message,
+        ticketId: req.params.id,
+        userId: req.userId,
+      });
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  }
+);
+
+// AI-Powered Chat Response
+app.post(
+  "/api/tickets/:id/ai-response",
+  authMiddleware,
+  checkTicketParticipant,
+  validateMessage,
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.error("Validation errors for AI response:", {
+        errors: errors.array(),
+        ticketId: req.params.id,
+        userId: req.userId,
+      });
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { content } = req.body;
+    try {
+      const ticketId = req.params.id;
+      if (!/^[0-9a-fA-F]{32}$/.test(ticketId)) {
+        console.error("Invalid ticket ID format:", {
+          ticketId,
+          userId: req.userId,
+        });
+        return res.status(400).json({ error: "Invalid ticket ID format" });
+      }
+
+      const ticket = await Ticket.findOne({ _id: ticketId });
+      if (!ticket) {
+        console.error("Ticket not found for AI response:", {
+          ticketId,
+          userId: req.userId,
+        });
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+
+      const conversationHistory = ticket.messages
+        .map((msg) => `${msg.senderName}: ${msg.content}`)
+        .join("\n");
+
+      const prompt = `You are an AI assistant helping with a gig negotiation on a freelance platform. The gig is "${
+        ticket.gigId.title
+      }" with a price of ₹${ticket.gigId.price.toLocaleString(
+        "en-IN"
+      )}. Below is the conversation history:\n\n${conversationHistory}\n\nUser (${
+        req.user.fullName
+      }): ${content}\n\nProvide a professional, concise, and relevant response to assist in the negotiation or clarify the user's message. Keep the tone friendly and professional.`;
+
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+      const result = await model.generateContent(prompt);
+      const aiResponse = result.response.text();
+
+      ticket.messages.push({
+        senderId: "AI",
+        senderName: "Gig Connect AI",
+        content: sanitizeHtml(aiResponse),
+        timestamp: new Date(),
+        read: false,
+      });
+      ticket.timeline.push({
+        action: `AI responded to message from ${req.user.fullName}`,
+        timestamp: new Date(),
+      });
+      await ticket.save();
+
+      console.log("AI response generated:", {
+        ticketId,
+        aiResponseLength: aiResponse.length,
+        userId: req.userId,
+      });
+      res.json({ success: true, aiResponse, ticket });
+    } catch (err) {
+      console.error("AI response error:", {
+        error: err.message,
+        ticketId: req.params.id,
+        userId: req.userId,
+      });
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  }
+);
+
+// Debug Route to Check Ticket Existence
+app.get("/api/debug/tickets/:id", async (req, res) => {
+  try {
+    const ticketId = req.params.id;
+    if (!/^[0-9a-fA-F]{32}$/.test(ticketId)) {
+      console.error("Invalid ticket ID format in debug:", { ticketId });
+      return res.status(400).json({ error: "Invalid ticket ID format" });
+    }
+
+    const ticket = await Ticket.findOne({ _id: ticketId }).lean();
+    if (!ticket) {
+      console.error("Debug: Ticket not found:", { ticketId });
+      return res.status(404).json({ error: "Ticket not found in database" });
+    }
+    console.log("Debug: Ticket found:", {
+      ticketId,
+      gigId: ticket.gigId,
+      sellerId: ticket.sellerId,
+      buyerId: ticket.buyerId,
+      status: ticket.status,
+    });
+    res.json({ success: true, ticket });
   } catch (err) {
-    console.error("Error generating description:", err);
-    res.status(500).json({ error: "Failed to generate description" });
+    console.error("Debug ticket error:", {
+      error: err.message,
+      ticketId: req.params.id,
+    });
+    res.status(500).json({ error: "Server error", details: err.message });
   }
 });
 
-// Cleanup expired pending users and OTPs
-setInterval(async () => {
-  try {
-    await PendingUser.deleteMany({ otpExpire: { $lt: Date.now() } });
-    await User.updateMany(
-      { emailOtpExpire: { $lt: Date.now() } },
-      { $unset: { emailOtp: "", emailOtpExpire: "" } }
-    );
-    console.log("Cleaned expired pending users and OTPs");
-  } catch (err) {
-    console.error("Cleanup error:", err);
+//hehe
+// Previous code up to `/ Confirm Payment` remains unchanged
+// ... (all routes up to and including /api/tickets/:id/confirm-payment)
+
+// Import required modules
+const { Server } = require("socket.io");
+const { setupSocket: setupGlobalChatSocket, setupRoutes: setupGlobalChatRoutes } = require("./chatRoutes");
+
+// Assuming `server` is the HTTP server created earlier (e.g., via `http.createServer(app)`)
+const io = new Server(server, {
+  cors: {
+    origin: ["http://localhost:3000", "http://localhost:5173"],
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
+
+// Ticket-specific chat setup (assuming `setupSocket` is defined elsewhere or inline)
+function setupSocket(httpServer, Ticket, User) {
+  const ticketIo = new Server(httpServer, {
+    cors: {
+      origin: ["http://localhost:3000", "http://localhost:5173"],
+      methods: ["GET", "POST"],
+      credentials: true,
+    },
+    path: "/ticket-socket", // Use a distinct path to avoid conflict with global chat
+  });
+
+  console.log("Socket.io ticket chat initialized on http://localhost:5000/ticket-socket");
+
+  ticketIo.use((socket, next) => {
+    const token = socket.handshake.auth.token;
+    console.log("Ticket chat socket connection attempt with token:", token);
+    if (!token) return next(new Error("Authentication error"));
+    try {
+      const decoded = require("jsonwebtoken").verify(token, process.env.JWT_SECRET);
+      socket.userId = decoded.id;
+      socket.user = decoded;
+      next();
+    } catch (err) {
+      console.error("Ticket chat socket auth error:", err.message);
+      next(new Error("Invalid token"));
+    }
+  });
+
+  ticketIo.on("connection", async (socket) => {
+    console.log(`User connected to ticket chat: ${socket.userId}`);
+
+    socket.on("joinTicket", (ticketId) => {
+      socket.join(ticketId);
+      console.log(`User ${socket.userId} joined ticket room: ${ticketId}`);
+    });
+
+    socket.on("sendMessage", async (payload, callback) => {
+      try {
+        const { ticketId, content } = payload;
+        if (!content || !content.trim()) {
+          return callback({ error: "Message content is required" });
+        }
+
+        const ticket = await Ticket.findOne({ _id: ticketId });
+        if (!ticket) {
+          return callback({ error: "Ticket not found" });
+        }
+
+        const user = await User.findOne({ _id: socket.userId });
+        if (!user) {
+          return callback({ error: "User not found" });
+        }
+
+        ticket.messages.push({
+          senderId: socket.userId,
+          senderName: user.fullName,
+          content: content.trim(),
+          timestamp: new Date(),
+          read: false,
+        });
+
+        ticket.timeline.push({
+          action: `Message sent by ${user.fullName}`,
+          timestamp: new Date(),
+        });
+
+        await ticket.save();
+        console.log("Ticket chat message saved:", {
+          ticketId,
+          userId: socket.userId,
+          content,
+        });
+
+        ticketIo.to(ticketId).emit("newMessage", ticket);
+        callback({ success: true });
+      } catch (err) {
+        console.error("Error sending ticket chat message:", {
+          error: err.message,
+          userId: socket.userId,
+          ticketId: payload.ticketId,
+        });
+        callback({ error: "Failed to send message", details: err.message });
+      }
+    });
+
+    socket.on("disconnect", () => {
+      console.log(`User disconnected from ticket chat: ${socket.userId}`);
+    });
+  });
+
+  return ticketIo;
+}
+
+// Initialize ticket chat
+setupSocket(server, Ticket, User);
+
+// Initialize global chat
+setupGlobalChatSocket(io);
+
+// Route setup for ticket chat
+setupRoutes(app, authMiddleware, checkTicketParticipant, messageLimiter, validateMessage, upload, attachmentLimiter);
+
+// Route setup for global chat
+app.use("/api/global-chat", setupGlobalChatRoutes(authMiddleware));
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  if (err instanceof mongoose.CastError) {
+    console.error("Mongoose CastError:", {
+      error: err.message,
+      path: req.path,
+      value: err.value,
+      userId: req.userId || "Unauthenticated",
+    });
+    return res.status(400).json({ error: "Invalid ID format" });
   }
-}, 3600000);
-
-const chatRoutes = setupRoutes(authMiddleware); 
-app.use("/api/chat", chatRoutes);
-
-// Initialize Socket.io
-setupSocket(server, authMiddleware);
+  if (err instanceof multer.MulterError) {
+    console.error("Multer error:", {
+      error: err.message,
+      path: req.path,
+      userId: req.userId || "Unauthenticated",
+    });
+    return res.status(400).json({ error: "File upload error", details: err.message });
+  }
+  console.error("Unexpected error:", {
+    error: err.message,
+    path: req.path,
+    userId: req.userId || "Unauthenticated",
+    stack: err.stack,
+  });
+  res.status(500).json({ error: "Unexpected server error", details: err.message });
+});
 
 // Start server
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Socket.io endpoint: http://localhost:${PORT}/socket.io/`);
 });
