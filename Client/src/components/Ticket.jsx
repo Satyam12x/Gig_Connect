@@ -14,7 +14,6 @@ import {
   Search,
   Bell,
   ArrowLeft,
-  History,
   Menu,
 } from "lucide-react";
 import Tilt from "react-parallax-tilt";
@@ -33,6 +32,7 @@ const Ticket = () => {
   const [message, setMessage] = useState("");
   const [agreedPrice, setAgreedPrice] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
   const [rating, setRating] = useState(0);
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
@@ -45,79 +45,81 @@ const Ticket = () => {
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
+  // Authenticate user
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (token) {
-      try {
-        const decoded = jwtDecode(token);
-        if (decoded.id) {
-          setUserId(decoded.id);
-        } else {
-          console.error("Invalid token payload:", decoded);
-          localStorage.removeItem("token");
-          toast.error("Session invalid. Please log in again.");
-          navigate("/login");
-        }
-      } catch (error) {
-        console.error("Error decoding token:", error);
-        localStorage.removeItem("token");
-        toast.error("Session expired. Please log in again.");
-        navigate("/login");
-      }
-    } else {
-      toast.error("Please log in to view tickets.");
+    if (!token) {
+      setError("Please log in to view tickets.");
       navigate("/login", { state: { from: `/tickets/${id}` } });
+      return;
     }
-  }, [navigate]);
+    try {
+      const decoded = jwtDecode(token);
+      if (!decoded.id) {
+        throw new Error("Invalid token payload");
+      }
+      setUserId(decoded.id);
+    } catch (err) {
+      console.error("Error decoding token:", err.message);
+      setError("Session expired. Please log in again.");
+      localStorage.removeItem("token");
+      navigate("/login");
+    }
+  }, [navigate, id]);
 
+  // Fetch ticket and timeline
   useEffect(() => {
     const fetchTicketAndTimeline = async () => {
+      if (!userId) return;
+      setLoading(true);
+      setError(null);
       try {
-        setLoading(true);
         const [ticketResponse, timelineResponse] = await Promise.all([
           axios.get(`${API_BASE}/tickets/${id}`, {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
-            },
+            headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
           }),
           axios.get(`${API_BASE}/tickets/${id}/timeline`, {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
-            },
+            headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          }).catch((err) => {
+            // Handle timeline fetch failure gracefully
+            console.warn("Timeline fetch failed:", err.response?.data?.error || err.message);
+            return { data: [] }; // Fallback to empty timeline
           }),
         ]);
+
         setTicket(ticketResponse.data);
-        setTimeline(timelineResponse.data);
-        setFilteredMessages(ticketResponse.data.messages);
+        setTimeline(timelineResponse.data || []);
+        setFilteredMessages(ticketResponse.data.messages || []);
         setUnreadCount(
-          ticketResponse.data.messages.filter(
+          ticketResponse.data.messages?.filter(
             (msg) => msg.senderId !== userId && !msg.read
-          ).length
+          ).length || 0
         );
-        setLoading(false);
       } catch (error) {
         console.error("Error fetching ticket/timeline:", error);
-        toast.error(error.response?.data?.error || "Failed to load ticket.");
-        if (error.response?.status === 403 || error.response?.status === 401) {
+        const errorMsg = error.response?.data?.error || "Failed to load ticket.";
+        setError(errorMsg);
+        if (error.response?.status === 401 || error.response?.status === 403) {
           localStorage.removeItem("token");
           navigate("/login");
         }
+      } finally {
         setLoading(false);
       }
     };
 
-    if (userId) {
-      fetchTicketAndTimeline();
-    }
+    fetchTicketAndTimeline();
   }, [id, userId, navigate]);
 
+  // Scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [ticket?.messages]);
 
+  // Filter messages based on search query
   useEffect(() => {
     setFilteredMessages(
-      ticket?.messages.filter((msg) =>
+      ticket?.messages?.filter((msg) =>
         msg.content.toLowerCase().includes(searchQuery.toLowerCase())
       ) || []
     );
@@ -345,6 +347,7 @@ const Ticket = () => {
     setRating(value);
   };
 
+  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 flex flex-col relative overflow-hidden">
@@ -357,7 +360,7 @@ const Ticket = () => {
               clipPath:
                 "path('M0,200 C100,300 300,100 400,200 S600,300 800,200')",
             }}
-          ></div>
+          />
           <div
             className="absolute bottom-0 right-0 w-1/3 h-1/3 opacity-30"
             style={{
@@ -365,7 +368,7 @@ const Ticket = () => {
               clipPath:
                 "path('M0,100 C50,150 150,50 200,100 S250,150 300,100')",
             }}
-          ></div>
+          />
         </div>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 flex-1 relative z-10">
           <motion.div
@@ -374,8 +377,8 @@ const Ticket = () => {
             transition={{ duration: 0.5 }}
             className="animate-pulse max-w-4xl mx-auto"
           >
-            <div className="h-8 bg-gray-700 rounded w-3/4 mb-6"></div>
-            <div className="h-64 bg-gray-700 rounded-lg"></div>
+            <div className="h-8 bg-gray-700 rounded w-3/4 mb-6" />
+            <div className="h-64 bg-gray-700 rounded-lg" />
           </motion.div>
         </div>
         <Footer />
@@ -383,7 +386,8 @@ const Ticket = () => {
     );
   }
 
-  if (!ticket) {
+  // Error state
+  if (error || !ticket) {
     return (
       <div className="min-h-screen bg-gray-900 flex flex-col relative overflow-hidden">
         <Navbar />
@@ -395,7 +399,7 @@ const Ticket = () => {
               clipPath:
                 "path('M0,200 C100,300 300,100 400,200 S600,300 800,200')",
             }}
-          ></div>
+          />
           <div
             className="absolute bottom-0 right-0 w-1/3 h-1/3 opacity-30"
             style={{
@@ -403,7 +407,7 @@ const Ticket = () => {
               clipPath:
                 "path('M0,100 C50,150 150,50 200,100 S250,150 300,100')",
             }}
-          ></div>
+          />
         </div>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 flex-1 flex items-center justify-center relative z-10">
           <motion.div
@@ -413,7 +417,7 @@ const Ticket = () => {
             className="flex flex-col items-center gap-4 text-red-500"
           >
             <XCircle className="h-6 w-6" />
-            <span>Failed to load ticket.</span>
+            <span>{error || "Failed to load ticket."}</span>
             <button
               onClick={() => navigate("/tickets")}
               className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors duration-200 ripple"
@@ -523,21 +527,15 @@ const Ticket = () => {
             clipPath:
               "path('M0,200 C100,300 300,100 400,200 S600,300 800,200')",
           }}
-        ></div>
+        />
         <div
           className="absolute bottom-0 right-0 w-1/3 h-1/3 opacity-30"
           style={{
             background: "linear-gradient(45deg, #2563EB, #A5B4FC)",
-            clipPath: "path('M0,100 C50,150 150,50 200,100 S250,150 300,100')",
+            clipPath:
+              "path('M0,100 C50,150 150,50 200,100 S250,150 300,100')",
           }}
-        ></div>
-        <div
-          className="absolute top-1/3 right-1/4 w-1/4 h-1/4 opacity-20"
-          style={{
-            background: "linear-gradient(180deg, #4B5EAA, #1E3A8A)",
-            clipPath: "path('M0,100 C50,200 150,50 200,100 S250,150 300,100')",
-          }}
-        ></div>
+        />
       </div>
       <Navbar />
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-24 flex-1 relative z-10">
@@ -602,11 +600,14 @@ const Ticket = () => {
                         src={profileUser.profilePicture}
                         alt={profileUser.fullName}
                         className="w-16 h-16 rounded-full object-cover"
+                        onError={(e) => {
+                          e.target.src = "/default-avatar.png";
+                        }}
                       />
                       <div
                         className="absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-gray-900"
                         style={{ backgroundColor: statusColor }}
-                      ></div>
+                      />
                     </motion.div>
                   ) : (
                     <User className="w-16 h-16 text-gray-400" />
@@ -715,7 +716,7 @@ const Ticket = () => {
                     ) : (
                       filteredMessages.map((msg, index) => (
                         <motion.div
-                          key={index}
+                          key={msg._id || index} // Use unique message ID
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: index * 0.05 }}
@@ -857,29 +858,41 @@ const Ticket = () => {
               <div
                 className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-400"
                 style={{ backgroundColor: "#60A5FA" }}
-              ></div>
+              />
               <AnimatePresence>
-                {timeline.map((event, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="mb-4 relative"
+                {timeline.length === 0 ? (
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="text-gray-400"
+                    style={{ color: "#A5B4FC" }}
                   >
+                    No timeline events available.
+                  </motion.p>
+                ) : (
+                  timeline.map((event, index) => (
                     <motion.div
-                      className="timeline-dot"
-                      whileHover={{ scale: 1.3 }}
-                    ></motion.div>
-                    <p className="text-gray-400" style={{ color: "#A5B4FC" }}>
-                      <span className="font-semibold">{event.action}</span>
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {new Date(event.timestamp).toLocaleString()}
-                    </p>
-                  </motion.div>
-                ))}
+                      key={index}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ delay: index * 0.1 }}
+                      className="mb-4 relative"
+                    >
+                      <motion.div
+                        className="timeline-dot"
+                        whileHover={{ scale: 1.3 }}
+                      />
+                      <p className="text-gray-400" style={{ color: "#A5B4FC" }}>
+                        <span className="font-semibold">{event.action}</span>
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {new Date(event.timestamp).toLocaleString()}
+                      </p>
+                    </motion.div>
+                  ))
+                )}
               </AnimatePresence>
             </div>
             <div className="mt-4 space-y-2">
@@ -1093,6 +1106,8 @@ const Ticket = () => {
         <Tooltip id="close-ticket-tooltip" />
         <Tooltip id="fab-tooltip" />
         <Tooltip id="close-sidebar-tooltip" />
+        <Tooltip id="submit-rating-tooltip" />
+        <Tooltip id="cancel-rating-tooltip" />
       </div>
       <Toaster />
       <Footer />
