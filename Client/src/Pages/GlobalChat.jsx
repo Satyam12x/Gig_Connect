@@ -48,10 +48,7 @@ const GlobalChat = () => {
       });
 
       socketInstance.on("connect", () => {
-        console.log(
-          "Connected to global chat WebSocket server:",
-          socketInstance.id
-        );
+        console.log("Connected to global chat WebSocket server:", socketInstance.id);
       });
 
       socketInstance.on("message", (newMessage) => {
@@ -66,10 +63,7 @@ const GlobalChat = () => {
 
       socketInstance.on("connect_error", (err) => {
         console.error("Socket.io connect error:", err.message);
-        if (
-          err.message === "Authentication error" ||
-          err.message === "Invalid token"
-        ) {
+        if (err.message === "Authentication error" || err.message === "Invalid token") {
           toast.error("Session expired. Please log in again.");
           localStorage.removeItem("token");
           navigate("/login");
