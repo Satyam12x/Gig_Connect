@@ -1,6 +1,4 @@
-"use client";
-
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast, ToastContainer } from "react-toastify";
@@ -19,11 +17,12 @@ import {
   Loader,
   MessageSquare,
   User,
-  ChevronDown,
-  AlertCircle,
-  Zap,
+  Menu,
+  Info,
 } from "lucide-react";
 import io from "socket.io-client";
+import { debounce } from "lodash";
+import moment from "moment";
 
 const API_BASE = "http://localhost:5000/api";
 const SOCKET_URL = "http://localhost:5000/ticket-socket";
@@ -40,13 +39,18 @@ const Ticket = () => {
   const [rating, setRating] = useState(0);
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [file, setFile] = useState(null);
-  const [fileName, setFileName] = useState("");
+  const [filePreview, setFilePreview] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [expandedActions, setExpandedActions] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [typingUser, setTypingUser] = useState(null);
   const messagesEndRef = useRef(null);
   const socketRef = useRef(null);
   const fileInputRef = useRef(null);
+  const menuRef = useRef(null);
 
+  // Authenticate user
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
@@ -57,14 +61,15 @@ const Ticket = () => {
         console.error("Error decoding token:", error);
         localStorage.removeItem("token");
         toast.error("Session expired. Please log in again.");
-        navigate("/login");
+        navigate("/login", { state: { from: `/tickets/${id}` } });
       }
     } else {
       toast.error("Please log in to view tickets.");
       navigate("/login", { state: { from: `/tickets/${id}` } });
     }
-  }, [navigate]);
+  }, [navigate, id]);
 
+  // Socket.io setup
   useEffect(() => {
     if (userId) {
       socketRef.current = io(SOCKET_URL, {
@@ -78,12 +83,33 @@ const Ticket = () => {
         scrollToBottom();
       });
 
+      socketRef.current.on("typing", ({ userId: typerId, userName }) => {
+        if (typerId !== userId) {
+          setTypingUser(userName);
+          setTimeout(() => setTypingUser(null), 3000);
+        }
+      });
+
+      socketRef.current.on("messagesRead", ({ ticketId, userId: readerId }) => {
+        if (ticketId === id && readerId !== userId) {
+          setTicket((prev) => ({
+            ...prev,
+            messages: prev.messages.map((msg) =>
+              msg.senderId === userId && !msg.read
+                ? { ...msg, read: true }
+                : msg
+            ),
+          }));
+        }
+      });
+
       return () => {
         socketRef.current.disconnect();
       };
     }
   }, [userId, id]);
 
+  // Fetch ticket data
   useEffect(() => {
     const fetchTicket = async () => {
       try {
@@ -96,9 +122,9 @@ const Ticket = () => {
       } catch (error) {
         console.error("Error fetching ticket:", error);
         toast.error(error.response?.data?.error || "Failed to load ticket.");
-        if (error.response?.status === 403 || error.response?.status === 401) {
+        if (error.response?.status === 401 || error.response?.status === 403) {
           localStorage.removeItem("token");
-          navigate("/login");
+          navigate("/login", { state: { from: `/tickets/${id}` } });
         }
         setLoading(false);
       }
@@ -109,6 +135,7 @@ const Ticket = () => {
     }
   }, [id, userId, navigate]);
 
+  // Mark messages as read
   useEffect(() => {
     const markMessagesAsRead = async () => {
       try {
@@ -121,6 +148,7 @@ const Ticket = () => {
             },
           }
         );
+        socketRef.current.emit("markMessagesRead", id);
       } catch (error) {
         console.error("Error marking messages as read:", error);
       }
@@ -130,6 +158,69 @@ const Ticket = () => {
       markMessagesAsRead();
     }
   }, [ticket, userId, id]);
+
+  // Handle typing event
+  useEffect(() => {
+    if (message && socketRef.current) {
+      socketRef.current.emit("typing", {
+        ticketId: id,
+        userId,
+        userName:
+          ticket?.sellerId._id === userId
+            ? ticket.sellerId.fullName
+            : ticket.buyerId.fullName,
+      });
+    }
+  }, [message, id, userId, ticket]);
+
+  // Debounced message search
+  const debouncedSearch = debounce(async (query) => {
+    try {
+      const response = await axios.get(
+        `${API_BASE}/tickets/${id}/messages/search`,
+        {
+          params: { query },
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        }
+      );
+      setTicket({ ...ticket, messages: response.data.messages });
+      toast.success("Messages filtered!");
+    } catch (error) {
+      console.error("Error searching messages:", error);
+      toast.error(error.response?.data?.error || "Failed to search messages.");
+    }
+  }, 500);
+
+  useEffect(() => {
+    if (searchQuery) {
+      debouncedSearch(searchQuery);
+    } else if (ticket) {
+      const fetchTicket = async () => {
+        try {
+          const response = await axios.get(`${API_BASE}/tickets/${id}`, {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+          });
+          setTicket(response.data);
+        } catch (error) {
+          console.error("Error resetting messages:", error);
+        }
+      };
+      fetchTicket();
+    }
+  }, [searchQuery, id, ticket]);
+
+  // Close menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setIsMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -160,7 +251,7 @@ const Ticket = () => {
       setTicket(response.data.ticket);
       setMessage("");
       setFile(null);
-      setFileName("");
+      setFilePreview(null);
       toast.success("Message sent!");
     } catch (error) {
       console.error("Error sending message:", error);
@@ -179,15 +270,14 @@ const Ticket = () => {
     setIsSending(true);
     try {
       const response = await axios.post(
-        `${API_BASE}/tickets/${id}/ai-response`,
-        { content: message },
+        `${API_BASE}/ai/chat`,
+        { message },
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
-      setTicket(response.data.ticket);
-      setMessage("");
-      toast.success("AI response received!");
+      setMessage(response.data.response);
+      toast.success("AI suggestion generated! You can edit and send it.");
     } catch (error) {
       console.error("Error getting AI response:", error);
       toast.error(error.response?.data?.error || "Failed to get AI response.");
@@ -205,18 +295,18 @@ const Ticket = () => {
     try {
       const response = await axios.patch(
         `${API_BASE}/tickets/${id}/price`,
-        { agreedPrice: Number.parseFloat(agreedPrice) },
+        { agreedPrice: parseFloat(agreedPrice) },
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
       setTicket(response.data.ticket);
       setAgreedPrice("");
-      setExpandedActions(false);
+      setIsMenuOpen(false);
       toast.success("Price proposed!");
     } catch (error) {
       console.error("Error setting price:", error);
-      toast.error(error.response?.data?.error || "Failed to set price.");
+      toast.error(error.response?.data?.error || "Failed to propose price.");
     }
   };
 
@@ -230,7 +320,7 @@ const Ticket = () => {
         }
       );
       setTicket(response.data.ticket);
-      setExpandedActions(false);
+      setIsMenuOpen(false);
       toast.success("Price accepted!");
     } catch (error) {
       console.error("Error accepting price:", error);
@@ -241,14 +331,14 @@ const Ticket = () => {
   const handleConfirmPayment = async () => {
     try {
       const response = await axios.patch(
-        `${API_BASE}/tickets/${id}/pay`,
+        `${API_BASE}/tickets/${id}/paid`,
         {},
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
       setTicket(response.data.ticket);
-      setExpandedActions(false);
+      setIsMenuOpen(false);
       toast.success("Payment confirmed!");
     } catch (error) {
       console.error("Error confirming payment:", error);
@@ -266,7 +356,7 @@ const Ticket = () => {
         }
       );
       setTicket(response.data.ticket);
-      setExpandedActions(false);
+      setIsMenuOpen(false);
       toast.success("Ticket marked as completed!");
     } catch (error) {
       console.error("Error marking ticket completed:", error);
@@ -277,7 +367,7 @@ const Ticket = () => {
   };
 
   const handleCloseTicket = async () => {
-    if (isBuyer && rating === 0) {
+    if (isBuyer && ticket.status === "completed" && rating === 0) {
       setIsRatingModalOpen(true);
       return;
     }
@@ -286,7 +376,7 @@ const Ticket = () => {
       setIsSubmittingRating(true);
       const response = await axios.patch(
         `${API_BASE}/tickets/${id}/close`,
-        isBuyer ? { rating } : {},
+        isBuyer && rating ? { rating } : {},
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
@@ -294,7 +384,7 @@ const Ticket = () => {
       setTicket(response.data.ticket);
       setIsRatingModalOpen(false);
       setRating(0);
-      setExpandedActions(false);
+      setIsMenuOpen(false);
       toast.success("Ticket closed!");
     } catch (error) {
       console.error("Error closing ticket:", error);
@@ -306,14 +396,24 @@ const Ticket = () => {
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
-    if (selectedFile && selectedFile.size > 5 * 1024 * 1024) {
-      toast.error("File size exceeds 5MB limit.");
-      return;
-    }
     if (selectedFile) {
+      if (selectedFile.size > 5 * 1024 * 1024) {
+        toast.error("File size exceeds 5MB limit.");
+        return;
+      }
       setFile(selectedFile);
-      setFileName(selectedFile.name);
+      if (selectedFile.type.startsWith("image/")) {
+        setFilePreview(URL.createObjectURL(selectedFile));
+      } else {
+        setFilePreview(null);
+      }
     }
+  };
+
+  const highlightText = (text, query) => {
+    if (!query) return text;
+    const regex = new RegExp(`(${query})`, "gi");
+    return text.replace(regex, '<span class="bg-yellow-200">$1</span>');
   };
 
   const isBuyer = userId === ticket?.buyerId?._id;
@@ -325,10 +425,7 @@ const Ticket = () => {
 
     const actions = [];
 
-    if (
-      (ticket.status === "open" || ticket.status === "negotiating") &&
-      (isBuyer || isSeller)
-    ) {
+    if (ticket.status === "open" || ticket.status === "negotiating") {
       actions.push({
         id: "price",
         label: "Propose Price",
@@ -344,9 +441,6 @@ const Ticket = () => {
         visible: true,
         disabled: false,
       });
-    }
-
-    if (ticket.status === "accepted" && isBuyer && ticket.agreedPrice) {
       actions.push({
         id: "payment",
         label: "Confirm Payment",
@@ -364,7 +458,7 @@ const Ticket = () => {
       });
     }
 
-    if (ticket.status === "completed" && isBuyer) {
+    if (ticket.status === "completed") {
       actions.push({
         id: "confirm",
         label: "Confirm Completion",
@@ -389,36 +483,32 @@ const Ticket = () => {
 
   const renderActionButton = (action) => {
     const baseClasses =
-      "w-full px-4 py-2.5 rounded-lg transition font-medium text-sm flex items-center justify-center gap-2";
-
+      "w-full px-4 py-2 rounded-md font-medium text-sm flex items-center justify-center gap-2 transition";
     const getButtonStyles = () => {
       switch (action.id) {
         case "price":
-          return "bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white";
+          return "bg-[#1E88E5] hover:bg-[#1565C0] disabled:bg-gray-300 text-white";
         case "accept-price":
-          return "bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white";
-        case "payment":
-          return "bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-300 text-white";
-        case "complete":
-          return "bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white";
         case "confirm":
-          return "bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 text-white";
+          return "bg-[#4CAF50] hover:bg-[#43A047] disabled:bg-gray-300 text-white";
+        case "payment":
+          return "bg-[#0288D1] hover:bg-[#0277BD] disabled:bg-gray-300 text-white";
+        case "complete":
+          return "bg-[#7B1FA2] hover:bg-[#6A1B9A] disabled:bg-gray-300 text-white";
         case "close":
-          return "bg-slate-600 hover:bg-slate-700 disabled:bg-slate-300 text-white";
+          return "bg-[#D32F2F] hover:bg-[#C62828] disabled:bg-gray-300 text-white";
         default:
-          return "bg-slate-600 hover:bg-slate-700 disabled:bg-slate-300 text-white";
+          return "bg-gray-600 hover:bg-gray-700 disabled:bg-gray-300 text-white";
       }
     };
 
     const getIcon = () => {
       switch (action.id) {
         case "price":
+        case "payment":
           return <DollarSign className="h-4 w-4" />;
         case "accept-price":
         case "confirm":
-          return <CheckCircle className="h-4 w-4" />;
-        case "payment":
-          return <DollarSign className="h-4 w-4" />;
         case "complete":
           return <CheckCircle className="h-4 w-4" />;
         case "close":
@@ -430,8 +520,6 @@ const Ticket = () => {
 
     const getHandler = () => {
       switch (action.id) {
-        case "price":
-          return null;
         case "accept-price":
           return handleAcceptPrice;
         case "payment":
@@ -447,7 +535,29 @@ const Ticket = () => {
     };
 
     if (action.id === "price") {
-      return null;
+      return (
+        <div key={action.id} className="space-y-2">
+          <input
+            type="number"
+            value={agreedPrice}
+            onChange={(e) => setAgreedPrice(e.target.value)}
+            placeholder="Enter price (₹)"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1E88E5] text-sm"
+            min="0"
+            step="0.01"
+            aria-label="Propose price"
+          />
+          <button
+            onClick={handleSetPrice}
+            disabled={!agreedPrice || isNaN(agreedPrice) || agreedPrice <= 0}
+            className={`${baseClasses} ${getButtonStyles()}`}
+            aria-label="Set price"
+          >
+            <DollarSign className="h-4 w-4" />
+            Set Price
+          </button>
+        </div>
+      );
     }
 
     return (
@@ -456,13 +566,14 @@ const Ticket = () => {
         onClick={getHandler()}
         disabled={action.disabled}
         className={`${baseClasses} ${getButtonStyles()}`}
+        aria-label={action.label}
       >
         {getIcon()}
         {isSubmittingRating &&
         (action.id === "confirm" || action.id === "close") ? (
           <>
             <Loader className="h-4 w-4 animate-spin" />
-            {action.id === "confirm" ? "Submitting..." : "Closing..."}
+            Submitting...
           </>
         ) : (
           action.label
@@ -471,92 +582,9 @@ const Ticket = () => {
     );
   };
 
-  const getFileTypeIcon = (fileName) => {
-    const ext = fileName.split(".").pop().toLowerCase();
-    const iconMap = {
-      pdf: "📄",
-      doc: "📝",
-      docx: "📝",
-      jpg: "🖼️",
-      jpeg: "🖼️",
-      png: "🖼️",
-    };
-    return iconMap[ext] || "📎";
-  };
-
-  const getFileSize = (bytes) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
-  };
-
-  const formatMessageTime = (timestamp) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-
-    return date.toLocaleDateString([], { month: "short", day: "numeric" });
-  };
-
-  const renderMessageContent = (msg, isOwnMessage, isAIMessage) => {
-    return (
-      <>
-        {!isOwnMessage && (
-          <p className="text-xs font-semibold mb-2 opacity-75">
-            {msg.senderName}
-            {isAIMessage && " (AI)"}
-          </p>
-        )}
-        <p className="text-sm break-words whitespace-pre-wrap">{msg.content}</p>
-
-        {msg.attachment && (
-          <div className="mt-3 pt-3 border-t border-current border-opacity-20">
-            <a
-              href={msg.attachment}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg transition ${
-                isOwnMessage
-                  ? "bg-blue-500 hover:bg-blue-700 text-white"
-                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
-              }`}
-            >
-              <span className="text-lg">{getFileTypeIcon(msg.attachment)}</span>
-              <div className="flex flex-col">
-                <span className="text-xs font-semibold truncate max-w-xs">
-                  {msg.attachment.split("/").pop()}
-                </span>
-              </div>
-              <Paperclip className="h-3 w-3 ml-auto" />
-            </a>
-          </div>
-        )}
-
-        <div
-          className={`text-xs mt-3 flex items-center gap-1 ${
-            isOwnMessage ? "text-blue-100" : "text-slate-500"
-          }`}
-        >
-          <span>{formatMessageTime(msg.timestamp)}</span>
-          {msg.read && !isOwnMessage && <span className="ml-1">✓ Read</span>}
-        </div>
-      </>
-    );
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{
@@ -564,9 +592,8 @@ const Ticket = () => {
             repeat: Number.POSITIVE_INFINITY,
             ease: "linear",
           }}
-          className="text-blue-400"
         >
-          <Loader className="h-12 w-12" />
+          <Loader className="h-12 w-12 text-[#1E88E5]" />
         </motion.div>
       </div>
     );
@@ -574,19 +601,20 @@ const Ticket = () => {
 
   if (!ticket) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-slate-800 rounded-xl shadow-2xl p-8 max-w-md text-center border border-slate-700"
+          className="bg-white rounded-lg shadow-lg p-8 max-w-md text-center border border-gray-200"
         >
-          <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-          <p className="text-slate-100 text-lg font-semibold">
+          <MessageSquare className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <p className="text-gray-800 text-lg font-semibold">
             Failed to load ticket
           </p>
           <button
             onClick={() => navigate("/gigs")}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+            className="mt-4 px-4 py-2 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] transition"
+            aria-label="Back to gigs"
           >
             Back to Gigs
           </button>
@@ -596,475 +624,552 @@ const Ticket = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
+    <div className="min-h-screen bg-white flex flex-col">
       <ToastContainer position="top-right" autoClose={3000} />
-
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-slate-800 border-b border-slate-700 sticky top-0 z-40 shadow-lg"
+        className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm"
       >
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-5">
-          <div className="flex items-center justify-between gap-2 sm:gap-4">
-            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-              <button
-                onClick={() => navigate("/gigs")}
-                className="p-2 hover:bg-slate-700 rounded-lg transition text-slate-300 flex-shrink-0"
-                aria-label="Go back to gigs"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </button>
-              <div className="min-w-0">
-                <h1 className="text-lg sm:text-2xl font-bold text-slate-50 truncate">
-                  {ticket.gigId.title}
-                </h1>
-                <p className="text-xs sm:text-sm text-slate-400 mt-0.5 sm:mt-1">
-                  Ticket ID: {ticket._id.slice(-8)}
-                </p>
-              </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              onClick={() => navigate("/gigs")}
+              className="text-gray-600 hover:text-[#1E88E5]"
+              aria-label="Back to gigs"
+            >
+              <ArrowLeft className="h-6 w-6" />
+            </motion.button>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-800 truncate">
+                {ticket.gigId.title}
+              </h1>
+              <p className="text-sm text-gray-500">
+                Ticket ID: {ticket._id.slice(-8)}
+              </p>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <span
-                className={`px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap ${
-                  ticket.status === "closed"
-                    ? "bg-slate-700 text-slate-300"
-                    : ticket.status === "completed"
-                    ? "bg-emerald-900 text-emerald-200"
-                    : ticket.status === "paid"
-                    ? "bg-blue-900 text-blue-200"
-                    : ticket.status === "accepted"
-                    ? "bg-purple-900 text-purple-200"
-                    : "bg-amber-900 text-amber-200"
-                }`}
-              >
-                {ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
-              </span>
-            </div>
+          </div>
+          <div className="relative" ref={menuRef}>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="p-2 text-gray-600 hover:text-[#1E88E5] rounded-full"
+              aria-label="Open menu"
+            >
+              <Menu className="h-6 w-6" />
+            </motion.button>
+            <AnimatePresence>
+              {isMenuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-50"
+                >
+                  <div className="space-y-2">
+                    {visibleActions.map((action) => renderActionButton(action))}
+                    <button
+                      onClick={() => {
+                        setIsDetailsModalOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 font-medium text-sm flex items-center gap-2"
+                      aria-label="View more details"
+                    >
+                      <Info className="h-4 w-4" />
+                      More Details
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </motion.div>
 
-      <div className="flex-1 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 h-full">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 h-full">
-            {/* Chat Section */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="lg:col-span-3 bg-slate-800 rounded-xl shadow-xl overflow-hidden flex flex-col border border-slate-700"
-            >
-              {/* Messages Container */}
-              <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4 bg-slate-800">
-                <AnimatePresence>
-                  {ticket.messages.length === 0 ? (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="flex items-center justify-center h-full text-slate-500"
-                    >
-                      <div className="text-center">
-                        <MessageSquare className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">
-                          No messages yet. Start the conversation!
-                        </p>
-                      </div>
-                    </motion.div>
-                  ) : (
-                    ticket.messages.map((msg, index) => {
-                      const isOwnMessage = msg.senderId === userId;
-                      const isAIMessage = msg.senderId === "AI";
-                      const prevMsg =
-                        index > 0 ? ticket.messages[index - 1] : null;
-                      const isSameSender =
-                        prevMsg && prevMsg.senderId === msg.senderId;
-                      const showSenderInfo = !isSameSender;
-
-                      return (
-                        <motion.div
-                          key={index}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: index * 0.05 }}
-                          className={`flex ${
-                            isOwnMessage ? "justify-end" : "justify-start"
-                          } ${isSameSender ? "mt-1" : "mt-3 sm:mt-4"}`}
-                        >
-                          <div
-                            className={`max-w-xs px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-sm ${
-                              isOwnMessage
-                                ? "bg-blue-600 text-white rounded-br-none"
-                                : isAIMessage
-                                ? "bg-purple-900 text-purple-100 rounded-bl-none border border-purple-700"
-                                : "bg-slate-700 text-slate-100 border border-slate-600 rounded-bl-none"
-                            }`}
-                          >
-                            {showSenderInfo && !isOwnMessage && (
-                              <p className="text-xs font-semibold mb-1 sm:mb-2 opacity-75">
-                                {msg.senderName}
-                                {isAIMessage && " (AI)"}
-                              </p>
-                            )}
-                            {renderMessageContent(
-                              msg,
-                              isOwnMessage,
-                              isAIMessage
-                            )}
-                          </div>
-                        </motion.div>
-                      );
-                    })
-                  )}
-                </AnimatePresence>
-                <div ref={messagesEndRef} />
-              </div>
-
-              {ticket.status !== "closed" && (
-                <div className="border-t border-slate-700 bg-slate-800 p-3 sm:p-4 space-y-2 sm:space-y-3">
-                  {file && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="flex items-center justify-between bg-blue-900 border border-blue-700 rounded-lg p-2 sm:p-3"
-                    >
-                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                        <span className="text-lg flex-shrink-0">
-                          {getFileTypeIcon(fileName)}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs sm:text-sm font-medium text-blue-100 truncate">
-                            {fileName}
-                          </p>
-                          <p className="text-xs text-blue-300">
-                            {getFileSize(file.size)}
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setFile(null);
-                          setFileName("");
-                        }}
-                        className="text-blue-300 hover:text-blue-100 flex-shrink-0 p-1"
-                        aria-label="Remove file"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </motion.div>
-                  )}
-
-                  <div className="flex gap-2">
-                    <textarea
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && e.ctrlKey) {
-                          handleSendMessage();
-                        }
-                      }}
-                      placeholder="Type your message... (Ctrl+Enter to send)"
-                      className="flex-1 p-2 sm:p-3 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm bg-slate-700 text-slate-100 placeholder-slate-400"
-                      rows="3"
-                      aria-label="Message input"
-                    />
-                  </div>
-
-                  <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-                    <label className="flex items-center justify-center px-3 sm:px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg cursor-pointer transition text-sm flex-shrink-0">
-                      <Paperclip className="h-4 w-4 mr-1 sm:mr-2" />
-                      <span className="hidden sm:inline">Attach</span>
-                      <span className="sm:hidden">File</span>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
-                        onChange={handleFileChange}
-                        className="hidden"
-                        aria-label="Attach file"
-                      />
-                    </label>
-
-                    <button
-                      onClick={handleSendMessage}
-                      disabled={isSending || (!message.trim() && !file)}
-                      className="flex-1 sm:flex-none flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white rounded-lg transition font-medium text-sm"
-                      aria-label="Send message"
-                    >
-                      {isSending ? (
-                        <>
-                          <Loader className="h-4 w-4 animate-spin" />
-                          <span className="hidden sm:inline">Sending...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Send className="h-4 w-4" />
-                          <span className="hidden sm:inline">Send</span>
-                        </>
-                      )}
-                    </button>
-
-                    <button
-                      onClick={handleAIResponse}
-                      disabled={isSending || !message.trim()}
-                      className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 text-white rounded-lg transition font-medium text-sm flex items-center justify-center gap-1"
-                      aria-label="Get AI assistance"
-                    >
-                      <Zap className="h-4 w-4" />
-                      <span className="hidden sm:inline">AI Assist</span>
-                      <span className="sm:hidden">AI</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="lg:col-span-1 space-y-3 sm:space-y-4 overflow-y-auto max-h-[600px] lg:max-h-none"
-            >
-              {/* User Info Card */}
-              <motion.div
-                className="bg-slate-800 rounded-xl shadow-lg p-4 sm:p-6 border border-slate-700"
-                whileHover={{ y: -2 }}
-              >
-                <h3 className="text-xs sm:text-sm font-semibold text-slate-300 mb-3 sm:mb-4 uppercase tracking-wide">
-                  {isBuyer ? "Seller" : "Buyer"}
-                </h3>
-                <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                  <div className="h-10 sm:h-12 w-10 sm:w-12 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center text-white font-bold text-sm sm:text-base flex-shrink-0">
-                    {profileUser?.fullName?.charAt(0) || "U"}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-slate-100 text-sm truncate">
-                      {profileUser?.fullName}
-                    </p>
-                    <p className="text-xs text-slate-400 truncate">
-                      {profileUser?.email}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => navigate(`/users/${profileUser?._id}`)}
-                  className="w-full px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition text-xs sm:text-sm font-medium flex items-center justify-center gap-2"
-                  aria-label="View user profile"
-                >
-                  <User className="h-4 w-4" />
-                  <span className="hidden sm:inline">View Profile</span>
-                  <span className="sm:hidden">Profile</span>
-                </button>
-              </motion.div>
-
-              {/* Price Info Card */}
-              {ticket.agreedPrice && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-gradient-to-br from-emerald-900 to-emerald-800 border border-emerald-700 rounded-xl p-4 sm:p-6 shadow-lg"
-                >
-                  <p className="text-xs font-semibold text-emerald-300 uppercase tracking-wide mb-2">
-                    Agreed Price
-                  </p>
-                  <p className="text-2xl sm:text-3xl font-bold text-emerald-100">
-                    ₹{ticket.agreedPrice.toLocaleString()}
-                  </p>
-                </motion.div>
-              )}
-
-              {/* Actions Card */}
-              {visibleActions.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-slate-800 rounded-xl shadow-lg overflow-hidden border border-slate-700"
-                >
-                  <button
-                    onClick={() => setExpandedActions(!expandedActions)}
-                    className="w-full px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between hover:bg-slate-700 transition border-b border-slate-700"
-                    aria-expanded={expandedActions}
-                    aria-label="Toggle actions menu"
-                  >
-                    <h3 className="text-xs sm:text-sm font-semibold text-slate-100 uppercase tracking-wide">
-                      Actions
-                    </h3>
-                    <motion.div
-                      animate={{ rotate: expandedActions ? 180 : 0 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <ChevronDown className="h-5 w-5 text-slate-400" />
-                    </motion.div>
-                  </button>
-
-                  <AnimatePresence>
-                    {expandedActions && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="p-3 sm:p-4 space-y-2 sm:space-y-3 border-t border-slate-700">
-                          {/* Price Action */}
-                          {visibleActions.some((a) => a.id === "price") && (
-                            <div className="space-y-2">
-                              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
-                                Propose Price (₹)
-                              </label>
-                              <div className="flex gap-2">
-                                <input
-                                  type="number"
-                                  value={agreedPrice}
-                                  onChange={(e) =>
-                                    setAgreedPrice(e.target.value)
-                                  }
-                                  placeholder="Enter amount"
-                                  className="flex-1 px-2 sm:px-3 py-2 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-slate-700 text-slate-100 placeholder-slate-400"
-                                  min="0"
-                                  step="0.01"
-                                  aria-label="Price input"
-                                />
-                                <button
-                                  onClick={handleSetPrice}
-                                  className="px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium text-sm flex items-center gap-1 flex-shrink-0"
-                                  aria-label="Set price"
-                                >
-                                  <DollarSign className="h-4 w-4" />
-                                  <span className="hidden sm:inline">Set</span>
-                                </button>
-                              </div>
-                            </div>
-                          )}
-
-                          {visibleActions
-                            .filter((a) => a.id !== "price")
-                            .map((action) => renderActionButton(action))}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              )}
-
-              {/* Timeline Card */}
-              {ticket.timeline && ticket.timeline.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-slate-800 rounded-xl shadow-lg p-4 sm:p-6 border border-slate-700"
-                >
-                  <h3 className="text-xs sm:text-sm font-semibold text-slate-100 uppercase tracking-wide mb-3 sm:mb-4 flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-blue-400" />
-                    Timeline
-                  </h3>
-                  <div className="space-y-2 sm:space-y-3">
-                    {ticket.timeline.map((event, index) => (
-                      <motion.div
-                        key={index}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        className="flex gap-2 sm:gap-3"
-                      >
-                        <div className="flex flex-col items-center flex-shrink-0">
-                          <div className="h-2 w-2 bg-blue-500 rounded-full mt-1" />
-                          {index < ticket.timeline.length - 1 && (
-                            <div className="h-6 sm:h-8 w-0.5 bg-slate-700 my-0.5 sm:my-1" />
-                          )}
-                        </div>
-                        <div className="flex-1 pb-1 sm:pb-2 min-w-0">
-                          <p className="text-xs sm:text-sm font-medium text-slate-100">
-                            {event.action}
-                          </p>
-                          <p className="text-xs text-slate-400">
-                            {new Date(event.timestamp).toLocaleString()}
-                          </p>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </motion.div>
+      <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col lg:flex-row gap-6">
+        {/* Chat Section */}
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="flex-1 bg-white rounded-lg shadow-md border border-gray-200 flex flex-col"
+        >
+          {/* Message Search */}
+          <div className="p-4 border-b border-gray-200">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search messages..."
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1E88E5] text-sm"
+                aria-label="Search messages"
+              />
+            </div>
           </div>
-        </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <AnimatePresence>
+              {ticket.messages.length === 0 ? (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex items-center justify-center h-full text-gray-500"
+                >
+                  <div className="text-center">
+                    <MessageSquare className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">
+                      No messages yet. Start the conversation!
+                    </p>
+                  </div>
+                </motion.div>
+              ) : (
+                ticket.messages.map((msg) => (
+                  <motion.div
+                    key={msg._id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex ${
+                      msg.senderId === userId ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    <div
+                      className={`max-w-[70%] p-3 rounded-lg shadow-sm ${
+                        msg.senderId === userId
+                          ? "bg-[#1E88E5] text-white"
+                          : msg.senderId === "AI"
+                          ? "bg-[#EDE7F6] text-gray-800"
+                          : "bg-gray-100 text-gray-800"
+                      }`}
+                    >
+                      {msg.senderId !== userId && (
+                        <p className="text-xs font-medium text-gray-600 mb-1">
+                          {msg.senderName}
+                          {msg.senderId === "AI" && " (AI)"}
+                        </p>
+                      )}
+                      <p
+                        className="text-sm"
+                        dangerouslySetInnerHTML={{
+                          __html: highlightText(msg.content, searchQuery),
+                        }}
+                      />
+                      {msg.attachment && (
+                        <div className="mt-2">
+                          {msg.attachment.match(/\.(jpg|jpeg|png)$/i) ? (
+                            <a
+                              href={msg.attachment}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block"
+                            >
+                              <img
+                                src={msg.attachment}
+                                alt="Attachment"
+                                className="max-w-full h-auto rounded-md max-h-48"
+                              />
+                            </a>
+                          ) : (
+                            <a
+                              href={msg.attachment}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 text-[#1E88E5] hover:underline text-sm"
+                            >
+                              <Paperclip className="h-4 w-4" />
+                              {msg.attachment.split("/").pop()}
+                            </a>
+                          )}
+                        </div>
+                      )}
+                      {msg.content.startsWith("Price of ₹") &&
+                        isBuyer &&
+                        ticket.status === "negotiating" && (
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            onClick={() => handleAcceptPrice()}
+                            className="mt-2 px-3 py-1 bg-[#4CAF50] text-white rounded-md hover:bg-[#43A047] text-sm"
+                            aria-label="Accept proposed price"
+                          >
+                            Accept Price
+                          </motion.button>
+                        )}
+                      <p className="text-xs text-gray-500 mt-1">
+                        {moment(msg.timestamp).fromNow()}
+                        {msg.read && msg.senderId !== userId && (
+                          <span className="ml-2 text-[#1E88E5]">✓ Read</span>
+                        )}
+                      </p>
+                    </div>
+                  </motion.div>
+                ))
+              )}
+              {typingUser && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-gray-500 text-sm italic"
+                >
+                  {typingUser} is typing...
+                </motion.p>
+              )}
+            </AnimatePresence>
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Message Input */}
+          {ticket.status !== "closed" && (
+            <div className="p-4 border-t border-gray-200 bg-white sticky bottom-0">
+              {file && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center justify-between bg-gray-100 rounded-md p-2 mb-2"
+                >
+                  <div className="flex items-center gap-2">
+                    {filePreview ? (
+                      <img
+                        src={filePreview}
+                        alt="Preview"
+                        className="h-10 w-10 object-cover rounded"
+                      />
+                    ) : (
+                      <Paperclip className="h-5 w-5 text-gray-600" />
+                    )}
+                    <p className="text-sm text-gray-600 truncate">
+                      {file.name}
+                    </p>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    onClick={() => {
+                      setFile(null);
+                      setFilePreview(null);
+                    }}
+                    className="text-red-500 text-sm"
+                    aria-label="Remove file"
+                  >
+                    Remove
+                  </motion.button>
+                </motion.div>
+              )}
+              <div className="flex items-center gap-2">
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  placeholder="Type your message... (Enter to send)"
+                  className="flex-1 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1E88E5] text-sm resize-none"
+                  rows="3"
+                  aria-label="Message input"
+                />
+                <div className="flex flex-col gap-2">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    onClick={handleSendMessage}
+                    disabled={isSending || (!message.trim() && !file)}
+                    className="p-3 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    aria-label="Send message"
+                  >
+                    <Send className="h-5 w-5" />
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    onClick={handleAIResponse}
+                    disabled={isSending || !message.trim()}
+                    className="p-3 bg-[#4CAF50] text-white rounded-md hover:bg-[#43A047] disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    aria-label="Get AI suggestion"
+                  >
+                    <MessageSquare className="h-5 w-5" />
+                  </motion.button>
+                </div>
+              </div>
+            </div>
+          )}
+        </motion.div>
+
+        {/* Sidebar (Desktop) */}
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="hidden lg:block w-80 bg-white rounded-lg shadow-md border border-gray-200 p-4 space-y-4"
+        >
+          {/* User Info */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800 mb-2">
+              {isBuyer ? "Seller" : "Buyer"}
+            </h3>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="h-10 w-10 bg-[#1E88E5] rounded-full flex items-center justify-center text-white font-bold">
+                {profileUser?.fullName?.charAt(0) || "U"}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-800 truncate">
+                  {profileUser?.fullName}
+                </p>
+                <p className="text-xs text-gray-500 truncate">
+                  {profileUser?.email}
+                </p>
+              </div>
+            </div>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              onClick={() => navigate(`/users/${profileUser?._id}`)}
+              className="w-full px-3 py-2 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] text-sm"
+              aria-label="View user profile"
+            >
+              View Profile
+            </motion.button>
+          </div>
+
+          {/* Price Info */}
+          {ticket.agreedPrice && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800 mb-2">
+                Agreed Price
+              </h3>
+              <p className="text-xl font-bold text-[#1E88E5]">
+                ₹{ticket.agreedPrice.toLocaleString()}
+              </p>
+            </div>
+          )}
+
+          {/* Actions */}
+          {visibleActions.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800 mb-2">
+                Actions
+              </h3>
+              <div className="space-y-2">
+                {visibleActions.map((action) => renderActionButton(action))}
+              </div>
+            </div>
+          )}
+
+          {/* Timeline */}
+          {ticket.timeline && ticket.timeline.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Timeline
+              </h3>
+              <div className="space-y-2">
+                {ticket.timeline.map((event) => (
+                  <motion.div
+                    key={event._id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="flex gap-2"
+                  >
+                    <div className="flex flex-col items-center">
+                      <div className="h-2 w-2 bg-[#1E88E5] rounded-full mt-1" />
+                      <div className="h-8 w-0.5 bg-gray-200" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-800">{event.action}</p>
+                      <p className="text-xs text-gray-500">
+                        {moment(event.timestamp).fromNow()}
+                      </p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          )}
+        </motion.div>
       </div>
 
+      {/* Details Modal (Mobile) */}
+      <AnimatePresence>
+        {isDetailsModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            aria-modal="true"
+            role="dialog"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 max-h-[80vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-800">
+                  Ticket Details
+                </h2>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  onClick={() => setIsDetailsModalOpen(false)}
+                  className="text-gray-600 hover:text-[#1E88E5]"
+                  aria-label="Close details"
+                >
+                  <X className="h-6 w-6" />
+                </motion.button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-800">
+                    Status
+                  </h3>
+                  <p className="text-sm text-gray-600 capitalize bg-gray-100 px-2 py-1 rounded inline-block">
+                    {ticket.status}
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-800">
+                    {isBuyer ? "Seller" : "Buyer"}
+                  </h3>
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="h-8 w-8 bg-[#1E88E5] rounded-full flex items-center justify-center text-white font-bold">
+                      {profileUser?.fullName?.charAt(0) || "U"}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">
+                        {profileUser?.fullName}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {profileUser?.email}
+                      </p>
+                    </div>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    onClick={() => navigate(`/users/${profileUser?._id}`)}
+                    className="mt-2 px-3 py-1 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] text-sm"
+                    aria-label="View user profile"
+                  >
+                    View Profile
+                  </motion.button>
+                </div>
+                {ticket.agreedPrice && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800">
+                      Agreed Price
+                    </h3>
+                    <p className="text-lg font-bold text-[#1E88E5]">
+                      ₹{ticket.agreedPrice.toLocaleString()}
+                    </p>
+                  </div>
+                )}
+                {ticket.timeline && ticket.timeline.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Timeline
+                    </h3>
+                    <div className="mt-2 space-y-2">
+                      {ticket.timeline.map((event) => (
+                        <div key={event._id} className="flex gap-2">
+                          <div className="flex flex-col items-center">
+                            <div className="h-2 w-2 bg-[#1E88E5] rounded-full mt-1" />
+                            <div className="h-8 w-0.5 bg-gray-200" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-800">
+                              {event.action}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {moment(event.timestamp).fromNow()}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Rating Modal */}
       <AnimatePresence>
         {isRatingModalOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            aria-modal="true"
+            role="dialog"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-slate-800 rounded-xl shadow-2xl max-w-md w-full p-6 sm:p-8 border border-slate-700"
+              className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
             >
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-50 mb-2">
+              <h2 className="text-xl font-bold text-gray-800 mb-2">
                 Rate Your Experience
               </h2>
-              <p className="text-sm sm:text-base text-slate-300 mb-6">
+              <p className="text-sm text-gray-600 mb-4">
                 How was your experience with{" "}
                 <span className="font-semibold">
                   {isBuyer ? ticket.sellerId.fullName : ticket.buyerId.fullName}
                 </span>
                 ?
               </p>
-
-              <div className="flex justify-center gap-2 sm:gap-3 mb-8">
+              <div className="flex justify-center gap-2 mb-6">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <motion.button
                     key={star}
                     whileHover={{ scale: 1.2 }}
-                    whileTap={{ scale: 0.95 }}
                     onClick={() => setRating(star)}
-                    className="focus:outline-none focus:ring-2 focus:ring-yellow-400 rounded-full p-1"
+                    className="p-1"
                     aria-label={`Rate ${star} stars`}
                   >
                     <Star
-                      className={`h-8 sm:h-10 w-8 sm:w-10 transition ${
+                      className={`h-8 w-8 ${
                         rating >= star
                           ? "fill-yellow-400 text-yellow-400"
-                          : "text-slate-600"
+                          : "text-gray-300"
                       }`}
                     />
                   </motion.button>
                 ))}
               </div>
-
               <div className="flex gap-3">
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
                   onClick={() => {
                     setIsRatingModalOpen(false);
                     setRating(0);
                   }}
-                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition font-medium text-sm"
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
                   aria-label="Cancel rating"
                 >
                   Cancel
-                </button>
-                <button
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
                   onClick={handleCloseTicket}
                   disabled={rating === 0 || isSubmittingRating}
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white rounded-lg transition font-medium text-sm flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-2 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   aria-label="Submit rating"
                 >
                   {isSubmittingRating ? (
                     <>
                       <Loader className="h-4 w-4 animate-spin" />
-                      <span className="hidden sm:inline">Submitting...</span>
+                      Submitting...
                     </>
                   ) : (
                     <>
                       <Star className="h-4 w-4" />
-                      <span className="hidden sm:inline">Submit Rating</span>
-                      <span className="sm:hidden">Submit</span>
+                      Submit Rating
                     </>
                   )}
-                </button>
+                </motion.button>
               </div>
             </motion.div>
           </motion.div>
