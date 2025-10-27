@@ -36,6 +36,7 @@ const Ticket = () => {
   const [agreedPrice, setAgreedPrice] = useState("");
   const [loading, setLoading] = useState(true);
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
+  const [isCompletionModalOpen, setIsCompletionModalOpen] = useState(false); // New state for completion rating
   const [rating, setRating] = useState(0);
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [file, setFile] = useState(null);
@@ -71,26 +72,26 @@ const Ticket = () => {
 
   // Socket.io setup
   useEffect(() => {
-    if (userId) {
+    if (userId && ticket) {
       socketRef.current = io(SOCKET_URL, {
         auth: { token: localStorage.getItem("token") },
       });
 
       socketRef.current.emit("joinTicket", id);
 
-      socketRef.current.on("newMessage", (updatedTicket) => {
+      const handleNewMessage = (updatedTicket) => {
         setTicket(updatedTicket);
         scrollToBottom();
-      });
+      };
 
-      socketRef.current.on("typing", ({ userId: typerId, userName }) => {
+      const handleTyping = ({ userId: typerId, userName }) => {
         if (typerId !== userId) {
           setTypingUser(userName);
           setTimeout(() => setTypingUser(null), 3000);
         }
-      });
+      };
 
-      socketRef.current.on("messagesRead", ({ ticketId, userId: readerId }) => {
+      const handleMessagesRead = ({ ticketId, userId: readerId }) => {
         if (ticketId === id && readerId !== userId) {
           setTicket((prev) => ({
             ...prev,
@@ -101,13 +102,20 @@ const Ticket = () => {
             ),
           }));
         }
-      });
+      };
+
+      socketRef.current.on("newMessage", handleNewMessage);
+      socketRef.current.on("typing", handleTyping);
+      socketRef.current.on("messagesRead", handleMessagesRead);
 
       return () => {
+        socketRef.current.off("newMessage", handleNewMessage);
+        socketRef.current.off("typing", handleTyping);
+        socketRef.current.off("messagesRead", handleMessagesRead);
         socketRef.current.disconnect();
       };
     }
-  }, [userId, id]);
+  }, [userId, id, ticket]);
 
   // Fetch ticket data
   useEffect(() => {
@@ -148,7 +156,9 @@ const Ticket = () => {
             },
           }
         );
-        socketRef.current.emit("markMessagesRead", id);
+        if (socketRef.current) {
+          socketRef.current.emit("markMessagesRead", id);
+        }
       } catch (error) {
         console.error("Error marking messages as read:", error);
       }
@@ -161,12 +171,12 @@ const Ticket = () => {
 
   // Handle typing event
   useEffect(() => {
-    if (message && socketRef.current) {
+    if (message && socketRef.current && ticket) {
       socketRef.current.emit("typing", {
         ticketId: id,
         userId,
         userName:
-          ticket?.sellerId._id === userId
+          ticket.sellerId._id === userId
             ? ticket.sellerId.fullName
             : ticket.buyerId.fullName,
       });
@@ -203,13 +213,14 @@ const Ticket = () => {
             },
           });
           setTicket(response.data);
+          scrollToBottom();
         } catch (error) {
           console.error("Error resetting messages:", error);
         }
       };
       fetchTicket();
     }
-  }, [searchQuery, id, ticket]);
+  }, [searchQuery, id, ticket, debouncedSearch]);
 
   // Close menu on outside click
   useEffect(() => {
@@ -239,12 +250,12 @@ const Ticket = () => {
       if (file) formData.append("attachment", file);
 
       const response = await axios.post(
-        `${API_BASE}/tickets/${id}/messages${file ? "/attachment" : ""}`,
-        file ? formData : { content: message },
+        `${API_BASE}/tickets/${id}/messages`,
+        formData,
         {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
-            ...(file && { "Content-Type": "multipart/form-data" }),
+            "Content-Type": file ? "multipart/form-data" : "application/json",
           },
         }
       );
@@ -252,6 +263,7 @@ const Ticket = () => {
       setMessage("");
       setFile(null);
       setFilePreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       toast.success("Message sent!");
     } catch (error) {
       console.error("Error sending message:", error);
@@ -280,7 +292,10 @@ const Ticket = () => {
       toast.success("AI suggestion generated! You can edit and send it.");
     } catch (error) {
       console.error("Error getting AI response:", error);
-      toast.error(error.response?.data?.error || "Failed to get AI response.");
+      toast.error(
+        error.response?.data?.error ||
+          "Failed to get AI response. Please try again later."
+      );
     } finally {
       setIsSending(false);
     }
@@ -346,10 +361,10 @@ const Ticket = () => {
     }
   };
 
-  const handleMarkCompleted = async () => {
+  const handleRequestComplete = async () => {
     try {
       const response = await axios.patch(
-        `${API_BASE}/tickets/${id}/complete`,
+        `${API_BASE}/tickets/${id}/request-complete`,
         {},
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
@@ -357,17 +372,51 @@ const Ticket = () => {
       );
       setTicket(response.data.ticket);
       setIsMenuOpen(false);
-      toast.success("Ticket marked as completed!");
+      toast.success("Completion request sent to the seller!");
     } catch (error) {
-      console.error("Error marking ticket completed:", error);
+      console.error("Error requesting completion:", error);
       toast.error(
-        error.response?.data?.error || "Failed to mark ticket completed."
+        error.response?.data?.error || "Failed to request completion."
       );
     }
   };
 
+  const handleConfirmComplete = async () => {
+    setIsCompletionModalOpen(true); // Open rating modal instead of prompt
+  };
+
+  const handleSubmitCompletionRating = async () => {
+    if (!rating || rating < 1 || rating > 5) {
+      toast.error("Please select a valid rating between 1 and 5.");
+      return;
+    }
+
+    try {
+      setIsSubmittingRating(true);
+      const response = await axios.patch(
+        `${API_BASE}/tickets/${id}/confirm-complete`,
+        { rating },
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        }
+      );
+      setTicket(response.data.ticket);
+      setIsCompletionModalOpen(false);
+      setRating(0);
+      setIsMenuOpen(false);
+      toast.success("Work completion confirmed!");
+    } catch (error) {
+      console.error("Error confirming completion:", error);
+      toast.error(
+        error.response?.data?.error || "Failed to confirm completion."
+      );
+    } finally {
+      setIsSubmittingRating(false);
+    }
+  };
+
   const handleCloseTicket = async () => {
-    if (isBuyer && ticket.status === "completed" && rating === 0) {
+    if (isBuyer && ticket?.status === "completed" && rating === 0) {
       setIsRatingModalOpen(true);
       return;
     }
@@ -416,13 +465,36 @@ const Ticket = () => {
     return text.replace(regex, '<span class="bg-yellow-200">$1</span>');
   };
 
-  const isBuyer = userId === ticket?.buyerId?._id;
-  const isSeller = userId === ticket?.sellerId?._id;
-  const profileUser = isBuyer ? ticket?.sellerId : ticket?.buyerId;
+  // Guard against null ticket
+  if (!ticket) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-lg shadow-lg p-8 max-w-md text-center border border-gray-200"
+        >
+          <MessageSquare className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <p className="text-gray-800 text-lg font-semibold">
+            Failed to load ticket
+          </p>
+          <button
+            onClick={() => navigate("/gigs")}
+            className="mt-4 px-4 py-2 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] transition"
+            aria-label="Back to gigs"
+          >
+            Back to Gigs
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  const isBuyer = userId === ticket.buyerId?._id;
+  const isSeller = userId === ticket.sellerId?._id;
+  const profileUser = isBuyer ? ticket.sellerId : ticket.buyerId;
 
   const getVisibleActions = () => {
-    if (!ticket) return [];
-
     const actions = [];
 
     if (ticket.status === "open" || ticket.status === "negotiating") {
@@ -449,10 +521,19 @@ const Ticket = () => {
       });
     }
 
-    if (ticket.status === "paid" && isSeller) {
+    if (ticket.status === "paid" && isBuyer) {
       actions.push({
-        id: "complete",
-        label: "Mark Completed",
+        id: "request-complete",
+        label: "Request Completion",
+        visible: true,
+        disabled: false,
+      });
+    }
+
+    if (ticket.status === "pending_completion" && isSeller) {
+      actions.push({
+        id: "confirm-complete",
+        label: "Confirm Completion",
         visible: true,
         disabled: false,
       });
@@ -460,17 +541,20 @@ const Ticket = () => {
 
     if (ticket.status === "completed") {
       actions.push({
-        id: "confirm",
-        label: "Confirm Completion",
+        id: "close",
+        label: isBuyer ? "Close & Rate" : "Close Ticket",
         visible: true,
         disabled: isSubmittingRating,
       });
     }
 
-    if (ticket.status !== "closed") {
+    if (
+      ticket.status !== "closed" &&
+      !["paid", "pending_completion", "completed"].includes(ticket.status)
+    ) {
       actions.push({
         id: "close",
-        label: ticket.status === "completed" ? "Close & Rate" : "Close Ticket",
+        label: "Close Ticket",
         visible: true,
         disabled: isSubmittingRating,
       });
@@ -489,12 +573,11 @@ const Ticket = () => {
         case "price":
           return "bg-[#1E88E5] hover:bg-[#1565C0] disabled:bg-gray-300 text-white";
         case "accept-price":
-        case "confirm":
+        case "request-complete":
+        case "confirm-complete":
           return "bg-[#4CAF50] hover:bg-[#43A047] disabled:bg-gray-300 text-white";
         case "payment":
           return "bg-[#0288D1] hover:bg-[#0277BD] disabled:bg-gray-300 text-white";
-        case "complete":
-          return "bg-[#7B1FA2] hover:bg-[#6A1B9A] disabled:bg-gray-300 text-white";
         case "close":
           return "bg-[#D32F2F] hover:bg-[#C62828] disabled:bg-gray-300 text-white";
         default:
@@ -508,8 +591,8 @@ const Ticket = () => {
         case "payment":
           return <DollarSign className="h-4 w-4" />;
         case "accept-price":
-        case "confirm":
-        case "complete":
+        case "request-complete":
+        case "confirm-complete":
           return <CheckCircle className="h-4 w-4" />;
         case "close":
           return <X className="h-4 w-4" />;
@@ -524,9 +607,10 @@ const Ticket = () => {
           return handleAcceptPrice;
         case "payment":
           return handleConfirmPayment;
-        case "complete":
-          return handleMarkCompleted;
-        case "confirm":
+        case "request-complete":
+          return handleRequestComplete;
+        case "confirm-complete":
+          return handleConfirmComplete;
         case "close":
           return handleCloseTicket;
         default:
@@ -569,8 +653,7 @@ const Ticket = () => {
         aria-label={action.label}
       >
         {getIcon()}
-        {isSubmittingRating &&
-        (action.id === "confirm" || action.id === "close") ? (
+        {isSubmittingRating && action.id === "close" ? (
           <>
             <Loader className="h-4 w-4 animate-spin" />
             Submitting...
@@ -594,30 +677,6 @@ const Ticket = () => {
           }}
         >
           <Loader className="h-12 w-12 text-[#1E88E5]" />
-        </motion.div>
-      </div>
-    );
-  }
-
-  if (!ticket) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-lg shadow-lg p-8 max-w-md text-center border border-gray-200"
-        >
-          <MessageSquare className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <p className="text-gray-800 text-lg font-semibold">
-            Failed to load ticket
-          </p>
-          <button
-            onClick={() => navigate("/gigs")}
-            className="mt-4 px-4 py-2 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] transition"
-            aria-label="Back to gigs"
-          >
-            Back to Gigs
-          </button>
         </motion.div>
       </div>
     );
@@ -689,13 +748,11 @@ const Ticket = () => {
       </motion.div>
 
       <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col lg:flex-row gap-6">
-        {/* Chat Section */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           className="flex-1 bg-white rounded-lg shadow-md border border-gray-200 flex flex-col"
         >
-          {/* Message Search */}
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center gap-2">
               <input
@@ -709,7 +766,6 @@ const Ticket = () => {
             </div>
           </div>
 
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             <AnimatePresence>
               {ticket.messages.length === 0 ? (
@@ -819,7 +875,6 @@ const Ticket = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Message Input */}
           {ticket.status !== "closed" && (
             <div className="p-4 border-t border-gray-200 bg-white sticky bottom-0">
               {file && (
@@ -847,6 +902,7 @@ const Ticket = () => {
                     onClick={() => {
                       setFile(null);
                       setFilePreview(null);
+                      if (fileInputRef.current) fileInputRef.current.value = "";
                     }}
                     className="text-red-500 text-sm"
                     aria-label="Remove file"
@@ -871,6 +927,23 @@ const Ticket = () => {
                   aria-label="Message input"
                 />
                 <div className="flex flex-col gap-2">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept="image/jpeg,image/jpg,image/png,application/pdf"
+                    className="hidden"
+                    id="file-upload"
+                    aria-label="Upload file"
+                  />
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-3 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                    aria-label="Attach file"
+                  >
+                    <Paperclip className="h-5 w-5" />
+                  </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     onClick={handleSendMessage}
@@ -895,13 +968,11 @@ const Ticket = () => {
           )}
         </motion.div>
 
-        {/* Sidebar (Desktop) */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           className="hidden lg:block w-80 bg-white rounded-lg shadow-md border border-gray-200 p-4 space-y-4"
         >
-          {/* User Info */}
           <div>
             <h3 className="text-sm font-semibold text-gray-800 mb-2">
               {isBuyer ? "Seller" : "Buyer"}
@@ -929,7 +1000,6 @@ const Ticket = () => {
             </motion.button>
           </div>
 
-          {/* Price Info */}
           {ticket.agreedPrice && (
             <div>
               <h3 className="text-sm font-semibold text-gray-800 mb-2">
@@ -941,7 +1011,6 @@ const Ticket = () => {
             </div>
           )}
 
-          {/* Actions */}
           {visibleActions.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-gray-800 mb-2">
@@ -953,7 +1022,6 @@ const Ticket = () => {
             </div>
           )}
 
-          {/* Timeline */}
           {ticket.timeline && ticket.timeline.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
@@ -986,7 +1054,6 @@ const Ticket = () => {
         </motion.div>
       </div>
 
-      {/* Details Modal (Mobile) */}
       <AnimatePresence>
         {isDetailsModalOpen && (
           <motion.div
@@ -1093,7 +1160,6 @@ const Ticket = () => {
         )}
       </AnimatePresence>
 
-      {/* Rating Modal */}
       <AnimatePresence>
         {isRatingModalOpen && (
           <motion.div
@@ -1146,7 +1212,7 @@ const Ticket = () => {
                     setIsRatingModalOpen(false);
                     setRating(0);
                   }}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-200"
                   aria-label="Cancel rating"
                 >
                   Cancel
@@ -1157,6 +1223,87 @@ const Ticket = () => {
                   disabled={rating === 0 || isSubmittingRating}
                   className="flex-1 px-4 py-2 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   aria-label="Submit rating"
+                >
+                  {isSubmittingRating ? (
+                    <>
+                      <Loader className="h-4 w-4 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <Star className="h-4 w-4" />
+                      Submit Rating
+                    </>
+                  )}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Completion Rating Modal */}
+      <AnimatePresence>
+        {isCompletionModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            aria-modal="true"
+            role="dialog"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+            >
+              <h2 className="text-xl font-bold text-gray-800 mb-2">
+                Rate the Buyer
+              </h2>
+              <p className="text-sm text-gray-600 mb-4">
+                How was your experience with{" "}
+                <span className="font-semibold">{ticket.buyerId.fullName}</span>
+                ?
+              </p>
+              <div className="flex justify-center gap-2 mb-6">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <motion.button
+                    key={star}
+                    whileHover={{ scale: 1.2 }}
+                    onClick={() => setRating(star)}
+                    className="p-1"
+                    aria-label={`Rate ${star} stars`}
+                  >
+                    <Star
+                      className={`h-8 w-8 ${
+                        rating >= star
+                          ? "fill-yellow-400 text-yellow-400"
+                          : "text-gray-300"
+                      }`}
+                    />
+                  </motion.button>
+                ))}
+              </div>
+              <div className="flex gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  onClick={() => {
+                    setIsCompletionModalOpen(false);
+                    setRating(0);
+                  }}
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                  aria-label="Cancel rating"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  onClick={handleSubmitCompletionRating}
+                  disabled={rating === 0 || isSubmittingRating}
+                  className="flex-1 px-4 py-2 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  aria-label="Submit completion rating"
                 >
                   {isSubmittingRating ? (
                     <>
