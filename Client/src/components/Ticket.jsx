@@ -1,15 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+"use client";
+
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { jwtDecode } from "jwt-decode";
-import {
-  motion,
-  AnimatePresence,
-  useScroll,
-  useTransform,
-} from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Send,
   Paperclip,
@@ -24,6 +21,7 @@ import {
   Menu,
   Info,
   Clock,
+  ChevronDown,
 } from "lucide-react";
 import io from "socket.io-client";
 import { debounce } from "lodash";
@@ -31,37 +29,6 @@ import moment from "moment";
 
 const API_BASE = "http://localhost:5000/api";
 const SOCKET_URL = "http://localhost:5000/ticket-socket";
-
-// Bouncy Scroll Container
-const BouncyScrollContainer = ({ children, onScrollTop }) => {
-  const containerRef = useRef(null);
-  const { scrollYProgress } = useScroll({
-    container: containerRef,
-    offset: ["start start", "end start"],
-  });
-  const y = useTransform(scrollYProgress, [0, 1], [0, -15]);
-  const scale = useTransform(scrollYProgress, [0, 1], [1, 0.97]);
-
-  const handleScroll = () => {
-    if (containerRef.current) {
-      const { scrollTop } = containerRef.current;
-      if (scrollTop < 200) {
-        onScrollTop();
-      }
-    }
-  };
-
-  return (
-    <motion.div
-      ref={containerRef}
-      style={{ y, scale }}
-      onScroll={handleScroll}
-      className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth"
-    >
-      {children}
-    </motion.div>
-  );
-};
 
 const Ticket = () => {
   const { id } = useParams();
@@ -85,12 +52,50 @@ const Ticket = () => {
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const [isUserScrolling, setIsUserScrolling] = useState(false);
+  const [scrollTimeout, setScrollTimeout] = useState(null);
 
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const socketRef = useRef(null);
   const fileInputRef = useRef(null);
   const menuRef = useRef(null);
   const prevScrollHeight = useRef(0);
+
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current && !isUserScrolling) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [isUserScrolling]);
+
+  const handleScroll = useCallback(() => {
+    if (!messagesContainerRef.current) return;
+
+    const { scrollTop, scrollHeight, clientHeight } =
+      messagesContainerRef.current;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+
+    setShowScrollButton(!isNearBottom);
+
+    // Detect if user is manually scrolling
+    setIsUserScrolling(!isNearBottom);
+
+    // Clear existing timeout
+    if (scrollTimeout) clearTimeout(scrollTimeout);
+
+    // Set timeout to detect when user stops scrolling
+    const timeout = setTimeout(() => {
+      setIsUserScrolling(false);
+    }, 1500);
+
+    setScrollTimeout(timeout);
+
+    // Load older messages when scrolling to top
+    if (scrollTop < 200 && hasMore && !loadingOlder) {
+      loadOlderMessages();
+    }
+  }, [hasMore, loadingOlder, scrollTimeout]);
 
   // Authenticate user
   useEffect(() => {
@@ -122,7 +127,10 @@ const Ticket = () => {
 
       const handleNewMessage = (updatedTicket) => {
         setTicket(updatedTicket);
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        // Auto-scroll only if user isn't manually scrolling
+        if (!isUserScrolling) {
+          setTimeout(() => scrollToBottom(), 100);
+        }
       };
 
       const handleTyping = ({ userId: typerId, userName }) => {
@@ -156,7 +164,7 @@ const Ticket = () => {
         socketRef.current.disconnect();
       };
     }
-  }, [userId, id, ticket]);
+  }, [userId, id, ticket, isUserScrolling, scrollToBottom]);
 
   // Fetch ticket data
   useEffect(() => {
@@ -167,7 +175,7 @@ const Ticket = () => {
         });
         setTicket(response.data);
         setLoading(false);
-        setTimeout(() => messagesEndRef.current?.scrollIntoView(), 100);
+        setTimeout(() => scrollToBottom(), 100);
       } catch (error) {
         console.error("Error fetching ticket:", error);
         toast.error(error.response?.data?.error || "Failed to load ticket.");
@@ -182,26 +190,25 @@ const Ticket = () => {
     if (userId) {
       fetchTicket();
     }
-  }, [id, userId, navigate]);
+  }, [id, userId, navigate, scrollToBottom]);
 
   // Load older messages
   const loadOlderMessages = useCallback(async () => {
     if (loadingOlder || !hasMore || !ticket) return;
     setLoadingOlder(true);
     try {
-      const response = await axios.get(
-        `${API_BASE}/tickets/${id}/messages`,
-        {
-          params: { page: page + 1, limit: 20 },
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-        }
-      );
+      const response = await axios.get(`${API_BASE}/tickets/${id}/messages`, {
+        params: { page: page + 1, limit: 20 },
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
       const newMessages = response.data.messages;
       if (newMessages.length === 0) {
         setHasMore(false);
       } else {
-        const container = document.querySelector(".overflow-y-auto");
-        prevScrollHeight.current = container.scrollHeight;
+        const container = messagesContainerRef.current;
+        if (container) {
+          prevScrollHeight.current = container.scrollHeight;
+        }
 
         setTicket((prev) => ({
           ...prev,
@@ -216,13 +223,12 @@ const Ticket = () => {
     }
   }, [id, page, loadingOlder, hasMore, ticket]);
 
-  // Maintain scroll position
+  // Maintain scroll position when loading older messages
   useEffect(() => {
-    if (prevScrollHeight.current > 0) {
-      const container = document.querySelector(".overflow-y-auto");
-      if (container) {
-        container.scrollTop = container.scrollHeight - prevScrollHeight.current;
-      }
+    if (prevScrollHeight.current > 0 && messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      container.scrollTop = container.scrollHeight - prevScrollHeight.current;
+      prevScrollHeight.current = 0;
     }
   }, [ticket?.messages]);
 
@@ -296,19 +302,18 @@ const Ticket = () => {
             },
           });
           setTicket(response.data);
-          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+          scrollToBottom();
         } catch (error) {
           console.error("Error resetting messages:", error);
         }
       };
       fetchTicket();
     }
-  }, [searchQuery, id, ticket, debouncedSearch]);
+  }, [searchQuery, id, ticket, debouncedSearch, scrollToBottom]);
 
   // Close menu on outside click
   useEffect(() => {
     const handleClickOutside = (event) => {
-     
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setIsMenuOpen(false);
       }
@@ -345,6 +350,8 @@ const Ticket = () => {
       setFilePreview(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       toast.success("Message sent!");
+      setIsUserScrolling(false);
+      setTimeout(() => scrollToBottom(), 100);
     } catch (error) {
       console.error("Error sending message:", error);
       toast.error(error.response?.data?.error || "Failed to send message.");
@@ -390,7 +397,7 @@ const Ticket = () => {
     try {
       const response = await axios.patch(
         `${API_BASE}/tickets/${id}/price`,
-        { agreedPrice: parseFloat(agreedPrice) },
+        { agreedPrice: Number.parseFloat(agreedPrice) },
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
@@ -761,7 +768,14 @@ const Ticket = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex flex-col relative overflow-hidden">
+      <div className="fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute top-0 left-0 w-96 h-96 bg-gradient-to-br from-blue-300 to-blue-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-purple-300 to-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-gradient-to-br from-pink-300 to-pink-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-gradient-to-br from-cyan-300 to-cyan-100 rounded-full mix-blend-multiply filter blur-3xl opacity-15 animate-blob animation-delay-3000"></div>
+      </div>
+
       <ToastContainer position="top-right" autoClose={3000} />
 
       {/* Navbar */}
@@ -841,14 +855,14 @@ const Ticket = () => {
         </div>
       </motion.div>
 
-      <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col lg:flex-row gap-6">
+      <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col lg:flex-row gap-6 relative">
         {/* Chat Area */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="flex-1 bg-white rounded-lg shadow-md border border-gray-200 flex flex-col"
+          className="flex-1 bg-white rounded-lg shadow-md border border-gray-200 flex flex-col overflow-hidden"
         >
-          <div className="p-4 border-b border-gray-200">
+          <div className="sticky top-0 z-30 p-4 border-b border-gray-200 bg-white rounded-t-lg shadow-sm">
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -861,11 +875,22 @@ const Ticket = () => {
             </div>
           </div>
 
-          <BouncyScrollContainer onScrollTop={loadOlderMessages}>
+          <div
+            ref={messagesContainerRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth"
+          >
             {loadingOlder && (
-              <div className="text-center py-2">
-                <Loader className="h-5 w-5 animate-spin inline" />
-              </div>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-center py-2"
+              >
+                <Loader className="h-5 w-5 animate-spin inline text-[#1E88E5]" />
+                <p className="text-xs text-gray-500 mt-1">
+                  Loading older messages...
+                </p>
+              </motion.div>
             )}
             {ticket.messages.length === 0 ? (
               <motion.div
@@ -921,7 +946,7 @@ const Ticket = () => {
                             className="block"
                           >
                             <img
-                              src={msg.attachment}
+                              src={msg.attachment || "/placeholder.svg"}
                               alt="Attachment"
                               className="max-w-full h-auto rounded-md max-h-48"
                             />
@@ -971,10 +996,28 @@ const Ticket = () => {
               </motion.p>
             )}
             <div ref={messagesEndRef} />
-          </BouncyScrollContainer>
+          </div>
+
+          <AnimatePresence>
+            {showScrollButton && (
+              <motion.button
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                onClick={() => {
+                  scrollToBottom();
+                  setShowScrollButton(false);
+                }}
+                className="absolute bottom-24 right-4 bg-[#1E88E5] text-white p-2 rounded-full shadow-lg hover:bg-[#1565C0] transition z-20"
+                aria-label="Scroll to bottom"
+              >
+                <ChevronDown className="h-5 w-5" />
+              </motion.button>
+            )}
+          </AnimatePresence>
 
           {ticket.status !== "closed" && (
-            <div className="p-4 border-t border-gray-200 bg-white sticky bottom-0">
+            <div className="p-4 border-t border-gray-200 bg-white">
               {file && (
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
@@ -984,7 +1027,7 @@ const Ticket = () => {
                   <div className="flex items-center gap-2">
                     {filePreview ? (
                       <img
-                        src={filePreview}
+                        src={filePreview || "/placeholder.svg"}
                         alt="Preview"
                         className="h-10 w-10 object-cover rounded"
                       />
@@ -1066,11 +1109,10 @@ const Ticket = () => {
           )}
         </motion.div>
 
-        {/* Right Panel - Members */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="hidden lg:block w-80 bg-white rounded-lg shadow-md border border-gray-200 p-6 space-y-6"
+          className="hidden lg:block fixed right-4 top-24 w-80 bg-white rounded-lg shadow-md border border-gray-200 p-6 space-y-6 max-h-[calc(100vh-120px)] overflow-y-auto"
         >
           <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
             <User className="h-5 w-5" />
@@ -1414,6 +1456,36 @@ const Ticket = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <style>{`
+        @keyframes blob {
+          0%, 100% {
+            transform: translate(0, 0) scale(1);
+          }
+          33% {
+            transform: translate(30px, -50px) scale(1.1);
+          }
+          66% {
+            transform: translate(-20px, 20px) scale(0.9);
+          }
+        }
+        
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+        
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        
+        .animation-delay-3000 {
+          animation-delay: 3s;
+        }
+        
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
+      `}</style>
     </div>
   );
 };
