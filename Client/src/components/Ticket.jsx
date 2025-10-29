@@ -33,6 +33,8 @@ const SOCKET_URL = "http://localhost:5000/ticket-socket";
 const Ticket = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+
+  /* ---------- STATE ---------- */
   const [ticket, setTicket] = useState(null);
   const [userId, setUserId] = useState(null);
   const [message, setMessage] = useState("");
@@ -55,40 +57,39 @@ const Ticket = () => {
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [isNearBottom, setIsNearBottom] = useState(true);
 
+  /* ---------- REFS ---------- */
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const socketRef = useRef(null);
   const fileInputRef = useRef(null);
   const menuRef = useRef(null);
 
-  // NEW: Prevent bounce-back
+  // Prevent bounce‑back when reading old messages
   const userScrolledUp = useRef(false);
   const lastScrollTop = useRef(0);
 
+  /* ---------- HELPERS ---------- */
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
   const handleScroll = useCallback(() => {
     if (!messagesContainerRef.current) return;
+    const c = messagesContainerRef.current;
+    const { scrollTop, scrollHeight, clientHeight } = c;
 
-    const container = messagesContainerRef.current;
-    const { scrollTop, scrollHeight, clientHeight } = container;
-
-    // Detect scroll direction
+    // Detect direction
     const scrollingUp = scrollTop < lastScrollTop.current;
     lastScrollTop.current = scrollTop;
 
-    // User is manually scrolling up → disable auto-scroll
+    // User manually scrolls up → stop auto‑scroll
     if (scrollingUp && scrollTop < scrollHeight - clientHeight - 200) {
       userScrolledUp.current = true;
     }
 
-    // Near bottom → allow auto-scroll
+    // Near bottom → allow auto‑scroll
     const nearBottom = scrollHeight - scrollTop - clientHeight < 150;
-    if (nearBottom) {
-      userScrolledUp.current = false;
-    }
+    if (nearBottom) userScrolledUp.current = false;
 
     setShowScrollButton(!nearBottom);
     setIsNearBottom(nearBottom);
@@ -99,15 +100,14 @@ const Ticket = () => {
     }
   }, [hasMore, loadingOlder]);
 
-  // Authenticate user
+  /* ---------- AUTH ---------- */
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
       try {
         const decoded = jwtDecode(token);
         setUserId(decoded.id);
-      } catch (error) {
-        console.error("Error decoding token:", error);
+      } catch {
         localStorage.removeItem("token");
         toast.error("Session expired. Please log in again.");
         navigate("/login", { state: { from: `/tickets/${id}` } });
@@ -118,122 +118,112 @@ const Ticket = () => {
     }
   }, [navigate, id]);
 
-  // Socket.io setup
+  /* ---------- SOCKET ---------- */
   useEffect(() => {
-    if (userId && ticket) {
-      socketRef.current = io(SOCKET_URL, {
-        auth: { token: localStorage.getItem("token") },
-      });
+    if (!userId || !ticket) return;
 
-      socketRef.current.emit("joinTicket", id);
+    socketRef.current = io(SOCKET_URL, {
+      auth: { token: localStorage.getItem("token") },
+    });
 
-      const handleNewMessage = (updatedTicket) => {
-        setTicket(updatedTicket);
-        if (!userScrolledUp.current) {
-          setTimeout(() => scrollToBottom(), 100);
-        }
-      };
+    socketRef.current.emit("joinTicket", id);
 
-      const handleTyping = ({ userId: typerId, userName }) => {
-        if (typerId !== userId) {
-          setTypingUser(userName);
-          setTimeout(() => setTypingUser(null), 3000);
-        }
-      };
+    const onNewMessage = (updatedTicket) => {
+      setTicket(updatedTicket);
+      if (!userScrolledUp.current) setTimeout(scrollToBottom, 100);
+    };
 
-      const handleMessagesRead = ({ ticketId, userId: readerId }) => {
-        if (ticketId === id && readerId !== userId) {
-          setTicket((prev) => ({
-            ...prev,
-            messages: prev.messages.map((msg) =>
-              msg.senderId === userId && !msg.read
-                ? { ...msg, read: true }
-                : msg
-            ),
-          }));
-        }
-      };
+    const onTyping = ({ userId: typerId, userName }) => {
+      if (typerId !== userId) {
+        setTypingUser(userName);
+        setTimeout(() => setTypingUser(null), 3000);
+      }
+    };
 
-      socketRef.current.on("newMessage", handleNewMessage);
-      socketRef.current.on("typing", handleTyping);
-      socketRef.current.on("messagesRead", handleMessagesRead);
+    const onRead = ({ ticketId, userId: readerId }) => {
+      if (ticketId !== id || readerId === userId) return;
+      setTicket((prev) => ({
+        ...prev,
+        messages: prev.messages.map((m) =>
+          m.senderId === userId && !m.read ? { ...m, read: true } : m
+        ),
+      }));
+    };
 
-      return () => {
-        socketRef.current.off("newMessage", handleNewMessage);
-        socketRef.current.off("typing", handleTyping);
-        socketRef.current.off("messagesRead", handleMessagesRead);
-        socketRef.current.disconnect();
-      };
-    }
+    socketRef.current.on("newMessage", onNewMessage);
+    socketRef.current.on("typing", onTyping);
+    socketRef.current.on("messagesRead", onRead);
+
+    return () => {
+      socketRef.current?.off("newMessage", onNewMessage);
+      socketRef.current?.off("typing", onTyping);
+      socketRef.current?.off("messagesRead", onRead);
+      socketRef.current?.disconnect();
+    };
   }, [userId, id, ticket, scrollToBottom]);
 
-  // Fetch ticket data
+  /* ---------- FETCH TICKET ---------- */
   useEffect(() => {
-    const fetchTicket = async () => {
+    if (!userId) return;
+    const fetch = async () => {
       try {
-        const response = await axios.get(`${API_BASE}/tickets/${id}`, {
+        const { data } = await axios.get(`${API_BASE}/tickets/${id}`, {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         });
-        setTicket(response.data);
+        setTicket(data);
         setLoading(false);
-        setTimeout(() => scrollToBottom(), 100);
-      } catch (error) {
-        console.error("Error fetching ticket:", error);
-        toast.error(error.response?.data?.error || "Failed to load ticket.");
-        if (error.response?.status === 401 || error.response?.status === 403) {
+        setTimeout(scrollToBottom, 100);
+      } catch (e) {
+        toast.error(e.response?.data?.error || "Failed to load ticket.");
+        if (e.response?.status === 401 || e.response?.status === 403) {
           localStorage.removeItem("token");
           navigate("/login", { state: { from: `/tickets/${id}` } });
         }
         setLoading(false);
       }
     };
-
-    if (userId) {
-      fetchTicket();
-    }
+    fetch();
   }, [id, userId, navigate, scrollToBottom]);
 
-  // Load older messages (NO BOUNCE-BACK)
+  /* ---------- LOAD OLDER MESSAGES ---------- */
   const loadOlderMessages = useCallback(async () => {
     if (loadingOlder || !hasMore || !ticket) return;
     setLoadingOlder(true);
 
     const container = messagesContainerRef.current;
-    const prevScrollTop = container.scrollTop;
-    const prevScrollHeight = container.scrollHeight;
+    const prevTop = container.scrollTop;
+    const prevHeight = container.scrollHeight;
 
     try {
-      const response = await axios.get(`${API_BASE}/tickets/${id}/messages`, {
+      const { data } = await axios.get(`${API_BASE}/tickets/${id}/messages`, {
         params: { page: page + 1, limit: 20 },
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
-      const newMessages = response.data.messages;
-
-      if (newMessages.length === 0) {
+      const newMsgs = data.messages;
+      if (!newMsgs.length) {
         setHasMore(false);
       } else {
-        setTicket((prev) => ({
-          ...prev,
-          messages: [...newMessages.reverse(), ...prev.messages],
+        setTicket((p) => ({
+          ...p,
+          messages: [...newMsgs.reverse(), ...p.messages],
         }));
         setPage((p) => p + 1);
-
         requestAnimationFrame(() => {
-          const newScrollHeight = container.scrollHeight;
-          container.scrollTop =
-            prevScrollTop + (newScrollHeight - prevScrollHeight);
+          const newHeight = container.scrollHeight;
+          container.scrollTop = prevTop + (newHeight - prevHeight);
         });
       }
-    } catch (error) {
-      console.error("Error loading older messages:", error);
+    } catch (e) {
+      console.error(e);
     } finally {
       setLoadingOlder(false);
     }
   }, [id, page, loadingOlder, hasMore, ticket]);
 
-  // Mark messages as read
+  /* ---------- MARK READ ---------- */
   useEffect(() => {
-    const markMessagesAsRead = async () => {
+    if (!ticket || !userId) return;
+    const mark = async () => {
       try {
         await axios.patch(
           `${API_BASE}/tickets/${id}/messages/read`,
@@ -244,20 +234,13 @@ const Ticket = () => {
             },
           }
         );
-        if (socketRef.current) {
-          socketRef.current.emit("markMessagesRead", id);
-        }
-      } catch (error) {
-        console.error("Error marking messages as read:", error);
-      }
+        socketRef.current?.emit("markMessagesRead", id);
+      } catch {}
     };
-
-    if (ticket && userId) {
-      markMessagesAsRead();
-    }
+    mark();
   }, [ticket, userId, id]);
 
-  // Handle typing event
+  /* ---------- TYPING ---------- */
   useEffect(() => {
     if (message && socketRef.current && ticket) {
       socketRef.current.emit("typing", {
@@ -271,71 +254,61 @@ const Ticket = () => {
     }
   }, [message, id, userId, ticket]);
 
-  // Debounced message search
-  const debouncedSearch = debounce(async (query) => {
+  /* ---------- SEARCH ---------- */
+  const debouncedSearch = debounce(async (q) => {
     try {
-      const response = await axios.get(
+      const { data } = await axios.get(
         `${API_BASE}/tickets/${id}/messages/search`,
         {
-          params: { query },
+          params: { query: q },
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
-      setTicket({ ...ticket, messages: response.data.messages });
+      setTicket((t) => ({ ...t, messages: data.messages }));
       toast.success("Messages filtered!");
-    } catch (error) {
-      console.error("Error searching messages:", error);
-      toast.error(error.response?.data?.error || "Failed to search messages.");
+    } catch (e) {
+      toast.error(e.response?.data?.error || "Search failed.");
     }
   }, 500);
 
   useEffect(() => {
-    if (searchQuery) {
-      debouncedSearch(searchQuery);
-    } else if (ticket) {
-      const fetchTicket = async () => {
-        try {
-          const response = await axios.get(`${API_BASE}/tickets/${id}`, {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
-            },
-          });
-          setTicket(response.data);
-          scrollToBottom();
-        } catch (error) {
-          console.error("Error resetting messages:", error);
-        }
+    if (searchQuery) debouncedSearch(searchQuery);
+    else if (ticket) {
+      const refetch = async () => {
+        const { data } = await axios.get(`${API_BASE}/tickets/${id}`, {
+          headers: {
+            Authorization: eab`Bearer ${localStorage.getItem("token")}`,
+          },
+        });
+        setTicket(data);
+        scrollToBottom();
       };
-      fetchTicket();
+      refetch();
     }
-  }, [searchQuery, id, ticket, debouncedSearch, scrollToBottom]);
+  }, [searchQuery, id, ticket, scrollToBottom]);
 
-  // Close menu on outside click
+  /* ---------- MENU OUTSIDE CLICK ---------- */
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target))
         setIsMenuOpen(false);
-      }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  /* ---------- SEND MESSAGE ---------- */
   const handleSendMessage = async () => {
-    if (!message.trim() && !file) {
-      toast.error("Please enter a message or attach a file.");
-      return;
-    }
-
+    if (!message.trim() && !file)
+      return toast.error("Enter a message or attach a file.");
     setIsSending(true);
     try {
-      const formData = new FormData();
-      if (message.trim()) formData.append("content", message);
-      if (file) formData.append("attachment", file);
-
-      const response = await axios.post(
+      const fd = new FormData();
+      if (message.trim()) fd.append("content", message);
+      if (file) fd.append("attachment", file);
+      const { data } = await axios.post(
         `${API_BASE}/tickets/${id}/messages`,
-        formData,
+        fd,
         {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -343,214 +316,176 @@ const Ticket = () => {
           },
         }
       );
-      setTicket(response.data.ticket);
+      setTicket(data.ticket);
       setMessage("");
       setFile(null);
       setFilePreview(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       toast.success("Message sent!");
       userScrolledUp.current = false;
-      setTimeout(() => scrollToBottom(), 100);
-    } catch (error) {
-      console.error("Error sending message:", error);
-      toast.error(error.response?.data?.error || "Failed to send message.");
+      setTimeout(scrollToBottom, 100);
+    } catch (e) {
+      toast.error(e.response?.data?.error || "Failed to send.");
     } finally {
       setIsSending(false);
     }
   };
 
+  /* ---------- AI ---------- */
   const handleAIResponse = async () => {
-    if (!message.trim()) {
-      toast.error("Please enter a message for AI assistance.");
-      return;
-    }
-
+    if (!message.trim()) return toast.error("Enter a message for AI.");
     setIsSending(true);
     try {
-      const response = await axios.post(
+      const { data } = await axios.post(
         `${API_BASE}/ai/chat`,
         { message },
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
-      setMessage(response.data.response);
-      toast.success("AI suggestion generated! You can edit and send it.");
-    } catch (error) {
-      console.error("Error getting AI response:", error);
-      toast.error(
-        error.response?.data?.error ||
-          "Failed to get AI response. Please try again later."
-      );
+      setMessage(data.response);
+      toast.success("AI suggestion ready!");
+    } catch (e) {
+      toast.error(e.response?.data?.error || "AI error.");
     } finally {
       setIsSending(false);
     }
   };
 
+  /* ---------- PRICE & ACTIONS ---------- */
   const handleSetPrice = async () => {
-    if (!agreedPrice || isNaN(agreedPrice) || agreedPrice <= 0) {
-      toast.error("Please enter a valid price.");
-      return;
-    }
-
+    if (!agreedPrice || agreedPrice <= 0)
+      return toast.error("Enter a valid price.");
     try {
-      const response = await axios.patch(
+      const { data } = await axios.patch(
         `${API_BASE}/tickets/${id}/price`,
         { agreedPrice: Number.parseFloat(agreedPrice) },
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
-      setTicket(response.data.ticket);
+      setTicket(data.ticket);
       setAgreedPrice("");
       setIsMenuOpen(false);
       toast.success("Price proposed!");
-    } catch (error) {
-      console.error("Error setting price:", error);
-      toast.error(error.response?.data?.error || "Failed to propose price.");
+    } catch (e) {
+      toast.error(e.response?.data?.error || "Failed.");
     }
   };
-
   const handleAcceptPrice = async () => {
     try {
-      const response = await axios.patch(
+      const { data } = await axios.patch(
         `${API_BASE}/tickets/${id}/accept-price`,
         {},
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
-      setTicket(response.data.ticket);
+      setTicket(data.ticket);
       setIsMenuOpen(false);
       toast.success("Price accepted!");
-    } catch (error) {
-      console.error("Error accepting price:", error);
-      toast.error(error.response?.data?.error || "Failed to accept price.");
+    } catch (e) {
+      toast.error(e.response?.data?.error || "Failed.");
     }
   };
-
   const handleConfirmPayment = async () => {
     try {
-      const response = await axios.patch(
+      const { data } = await axios.patch(
         `${API_BASE}/tickets/${id}/paid`,
         {},
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
-      setTicket(response.data.ticket);
+      setTicket(data.ticket);
       setIsMenuOpen(false);
       toast.success("Payment confirmed!");
-    } catch (error) {
-      console.error("Error confirming payment:", error);
-      toast.error(error.response?.data?.error || "Failed to confirm payment.");
+    } catch (e) {
+      toast.error(e.response?.data?.error || "Failed.");
     }
   };
-
   const handleRequestComplete = async () => {
     try {
-      const response = await axios.patch(
+      const { data } = await axios.patch(
         `${API_BASE}/tickets/${id}/request-complete`,
         {},
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
-      setTicket(response.data.ticket);
+      setTicket(data.ticket);
       setIsMenuOpen(false);
-      toast.success("Completion request sent to the seller!");
-    } catch (error) {
-      console.error("Error requesting completion:", error);
-      toast.error(
-        error.response?.data?.error || "Failed to request completion."
-      );
+      toast.success("Completion request sent!");
+    } catch (e) {
+      toast.error(e.response?.data?.error || "Failed.");
     }
   };
-
-  const handleConfirmComplete = async () => {
-    setIsCompletionModalOpen(true);
-  };
-
+  const handleConfirmComplete = () => setIsCompletionModalOpen(true);
   const handleSubmitCompletionRating = async () => {
-    if (!rating || rating < 1 || rating > 5) {
-      toast.error("Please select a valid rating between 1 and 5.");
-      return;
-    }
-
+    if (!rating || rating < 1 || rating > 5)
+      return toast.error("Select 1‑5 stars.");
+    setIsSubmittingRating(true);
     try {
-      setIsSubmittingRating(true);
-      const response = await axios.patch(
+      const { data } = await axios.patch(
         `${API_BASE}/tickets/${id}/confirm-complete`,
         { rating },
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
-      setTicket(response.data.ticket);
+      setTicket(data.ticket);
       setIsCompletionModalOpen(false);
       setRating(0);
       setIsMenuOpen(false);
-      toast.success("Work completion confirmed!");
-    } catch (error) {
-      console.error("Error confirming completion:", error);
-      toast.error(
-        error.response?.data?.error || "Failed to confirm completion."
-      );
+      toast.success("Completion confirmed!");
+    } catch (e) {
+      toast.error(e.response?.data?.error || "Failed.");
     } finally {
       setIsSubmittingRating(false);
     }
   };
-
   const handleCloseTicket = async () => {
     if (isBuyer && ticket?.status === "completed" && rating === 0) {
       setIsRatingModalOpen(true);
       return;
     }
-
+    setIsSubmittingRating(true);
     try {
-      setIsSubmittingRating(true);
-      const response = await axios.patch(
+      const { data } = await axios.patch(
         `${API_BASE}/tickets/${id}/close`,
         isBuyer && rating ? { rating } : {},
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
-      setTicket(response.data.ticket);
+      setTicket(data.ticket);
       setIsRatingModalOpen(false);
       setRating(0);
       setIsMenuOpen(false);
       toast.success("Ticket closed!");
-    } catch (error) {
-      console.error("Error closing ticket:", error);
-      toast.error(error.response?.data?.error || "Failed to close ticket.");
+    } catch (e) {
+      toast.error(e.response?.data?.error || "Failed.");
     } finally {
       setIsSubmittingRating(false);
     }
   };
 
+  /* ---------- FILE ---------- */
   const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile) {
-      if (selectedFile.size > 5 * 1024 * 1024) {
-        toast.error("File size exceeds 5MB limit.");
-        return;
-      }
-      setFile(selectedFile);
-      if (selectedFile.type.startsWith("image/")) {
-        setFilePreview(URL.createObjectURL(selectedFile));
-      } else {
-        setFilePreview(null);
-      }
-    }
+    const f = e.target.files[0];
+    if (!f) return;
+    if (f.size > 5 * 1024 * 1024) return toast.error("File ≤ 5 MB");
+    setFile(f);
+    setFilePreview(f.type.startsWith("image/") ? URL.createObjectURL(f) : null);
   };
 
-  const highlightText = (text, query) => {
-    if (!query) return text;
-    const regex = new RegExp(`(${query})`, "gi");
-    return text.replace(regex, '<span class="bg-yellow-200">$1</span>');
+  const highlightText = (text, q) => {
+    if (!q) return text;
+    const r = new RegExp(`(${q})`, "gi");
+    return text.replace(r, '<span class="bg-yellow-200">$1</span>');
   };
 
+  /* ---------- RENDER ---------- */
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
@@ -563,7 +498,6 @@ const Ticket = () => {
       </div>
     );
   }
-
   if (!ticket) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
@@ -578,7 +512,7 @@ const Ticket = () => {
           </p>
           <button
             onClick={() => navigate("/gigs")}
-            className="mt-4 px-4 py-2 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] transition"
+            className="mt-4 px-4 py-2 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0]"
           >
             Back to Gigs
           </button>
@@ -591,119 +525,68 @@ const Ticket = () => {
   const isSeller = userId === ticket.sellerId?._id;
 
   const getVisibleActions = () => {
-    const actions = [];
-
-    if (ticket.status === "open" || ticket.status === "negotiating") {
-      actions.push({ id: "price", label: "Propose Price", visible: true });
-    }
-
+    const a = [];
+    if (["open", "negotiating"].includes(ticket.status))
+      a.push({ id: "price", label: "Propose Price" });
     if (ticket.status === "accepted" && isBuyer && ticket.agreedPrice) {
-      actions.push({
-        id: "accept-price",
-        label: "Accept Price",
-        visible: true,
-      });
-      actions.push({ id: "payment", label: "Confirm Payment", visible: true });
+      a.push({ id: "accept-price", label: "Accept Price" });
+      a.push({ id: "payment", label: "Confirm Payment" });
     }
-
-    if (ticket.status === "paid" && isBuyer) {
-      actions.push({
-        id: "request-complete",
-        label: "Request Completion",
-        visible: true,
-      });
-    }
-
-    if (ticket.status === "pending_completion" && isSeller) {
-      actions.push({
-        id: "confirm-complete",
-        label: "Confirm Completion",
-        visible: true,
-      });
-    }
-
-    if (ticket.status === "completed") {
-      actions.push({
+    if (ticket.status === "paid" && isBuyer)
+      a.push({ id: "request-complete", label: "Request Completion" });
+    if (ticket.status === "pending_completion" && isSeller)
+      a.push({ id: "confirm-complete", label: "Confirm Completion" });
+    if (ticket.status === "completed")
+      a.push({
         id: "close",
         label: isBuyer ? "Close & Rate" : "Close Ticket",
-        visible: true,
         disabled: isSubmittingRating,
       });
-    }
-
     if (
       ticket.status !== "closed" &&
       !["paid", "pending_completion", "completed"].includes(ticket.status)
-    ) {
-      actions.push({
+    )
+      a.push({
         id: "close",
         label: "Close Ticket",
-        visible: true,
         disabled: isSubmittingRating,
       });
-    }
-
-    return actions;
+    return a;
   };
 
-  const visibleActions = getVisibleActions();
-
-  const renderActionButton = (action) => {
-    const baseClasses =
+  const renderActionButton = (act) => {
+    const base =
       "w-full px-4 py-2 rounded-md font-medium text-sm flex items-center justify-center gap-2 transition";
-    const getButtonStyles = () => {
-      switch (action.id) {
-        case "price":
-          return "bg-[#1E88E5] hover:bg-[#1565C0] text-white";
-        case "accept-price":
-        case "request-complete":
-        case "confirm-complete":
-          return "bg-[#4CAF50] hover:bg-[#43A047] text-white";
-        case "payment":
-          return "bg-[#0288D1] hover:bg-[#0277BD] text-white";
-        case "close":
-          return "bg-[#D32F2F] hover:bg-[#C62828] text-white";
-        default:
-          return "bg-gray-600 hover:bg-gray-700 text-white";
-      }
-    };
+    const styles =
+      {
+        price: "bg-[#1E88E5] hover:bg-[#1565C0] text-white",
+        "accept-price": "bg-[#4CAF50] hover:bg-[#43A047] text-white",
+        "request-complete": "bg-[#4CAF50] hover:bg-[#43A047] text-white",
+        "confirm-complete": "bg-[#4CAF50] hover:bg-[#43A047] text-white",
+        payment: "bg-[#0288D1] hover:bg-[#0277BD] text-white",
+        close: "bg-[#D32F2F] hover:bg-[#C62828] text-white",
+      }[act.id] || "bg-gray-600 hover:bg-gray-700 text-white";
 
-    const getIcon = () => {
-      switch (action.id) {
-        case "price":
-        case "payment":
-          return <DollarSign className="h-4 w-4" />;
-        case "accept-price":
-        case "request-complete":
-        case "confirm-complete":
-          return <CheckCircle className="h-4 w-4" />;
-        case "close":
-          return <X className="h-4 w-4" />;
-        default:
-          return null;
-      }
-    };
+    const icon = {
+      price: <DollarSign className="h-4 w-4" />,
+      payment: <DollarSign className="h-4 w-4" />,
+      "accept-price": <CheckCircle className="h-4 w-4" />,
+      "request-complete": <CheckCircle className="h-4 w-4" />,
+      "confirm-complete": <CheckCircle className="h-4 w-4" />,
+      close: <X className="h-4 w-4" />,
+    }[act.id];
 
-    const getHandler = () => {
-      switch (action.id) {
-        case "accept-price":
-          return handleAcceptPrice;
-        case "payment":
-          return handleConfirmPayment;
-        case "request-complete":
-          return handleRequestComplete;
-        case "confirm-complete":
-          return handleConfirmComplete;
-        case "close":
-          return handleCloseTicket;
-        default:
-          return null;
-      }
-    };
+    const handler = {
+      "accept-price": handleAcceptPrice,
+      payment: handleConfirmPayment,
+      "request-complete": handleRequestComplete,
+      "confirm-complete": handleConfirmComplete,
+      close: handleCloseTicket,
+    }[act.id];
 
-    if (action.id === "price") {
+    if (act.id === "price")
       return (
-        <div key={action.id} className="space-y-2">
+        <div key={act.id} className="space-y-2">
           <input
             type="number"
             value={agreedPrice}
@@ -715,38 +598,35 @@ const Ticket = () => {
           />
           <button
             onClick={handleSetPrice}
-            disabled={!agreedPrice || isNaN(agreedPrice) || agreedPrice <= 0}
-            className={`${baseClasses} ${getButtonStyles()}`}
+            disabled={!agreedPrice || agreedPrice <= 0}
+            className={`${base} ${styles}`}
           >
-            <DollarSign className="h-4 w-4" />
-            Set Price
+            <DollarSign className="h-4 w-4" /> Set Price
           </button>
         </div>
       );
-    }
 
     return (
       <button
-        key={action.id}
-        onClick={getHandler()}
-        disabled={action.disabled}
-        className={`${baseClasses} ${getButtonStyles()}`}
+        key={act.id}
+        onClick={handler}
+        disabled={act.disabled}
+        className={`${base} ${styles}`}
       >
-        {getIcon()}
-        {isSubmittingRating && action.id === "close" ? (
+        {icon}
+        {act.id === "close" && isSubmittingRating ? (
           <>
-            <Loader className="h-4 w-4 animate-spin" />
-            Submitting...
+            <Loader className="h-4 w-4 animate-spin" /> Submitting...
           </>
         ) : (
-          action.label
+          act.label
         )}
       </button>
     );
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex flex-col overflow-hidden">
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute top-0 left-0 w-96 h-96 bg-gradient-to-br from-blue-300 to-blue-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-purple-300 to-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
@@ -756,8 +636,8 @@ const Ticket = () => {
 
       <ToastContainer position="top-right" autoClose={3000} />
 
-      {/* Navbar */}
-      <motion.div
+      {/* ---------- HEADER ---------- */}
+      <motion.header
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-40 shadow-sm"
@@ -799,7 +679,7 @@ const Ticket = () => {
                   className="absolute right-4 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-50"
                 >
                   <div className="space-y-2">
-                    {visibleActions.map(renderActionButton)}
+                    {getVisibleActions().map(renderActionButton)}
                     <button
                       onClick={() => {
                         setIsDetailsModalOpen(true);
@@ -807,8 +687,7 @@ const Ticket = () => {
                       }}
                       className="w-full px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 font-medium text-sm flex items-center gap-2"
                     >
-                      <Info className="h-4 w-4" />
-                      More Details
+                      <Info className="h-4 w-4" /> More Details
                     </button>
                   </div>
                 </motion.div>
@@ -818,7 +697,7 @@ const Ticket = () => {
 
           {/* Desktop Actions */}
           <div className="hidden lg:flex items-center gap-2">
-            {visibleActions.map(renderActionButton)}
+            {getVisibleActions().map(renderActionButton)}
             <motion.button
               whileHover={{ scale: 1.05 }}
               onClick={() => setIsDetailsModalOpen(true)}
@@ -828,15 +707,15 @@ const Ticket = () => {
             </motion.button>
           </div>
         </div>
-      </motion.div>
+      </motion.header>
 
-      {/* Main Layout */}
-      <div className="flex-1 flex flex-col lg:flex-row gap-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 min-h-0">
-        {/* Chat Section */}
+      {/* ---------- SINGLE SCROLLABLE PAGE ---------- */}
+      <div className="flex-1 flex flex-col lg:flex-row max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 gap-6 overflow-hidden">
+        {/* Chat Area – ONLY scrollable part */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="flex-1 bg-white rounded-lg shadow-md border border-gray-200 flex flex-col min-h-0 lg:mr-84"
+          className="flex-1 bg-white rounded-lg shadow-md border border-gray-200 flex flex-col min-h-0 lg:mr-84 overflow-hidden"
         >
           {/* Search */}
           <div className="p-4 border-b border-gray-200 bg-white">
@@ -849,7 +728,7 @@ const Ticket = () => {
             />
           </div>
 
-          {/* Messages */}
+          {/* Messages – SCROLLABLE */}
           <div
             ref={messagesContainerRef}
             onScroll={handleScroll}
@@ -863,7 +742,6 @@ const Ticket = () => {
                 </p>
               </div>
             )}
-
             {ticket.messages.length === 0 ? (
               <div className="flex items-center justify-center h-full text-gray-500">
                 <div className="text-center">
@@ -960,7 +838,7 @@ const Ticket = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Scroll to Bottom Button */}
+          {/* Scroll‑to‑bottom button */}
           <AnimatePresence>
             {showScrollButton && (
               <motion.button
@@ -979,7 +857,7 @@ const Ticket = () => {
             )}
           </AnimatePresence>
 
-          {/* Input Area */}
+          {/* Input */}
           {ticket.status !== "closed" && (
             <div className="p-4 border-t border-gray-200 bg-white">
               {file && (
@@ -1062,7 +940,7 @@ const Ticket = () => {
           )}
         </motion.div>
 
-        {/* Fixed Members Sidebar (Desktop Only) */}
+        {/* ---------- FIXED MEMBERS SIDEBAR (desktop) ---------- */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -1070,8 +948,7 @@ const Ticket = () => {
           style={{ maxHeight: "calc(100vh - 8rem)", overflowY: "auto" }}
         >
           <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">
-            <User className="h-5 w-5" />
-            Ticket Members
+            <User className="h-5 w-5" /> Ticket Members
           </h3>
 
           {/* Seller */}
@@ -1122,7 +999,6 @@ const Ticket = () => {
             </button>
           </div>
 
-          {/* Agreed Price */}
           {ticket.agreedPrice && (
             <div className="mt-6 pt-4 border-t">
               <p className="text-sm font-medium text-gray-600">Agreed Price</p>
@@ -1134,6 +1010,7 @@ const Ticket = () => {
         </motion.div>
       </div>
 
+      {/* ---------- MODALS ---------- */}
       {/* Rating Modal */}
       <AnimatePresence>
         {isRatingModalOpen && (
@@ -1160,16 +1037,16 @@ const Ticket = () => {
                 ?
               </p>
               <div className="flex justify-center gap-2 mb-6">
-                {[1, 2, 3, 4, 5].map((star) => (
+                {[1, 2, 3, 4, 5].map((s) => (
                   <motion.button
-                    key={star}
+                    key={s}
                     whileHover={{ scale: 1.2 }}
-                    onClick={() => setRating(star)}
+                    onClick={() => setRating(s)}
                     className="p-1"
                   >
                     <Star
                       className={`h-8 w-8 ${
-                        rating >= star
+                        rating >= s
                           ? "fill-yellow-400 text-yellow-400"
                           : "text-gray-300"
                       }`}
@@ -1196,13 +1073,11 @@ const Ticket = () => {
                 >
                   {isSubmittingRating ? (
                     <>
-                      <Loader className="h-4 w-4 animate-spin" />
-                      Submitting...
+                      <Loader className="h-4 w-4 animate-spin" /> Submitting...
                     </>
                   ) : (
                     <>
-                      <Star className="h-4 w-4" />
-                      Submit Rating
+                      <Star className="h-4 w-4" /> Submit Rating
                     </>
                   )}
                 </motion.button>
@@ -1236,16 +1111,16 @@ const Ticket = () => {
                 ?
               </p>
               <div className="flex justify-center gap-2 mb-6">
-                {[1, 2, 3, 4, 5].map((star) => (
+                {[1, 2, 3, 4, 5].map((s) => (
                   <motion.button
-                    key={star}
+                    key={s}
                     whileHover={{ scale: 1.2 }}
-                    onClick={() => setRating(star)}
+                    onClick={() => setRating(s)}
                     className="p-1"
                   >
                     <Star
                       className={`h-8 w-8 ${
-                        rating >= star
+                        rating >= s
                           ? "fill-yellow-400 text-yellow-400"
                           : "text-gray-300"
                       }`}
@@ -1272,13 +1147,11 @@ const Ticket = () => {
                 >
                   {isSubmittingRating ? (
                     <>
-                      <Loader className="h-4 w-4 animate-spin" />
-                      Submitting...
+                      <Loader className="h-4 w-4 animate-spin" /> Submitting...
                     </>
                   ) : (
                     <>
-                      <Star className="h-4 w-4" />
-                      Submit Rating
+                      <Star className="h-4 w-4" /> Submit Rating
                     </>
                   )}
                 </motion.button>
@@ -1367,25 +1240,22 @@ const Ticket = () => {
                     </p>
                   </div>
                 )}
-                {ticket.timeline && ticket.timeline.length > 0 && (
+                {ticket.timeline?.length > 0 && (
                   <div>
                     <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      Timeline
+                      <Clock className="h-4 w-4" /> Timeline
                     </h3>
                     <div className="mt-2 space-y-2">
-                      {ticket.timeline.map((event) => (
-                        <div key={event._id} className="flex gap-2">
+                      {ticket.timeline.map((e) => (
+                        <div key={e._id} className="flex gap-2">
                           <div className="flex flex-col items-center">
                             <div className="h-2 w-2 bg-[#1E88E5] rounded-full mt-1" />
                             <div className="h-8 w-0.5 bg-gray-200" />
                           </div>
                           <div>
-                            <p className="text-sm text-gray-800">
-                              {event.action}
-                            </p>
+                            <p className="text-sm text-gray-800">{e.action}</p>
                             <p className="text-xs text-gray-500">
-                              {moment(event.timestamp).fromNow()}
+                              {moment(e.timestamp).fromNow()}
                             </p>
                           </div>
                         </div>
@@ -1401,14 +1271,14 @@ const Ticket = () => {
 
       <style>{`
         @keyframes blob {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          33% { transform: translate(30px, -50px) scale(1.1); }
-          66% { transform: translate(-20px, 20px) scale(0.9); }
+          0%, 100% { transform: translate(0,0) scale(1); }
+          33% { transform: translate(30px,-50px) scale(1.1); }
+          66% { transform: translate(-20px,20px) scale(0.9); }
         }
         .animate-blob { animation: blob 7s infinite; }
-        .animation-delay-2000 { animation-delay: 2s; }
-        .animation-delay-3000 { animation-delay: 3s; }
-        .animation-delay-4000 { animation-delay: 4s; }
+        .animation‑delay‑2000 { animation-delay: 2s; }
+        .animation‑delay‑3000 { animation-delay: 3s; }
+        .animation‑delay‑4000 { animation-delay: 4s; }
       `}</style>
     </div>
   );
