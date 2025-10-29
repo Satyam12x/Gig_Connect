@@ -53,49 +53,35 @@ const Ticket = () => {
   const [page, setPage] = useState(1);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
-  const [isUserScrolling, setIsUserScrolling] = useState(false);
-  const [scrollTimeout, setScrollTimeout] = useState(null);
+  const [isNearBottom, setIsNearBottom] = useState(true);
 
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const socketRef = useRef(null);
   const fileInputRef = useRef(null);
   const menuRef = useRef(null);
-  const prevScrollHeight = useRef(0);
+  const isUserScrolling = useRef(false);
 
   const scrollToBottom = useCallback(() => {
-    if (messagesEndRef.current && !isUserScrolling) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [isUserScrolling]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
 
   const handleScroll = useCallback(() => {
     if (!messagesContainerRef.current) return;
 
     const { scrollTop, scrollHeight, clientHeight } =
       messagesContainerRef.current;
-    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+    const nearBottom = scrollHeight - scrollTop - clientHeight < 150;
 
-    setShowScrollButton(!isNearBottom);
+    setShowScrollButton(!nearBottom);
+    setIsNearBottom(nearBottom);
 
-    // Detect if user is manually scrolling
-    setIsUserScrolling(!isNearBottom);
+    isUserScrolling.current = !nearBottom;
 
-    // Clear existing timeout
-    if (scrollTimeout) clearTimeout(scrollTimeout);
-
-    // Set timeout to detect when user stops scrolling
-    const timeout = setTimeout(() => {
-      setIsUserScrolling(false);
-    }, 1500);
-
-    setScrollTimeout(timeout);
-
-    // Load older messages when scrolling to top
     if (scrollTop < 200 && hasMore && !loadingOlder) {
       loadOlderMessages();
     }
-  }, [hasMore, loadingOlder, scrollTimeout]);
+  }, [hasMore, loadingOlder]);
 
   // Authenticate user
   useEffect(() => {
@@ -127,8 +113,7 @@ const Ticket = () => {
 
       const handleNewMessage = (updatedTicket) => {
         setTicket(updatedTicket);
-        // Auto-scroll only if user isn't manually scrolling
-        if (!isUserScrolling) {
+        if (isNearBottom) {
           setTimeout(() => scrollToBottom(), 100);
         }
       };
@@ -164,7 +149,7 @@ const Ticket = () => {
         socketRef.current.disconnect();
       };
     }
-  }, [userId, id, ticket, isUserScrolling, scrollToBottom]);
+  }, [userId, id, ticket, isNearBottom, scrollToBottom]);
 
   // Fetch ticket data
   useEffect(() => {
@@ -192,29 +177,36 @@ const Ticket = () => {
     }
   }, [id, userId, navigate, scrollToBottom]);
 
-  // Load older messages
+  // Load older messages (NO BOUNCE-BACK)
   const loadOlderMessages = useCallback(async () => {
     if (loadingOlder || !hasMore || !ticket) return;
     setLoadingOlder(true);
+
+    const container = messagesContainerRef.current;
+    const prevScrollTop = container.scrollTop;
+    const prevScrollHeight = container.scrollHeight;
+
     try {
       const response = await axios.get(`${API_BASE}/tickets/${id}/messages`, {
         params: { page: page + 1, limit: 20 },
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
       const newMessages = response.data.messages;
+
       if (newMessages.length === 0) {
         setHasMore(false);
       } else {
-        const container = messagesContainerRef.current;
-        if (container) {
-          prevScrollHeight.current = container.scrollHeight;
-        }
-
         setTicket((prev) => ({
           ...prev,
           messages: [...newMessages.reverse(), ...prev.messages],
         }));
         setPage((p) => p + 1);
+
+        requestAnimationFrame(() => {
+          const newScrollHeight = container.scrollHeight;
+          container.scrollTop =
+            prevScrollTop + (newScrollHeight - prevScrollHeight);
+        });
       }
     } catch (error) {
       console.error("Error loading older messages:", error);
@@ -222,15 +214,6 @@ const Ticket = () => {
       setLoadingOlder(false);
     }
   }, [id, page, loadingOlder, hasMore, ticket]);
-
-  // Maintain scroll position when loading older messages
-  useEffect(() => {
-    if (prevScrollHeight.current > 0 && messagesContainerRef.current) {
-      const container = messagesContainerRef.current;
-      container.scrollTop = container.scrollHeight - prevScrollHeight.current;
-      prevScrollHeight.current = 0;
-    }
-  }, [ticket?.messages]);
 
   // Mark messages as read
   useEffect(() => {
@@ -350,7 +333,7 @@ const Ticket = () => {
       setFilePreview(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       toast.success("Message sent!");
-      setIsUserScrolling(false);
+      setIsNearBottom(true);
       setTimeout(() => scrollToBottom(), 100);
     } catch (error) {
       console.error("Error sending message:", error);
@@ -557,11 +540,7 @@ const Ticket = () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
         <motion.div
           animate={{ rotate: 360 }}
-          transition={{
-            duration: 2,
-            repeat: Number.POSITIVE_INFINITY,
-            ease: "linear",
-          }}
+          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
         >
           <Loader className="h-12 w-12 text-[#1E88E5]" />
         </motion.div>
@@ -584,7 +563,6 @@ const Ticket = () => {
           <button
             onClick={() => navigate("/gigs")}
             className="mt-4 px-4 py-2 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] transition"
-            aria-label="Back to gigs"
           >
             Back to Gigs
           </button>
@@ -600,12 +578,7 @@ const Ticket = () => {
     const actions = [];
 
     if (ticket.status === "open" || ticket.status === "negotiating") {
-      actions.push({
-        id: "price",
-        label: "Propose Price",
-        visible: true,
-        disabled: false,
-      });
+      actions.push({ id: "price", label: "Propose Price", visible: true });
     }
 
     if (ticket.status === "accepted" && isBuyer && ticket.agreedPrice) {
@@ -613,14 +586,8 @@ const Ticket = () => {
         id: "accept-price",
         label: "Accept Price",
         visible: true,
-        disabled: false,
       });
-      actions.push({
-        id: "payment",
-        label: "Confirm Payment",
-        visible: true,
-        disabled: false,
-      });
+      actions.push({ id: "payment", label: "Confirm Payment", visible: true });
     }
 
     if (ticket.status === "paid" && isBuyer) {
@@ -628,7 +595,6 @@ const Ticket = () => {
         id: "request-complete",
         label: "Request Completion",
         visible: true,
-        disabled: false,
       });
     }
 
@@ -637,7 +603,6 @@ const Ticket = () => {
         id: "confirm-complete",
         label: "Confirm Completion",
         visible: true,
-        disabled: false,
       });
     }
 
@@ -673,17 +638,17 @@ const Ticket = () => {
     const getButtonStyles = () => {
       switch (action.id) {
         case "price":
-          return "bg-[#1E88E5] hover:bg-[#1565C0] disabled:bg-gray-300 text-white";
+          return "bg-[#1E88E5] hover:bg-[#1565C0] text-white";
         case "accept-price":
         case "request-complete":
         case "confirm-complete":
-          return "bg-[#4CAF50] hover:bg-[#43A047] disabled:bg-gray-300 text-white";
+          return "bg-[#4CAF50] hover:bg-[#43A047] text-white";
         case "payment":
-          return "bg-[#0288D1] hover:bg-[#0277BD] disabled:bg-gray-300 text-white";
+          return "bg-[#0288D1] hover:bg-[#0277BD] text-white";
         case "close":
-          return "bg-[#D32F2F] hover:bg-[#C62828] disabled:bg-gray-300 text-white";
+          return "bg-[#D32F2F] hover:bg-[#C62828] text-white";
         default:
-          return "bg-gray-600 hover:bg-gray-700 disabled:bg-gray-300 text-white";
+          return "bg-gray-600 hover:bg-gray-700 text-white";
       }
     };
 
@@ -731,13 +696,11 @@ const Ticket = () => {
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1E88E5] text-sm"
             min="0"
             step="0.01"
-            aria-label="Propose price"
           />
           <button
             onClick={handleSetPrice}
             disabled={!agreedPrice || isNaN(agreedPrice) || agreedPrice <= 0}
             className={`${baseClasses} ${getButtonStyles()}`}
-            aria-label="Set price"
           >
             <DollarSign className="h-4 w-4" />
             Set Price
@@ -752,7 +715,6 @@ const Ticket = () => {
         onClick={getHandler()}
         disabled={action.disabled}
         className={`${baseClasses} ${getButtonStyles()}`}
-        aria-label={action.label}
       >
         {getIcon()}
         {isSubmittingRating && action.id === "close" ? (
@@ -790,7 +752,6 @@ const Ticket = () => {
               whileHover={{ scale: 1.05 }}
               onClick={() => navigate("/gigs")}
               className="text-gray-600 hover:text-[#1E88E5]"
-              aria-label="Back to gigs"
             >
               <ArrowLeft className="h-6 w-6" />
             </motion.button>
@@ -804,13 +765,12 @@ const Ticket = () => {
             </div>
           </div>
 
-          {/* Mobile Hamburger */}
+          {/* Mobile Menu */}
           <div className="lg:hidden" ref={menuRef}>
             <motion.button
               whileHover={{ scale: 1.05 }}
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="p-2 text-gray-600 hover:text-[#1E88E5] rounded-full"
-              aria-label="Open menu"
             >
               <Menu className="h-6 w-6" />
             </motion.button>
@@ -823,14 +783,13 @@ const Ticket = () => {
                   className="absolute right-4 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-50"
                 >
                   <div className="space-y-2">
-                    {visibleActions.map((action) => renderActionButton(action))}
+                    {visibleActions.map(renderActionButton)}
                     <button
                       onClick={() => {
                         setIsDetailsModalOpen(true);
                         setIsMenuOpen(false);
                       }}
                       className="w-full px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 font-medium text-sm flex items-center gap-2"
-                      aria-label="View more details"
                     >
                       <Info className="h-4 w-4" />
                       More Details
@@ -841,7 +800,7 @@ const Ticket = () => {
             </AnimatePresence>
           </div>
 
-          {/* PC Action Buttons */}
+          {/* Desktop Actions */}
           <div className="hidden lg:flex items-center gap-2">
             {visibleActions.map(renderActionButton)}
             <motion.button
@@ -855,56 +814,49 @@ const Ticket = () => {
         </div>
       </motion.div>
 
-      <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col lg:flex-row gap-6 relative">
-        {/* Chat Area */}
+      {/* Main Layout */}
+      <div className="flex-1 flex flex-col lg:flex-row gap-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 min-h-0">
+        {/* Chat Section */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="flex-1 bg-white rounded-lg shadow-md border border-gray-200 flex flex-col overflow-hidden"
+          className="flex-1 bg-white rounded-lg shadow-md border border-gray-200 flex flex-col min-h-0"
         >
-          <div className="sticky top-0 z-30 p-4 border-b border-gray-200 bg-white rounded-t-lg shadow-sm">
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search messages..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1E88E5] text-sm"
-                aria-label="Search messages"
-              />
-            </div>
+          {/* Search */}
+          <div className="p-4 border-b border-gray-200 bg-white">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search messages..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1E88E5] text-sm"
+            />
           </div>
 
+          {/* Messages */}
           <div
             ref={messagesContainerRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth"
+            className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0"
           >
             {loadingOlder && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-center py-2"
-              >
+              <div className="text-center py-2">
                 <Loader className="h-5 w-5 animate-spin inline text-[#1E88E5]" />
                 <p className="text-xs text-gray-500 mt-1">
                   Loading older messages...
                 </p>
-              </motion.div>
+              </div>
             )}
+
             {ticket.messages.length === 0 ? (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex items-center justify-center h-full text-gray-500"
-              >
+              <div className="flex items-center justify-center h-full text-gray-500">
                 <div className="text-center">
                   <MessageSquare className="h-12 w-12 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">
                     No messages yet. Start the conversation!
                   </p>
                 </div>
-              </motion.div>
+              </div>
             ) : (
               ticket.messages.map((msg) => (
                 <motion.div
@@ -943,10 +895,9 @@ const Ticket = () => {
                             href={msg.attachment}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="block"
                           >
                             <img
-                              src={msg.attachment || "/placeholder.svg"}
+                              src={msg.attachment}
                               alt="Attachment"
                               className="max-w-full h-auto rounded-md max-h-48"
                             />
@@ -969,9 +920,8 @@ const Ticket = () => {
                       ticket.status === "negotiating" && (
                         <motion.button
                           whileHover={{ scale: 1.05 }}
-                          onClick={() => handleAcceptPrice()}
+                          onClick={handleAcceptPrice}
                           className="mt-2 px-3 py-1 bg-[#4CAF50] text-white rounded-md hover:bg-[#43A047] text-sm"
-                          aria-label="Accept proposed price"
                         >
                           Accept Price
                         </motion.button>
@@ -987,17 +937,14 @@ const Ticket = () => {
               ))
             )}
             {typingUser && (
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-gray-500 text-sm italic"
-              >
+              <p className="text-gray-500 text-sm italic">
                 {typingUser} is typing...
-              </motion.p>
+              </p>
             )}
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Scroll to Bottom Button */}
           <AnimatePresence>
             {showScrollButton && (
               <motion.button
@@ -1008,14 +955,14 @@ const Ticket = () => {
                   scrollToBottom();
                   setShowScrollButton(false);
                 }}
-                className="absolute bottom-24 right-4 bg-[#1E88E5] text-white p-2 rounded-full shadow-lg hover:bg-[#1565C0] transition z-20"
-                aria-label="Scroll to bottom"
+                className="absolute bottom-24 right-4 bg-[#1E88E5] text-white p-2 rounded-full shadow-lg hover:bg-[#1565C0] z-20"
               >
                 <ChevronDown className="h-5 w-5" />
               </motion.button>
             )}
           </AnimatePresence>
 
+          {/* Input Area */}
           {ticket.status !== "closed" && (
             <div className="p-4 border-t border-gray-200 bg-white">
               {file && (
@@ -1027,7 +974,7 @@ const Ticket = () => {
                   <div className="flex items-center gap-2">
                     {filePreview ? (
                       <img
-                        src={filePreview || "/placeholder.svg"}
+                        src={filePreview}
                         alt="Preview"
                         className="h-10 w-10 object-cover rounded"
                       />
@@ -1038,18 +985,16 @@ const Ticket = () => {
                       {file.name}
                     </p>
                   </div>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
+                  <button
                     onClick={() => {
                       setFile(null);
                       setFilePreview(null);
                       if (fileInputRef.current) fileInputRef.current.value = "";
                     }}
                     className="text-red-500 text-sm"
-                    aria-label="Remove file"
                   >
                     Remove
-                  </motion.button>
+                  </button>
                 </motion.div>
               )}
               <div className="flex items-center gap-2">
@@ -1065,7 +1010,6 @@ const Ticket = () => {
                   placeholder="Type your message... (Enter to send)"
                   className="flex-1 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1E88E5] text-sm resize-none"
                   rows="3"
-                  aria-label="Message input"
                 />
                 <div className="flex flex-col gap-2">
                   <input
@@ -1074,45 +1018,38 @@ const Ticket = () => {
                     onChange={handleFileChange}
                     accept="image/jpeg,image/jpg,image/png,application/pdf"
                     className="hidden"
-                    id="file-upload"
-                    aria-label="Upload file"
                   />
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
+                  <button
                     onClick={() => fileInputRef.current?.click()}
                     className="p-3 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
-                    aria-label="Attach file"
                   >
                     <Paperclip className="h-5 w-5" />
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
+                  </button>
+                  <button
                     onClick={handleSendMessage}
                     disabled={isSending || (!message.trim() && !file)}
-                    className="p-3 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] disabled:bg-gray-300 disabled:cursor-not-allowed"
-                    aria-label="Send message"
+                    className="p-3 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] disabled:bg-gray-300"
                   >
                     <Send className="h-5 w-5" />
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
+                  </button>
+                  <button
                     onClick={handleAIResponse}
                     disabled={isSending || !message.trim()}
-                    className="p-3 bg-[#4CAF50] text-white rounded-md hover:bg-[#43A047] disabled:bg-gray-300 disabled:cursor-not-allowed"
-                    aria-label="Get AI suggestion"
+                    className="p-3 bg-[#4CAF50] text-white rounded-md hover:bg-[#43A047] disabled:bg-gray-300"
                   >
                     <MessageSquare className="h-5 w-5" />
-                  </motion.button>
+                  </button>
                 </div>
               </div>
             </div>
           )}
         </motion.div>
 
+        {/* Sidebar (Desktop Only) */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="hidden lg:block fixed right-4 top-24 w-80 bg-white rounded-lg shadow-md border border-gray-200 p-6 space-y-6 max-h-[calc(100vh-120px)] overflow-y-auto"
+          className="hidden lg:block w-80 bg-white rounded-lg shadow-md border border-gray-200 p-6 space-y-6"
         >
           <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
             <User className="h-5 w-5" />
@@ -1134,13 +1071,12 @@ const Ticket = () => {
                 <p className="text-xs text-gray-500">{ticket.sellerId.email}</p>
               </div>
             </div>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
+            <button
               onClick={() => navigate(`/users/${ticket.sellerId._id}`)}
               className="mt-3 w-full px-3 py-2 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] text-sm"
             >
               View Profile
-            </motion.button>
+            </button>
           </div>
 
           <div>
@@ -1158,13 +1094,12 @@ const Ticket = () => {
                 <p className="text-xs text-gray-500">{ticket.buyerId.email}</p>
               </div>
             </div>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
+            <button
               onClick={() => navigate(`/users/${ticket.buyerId._id}`)}
               className="mt-3 w-full px-3 py-2 bg-[#43A047] text-white rounded-md hover:bg-[#388E3C] text-sm"
             >
               View Profile
-            </motion.button>
+            </button>
           </div>
 
           {ticket.agreedPrice && (
@@ -1186,8 +1121,6 @@ const Ticket = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-            aria-modal="true"
-            role="dialog"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -1212,7 +1145,6 @@ const Ticket = () => {
                     whileHover={{ scale: 1.2 }}
                     onClick={() => setRating(star)}
                     className="p-1"
-                    aria-label={`Rate ${star} stars`}
                   >
                     <Star
                       className={`h-8 w-8 ${
@@ -1232,7 +1164,6 @@ const Ticket = () => {
                     setRating(0);
                   }}
                   className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
-                  aria-label="Cancel rating"
                 >
                   Cancel
                 </motion.button>
@@ -1240,8 +1171,7 @@ const Ticket = () => {
                   whileHover={{ scale: 1.05 }}
                   onClick={handleCloseTicket}
                   disabled={rating === 0 || isSubmittingRating}
-                  className="flex-1 px-4 py-2 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  aria-label="Submit rating"
+                  className="flex-1 px-4 py-2 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] disabled:bg-gray-300 flex items-center justify-center gap-2"
                 >
                   {isSubmittingRating ? (
                     <>
@@ -1269,8 +1199,6 @@ const Ticket = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-            aria-modal="true"
-            role="dialog"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -1293,7 +1221,6 @@ const Ticket = () => {
                     whileHover={{ scale: 1.2 }}
                     onClick={() => setRating(star)}
                     className="p-1"
-                    aria-label={`Rate ${star} stars`}
                   >
                     <Star
                       className={`h-8 w-8 ${
@@ -1313,7 +1240,6 @@ const Ticket = () => {
                     setRating(0);
                   }}
                   className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
-                  aria-label="Cancel rating"
                 >
                   Cancel
                 </motion.button>
@@ -1321,8 +1247,7 @@ const Ticket = () => {
                   whileHover={{ scale: 1.05 }}
                   onClick={handleSubmitCompletionRating}
                   disabled={rating === 0 || isSubmittingRating}
-                  className="flex-1 px-4 py-2 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  aria-label="Submit completion rating"
+                  className="flex-1 px-4 py-2 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] disabled:bg-gray-300 flex items-center justify-center gap-2"
                 >
                   {isSubmittingRating ? (
                     <>
@@ -1350,8 +1275,6 @@ const Ticket = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-            aria-modal="true"
-            role="dialog"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -1367,7 +1290,6 @@ const Ticket = () => {
                   whileHover={{ scale: 1.05 }}
                   onClick={() => setIsDetailsModalOpen(false)}
                   className="text-gray-600 hover:text-[#1E88E5]"
-                  aria-label="Close details"
                 >
                   <X className="h-6 w-6" />
                 </motion.button>
@@ -1410,7 +1332,6 @@ const Ticket = () => {
                       )
                     }
                     className="mt-2 px-3 py-1 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] text-sm"
-                    aria-label="View user profile"
                   >
                     View Profile
                   </motion.button>
@@ -1459,32 +1380,14 @@ const Ticket = () => {
 
       <style>{`
         @keyframes blob {
-          0%, 100% {
-            transform: translate(0, 0) scale(1);
-          }
-          33% {
-            transform: translate(30px, -50px) scale(1.1);
-          }
-          66% {
-            transform: translate(-20px, 20px) scale(0.9);
-          }
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
         }
-        
-        .animate-blob {
-          animation: blob 7s infinite;
-        }
-        
-        .animation-delay-2000 {
-          animation-delay: 2s;
-        }
-        
-        .animation-delay-3000 {
-          animation-delay: 3s;
-        }
-        
-        .animation-delay-4000 {
-          animation-delay: 4s;
-        }
+        .animate-blob { animation: blob 7s infinite; }
+        .animation-delay-2000 { animation-delay: 2s; }
+        .animation-delay-3000 { animation-delay: 3s; }
+        .animation-delay-4000 { animation-delay: 4s; }
       `}</style>
     </div>
   );
