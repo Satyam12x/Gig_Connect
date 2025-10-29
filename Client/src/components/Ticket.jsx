@@ -60,7 +60,10 @@ const Ticket = () => {
   const socketRef = useRef(null);
   const fileInputRef = useRef(null);
   const menuRef = useRef(null);
-  const isUserScrolling = useRef(false);
+
+  // NEW: Prevent bounce-back
+  const userScrolledUp = useRef(false);
+  const lastScrollTop = useRef(0);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -69,16 +72,29 @@ const Ticket = () => {
   const handleScroll = useCallback(() => {
     if (!messagesContainerRef.current) return;
 
-    const { scrollTop, scrollHeight, clientHeight } =
-      messagesContainerRef.current;
+    const container = messagesContainerRef.current;
+    const { scrollTop, scrollHeight, clientHeight } = container;
+
+    // Detect scroll direction
+    const scrollingUp = scrollTop < lastScrollTop.current;
+    lastScrollTop.current = scrollTop;
+
+    // User is manually scrolling up → disable auto-scroll
+    if (scrollingUp && scrollTop < scrollHeight - clientHeight - 200) {
+      userScrolledUp.current = true;
+    }
+
+    // Near bottom → allow auto-scroll
     const nearBottom = scrollHeight - scrollTop - clientHeight < 150;
+    if (nearBottom) {
+      userScrolledUp.current = false;
+    }
 
     setShowScrollButton(!nearBottom);
     setIsNearBottom(nearBottom);
 
-    isUserScrolling.current = !nearBottom;
-
-    if (scrollTop < 200 && hasMore && !loadingOlder) {
+    // Load older messages
+    if (scrollTop < 300 && hasMore && !loadingOlder) {
       loadOlderMessages();
     }
   }, [hasMore, loadingOlder]);
@@ -113,7 +129,7 @@ const Ticket = () => {
 
       const handleNewMessage = (updatedTicket) => {
         setTicket(updatedTicket);
-        if (isNearBottom) {
+        if (!userScrolledUp.current) {
           setTimeout(() => scrollToBottom(), 100);
         }
       };
@@ -149,7 +165,7 @@ const Ticket = () => {
         socketRef.current.disconnect();
       };
     }
-  }, [userId, id, ticket, isNearBottom, scrollToBottom]);
+  }, [userId, id, ticket, scrollToBottom]);
 
   // Fetch ticket data
   useEffect(() => {
@@ -333,7 +349,7 @@ const Ticket = () => {
       setFilePreview(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       toast.success("Message sent!");
-      setIsNearBottom(true);
+      userScrolledUp.current = false;
       setTimeout(() => scrollToBottom(), 100);
     } catch (error) {
       console.error("Error sending message:", error);
@@ -820,7 +836,7 @@ const Ticket = () => {
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="flex-1 bg-white rounded-lg shadow-md border border-gray-200 flex flex-col min-h-0"
+          className="flex-1 bg-white rounded-lg shadow-md border border-gray-200 flex flex-col min-h-0 lg:mr-84"
         >
           {/* Search */}
           <div className="p-4 border-b border-gray-200 bg-white">
@@ -954,6 +970,7 @@ const Ticket = () => {
                 onClick={() => {
                   scrollToBottom();
                   setShowScrollButton(false);
+                  userScrolledUp.current = false;
                 }}
                 className="absolute bottom-24 right-4 bg-[#1E88E5] text-white p-2 rounded-full shadow-lg hover:bg-[#1565C0] z-20"
               >
@@ -1045,18 +1062,20 @@ const Ticket = () => {
           )}
         </motion.div>
 
-        {/* Sidebar (Desktop Only) */}
+        {/* Fixed Members Sidebar (Desktop Only) */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="hidden lg:block w-80 bg-white rounded-lg shadow-md border border-gray-200 p-6 space-y-6"
+          className="hidden lg:block fixed right-4 top-1/2 -translate-y-1/2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 p-6 z-30"
+          style={{ maxHeight: "calc(100vh - 8rem)", overflowY: "auto" }}
         >
-          <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+          <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">
             <User className="h-5 w-5" />
             Ticket Members
           </h3>
 
-          <div>
+          {/* Seller */}
+          <div className="mb-6">
             <p className="text-sm font-medium text-gray-600 mb-2">
               Owner (Seller)
             </p>
@@ -1079,6 +1098,7 @@ const Ticket = () => {
             </button>
           </div>
 
+          {/* Buyer */}
           <div>
             <p className="text-sm font-medium text-gray-600 mb-2">
               Applicant (Buyer)
@@ -1102,8 +1122,9 @@ const Ticket = () => {
             </button>
           </div>
 
+          {/* Agreed Price */}
           {ticket.agreedPrice && (
-            <div className="pt-4 border-t">
+            <div className="mt-6 pt-4 border-t">
               <p className="text-sm font-medium text-gray-600">Agreed Price</p>
               <p className="text-2xl font-bold text-[#1E88E5]">
                 ₹{ticket.agreedPrice.toLocaleString()}
