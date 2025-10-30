@@ -55,7 +55,6 @@ const Ticket = () => {
   const [page, setPage] = useState(1);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
-  const [isNearBottom, setIsNearBottom] = useState(true);
 
   /* ---------- REFS ---------- */
   const messagesEndRef = useRef(null);
@@ -63,10 +62,7 @@ const Ticket = () => {
   const socketRef = useRef(null);
   const fileInputRef = useRef(null);
   const menuRef = useRef(null);
-
-  // Prevent bounce‑back when reading old messages
-  const userScrolledUp = useRef(false);
-  const lastScrollTop = useRef(0);
+  const wasNearBottom = useRef(true);
 
   /* ---------- HELPERS ---------- */
   const scrollToBottom = useCallback(() => {
@@ -75,26 +71,14 @@ const Ticket = () => {
 
   const handleScroll = useCallback(() => {
     if (!messagesContainerRef.current) return;
-    const c = messagesContainerRef.current;
-    const { scrollTop, scrollHeight, clientHeight } = c;
+    const container = messagesContainerRef.current;
+    const { scrollTop, scrollHeight, clientHeight } = container;
 
-    // Detect direction
-    const scrollingUp = scrollTop < lastScrollTop.current;
-    lastScrollTop.current = scrollTop;
-
-    // User manually scrolls up → stop auto‑scroll
-    if (scrollingUp && scrollTop < scrollHeight - clientHeight - 200) {
-      userScrolledUp.current = true;
-    }
-
-    // Near bottom → allow auto‑scroll
     const nearBottom = scrollHeight - scrollTop - clientHeight < 150;
-    if (nearBottom) userScrolledUp.current = false;
-
     setShowScrollButton(!nearBottom);
-    setIsNearBottom(nearBottom);
+    wasNearBottom.current = nearBottom;
 
-    // Load older messages
+    // Load older messages only when scrolling near top
     if (scrollTop < 300 && hasMore && !loadingOlder) {
       loadOlderMessages();
     }
@@ -130,7 +114,10 @@ const Ticket = () => {
 
     const onNewMessage = (updatedTicket) => {
       setTicket(updatedTicket);
-      if (!userScrolledUp.current) setTimeout(scrollToBottom, 100);
+      // Only auto-scroll if user was near bottom
+      if (wasNearBottom.current) {
+        setTimeout(scrollToBottom, 100);
+      }
     };
 
     const onTyping = ({ userId: typerId, userName }) => {
@@ -172,7 +159,10 @@ const Ticket = () => {
         });
         setTicket(data);
         setLoading(false);
-        setTimeout(scrollToBottom, 100);
+        setTimeout(() => {
+          scrollToBottom();
+          wasNearBottom.current = true;
+        }, 100);
       } catch (e) {
         toast.error(e.response?.data?.error || "Failed to load ticket.");
         if (e.response?.status === 401 || e.response?.status === 403) {
@@ -191,8 +181,8 @@ const Ticket = () => {
     setLoadingOlder(true);
 
     const container = messagesContainerRef.current;
-    const prevTop = container.scrollTop;
-    const prevHeight = container.scrollHeight;
+    const prevScrollHeight = container.scrollHeight;
+    const prevScrollTop = container.scrollTop;
 
     try {
       const { data } = await axios.get(`${API_BASE}/tickets/${id}/messages`, {
@@ -208,9 +198,11 @@ const Ticket = () => {
           messages: [...newMsgs.reverse(), ...p.messages],
         }));
         setPage((p) => p + 1);
+
         requestAnimationFrame(() => {
-          const newHeight = container.scrollHeight;
-          container.scrollTop = prevTop + (newHeight - prevHeight);
+          const newScrollHeight = container.scrollHeight;
+          container.scrollTop =
+            prevScrollTop + (newScrollHeight - prevScrollHeight);
         });
       }
     } catch (e) {
@@ -277,7 +269,7 @@ const Ticket = () => {
       const refetch = async () => {
         const { data } = await axios.get(`${API_BASE}/tickets/${id}`, {
           headers: {
-            Authorization: eab`Bearer ${localStorage.getItem("token")}`,
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
           },
         });
         setTicket(data);
@@ -322,7 +314,7 @@ const Ticket = () => {
       setFilePreview(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       toast.success("Message sent!");
-      userScrolledUp.current = false;
+      wasNearBottom.current = true;
       setTimeout(scrollToBottom, 100);
     } catch (e) {
       toast.error(e.response?.data?.error || "Failed to send.");
@@ -474,7 +466,7 @@ const Ticket = () => {
   const handleFileChange = (e) => {
     const f = e.target.files[0];
     if (!f) return;
-    if (f.size > 5 * 1024 * 1024) return toast.error("File ≤ 5 MB");
+    if (f.size > 5 * 1024 * 1024) return toast.error("File ≤ 5 MB");
     setFile(f);
     setFilePreview(f.type.startsWith("image/") ? URL.createObjectURL(f) : null);
   };
@@ -709,16 +701,16 @@ const Ticket = () => {
         </div>
       </motion.header>
 
-      {/* ---------- SINGLE SCROLLABLE PAGE ---------- */}
-      <div className="flex-1 flex flex-col lg:flex-row max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 gap-6 overflow-hidden">
-        {/* Chat Area – ONLY scrollable part */}
+      {/* ---------- MAIN CHAT (FIXED HEIGHT) ---------- */}
+      <div className="flex-1 flex flex-col max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 gap-0">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="flex-1 bg-white rounded-lg shadow-md border border-gray-200 flex flex-col min-h-0 lg:mr-84 overflow-hidden"
+          className="flex-1 bg-white rounded-t-lg shadow-md border border-gray-200 flex flex-col overflow-hidden"
+          style={{ maxHeight: "calc(100vh - 220px)" }}
         >
           {/* Search */}
-          <div className="p-4 border-b border-gray-200 bg-white">
+          <div className="p-3 border-b border-gray-200 bg-white">
             <input
               type="text"
               value={searchQuery}
@@ -728,18 +720,15 @@ const Ticket = () => {
             />
           </div>
 
-          {/* Messages – SCROLLABLE */}
+          {/* Messages - FIXED HEIGHT + SCROLLABLE */}
           <div
             ref={messagesContainerRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0"
+            className="flex-1 overflow-y-auto p-4 space-y-3"
           >
             {loadingOlder && (
               <div className="text-center py-2">
                 <Loader className="h-5 w-5 animate-spin inline text-[#1E88E5]" />
-                <p className="text-xs text-gray-500 mt-1">
-                  Loading older messages...
-                </p>
               </div>
             )}
             {ticket.messages.length === 0 ? (
@@ -762,7 +751,7 @@ const Ticket = () => {
                   }`}
                 >
                   <div
-                    className={`max-w-[70%] p-3 rounded-lg shadow-sm ${
+                    className={`max-w-[75%] p-3 rounded-xl shadow-sm text-sm ${
                       msg.senderId === userId
                         ? "bg-[#1E88E5] text-white"
                         : msg.senderId === "AI"
@@ -771,13 +760,12 @@ const Ticket = () => {
                     }`}
                   >
                     {msg.senderId !== userId && (
-                      <p className="text-xs font-medium text-gray-600 mb-1">
+                      <p className="text-xs font-medium opacity-80 mb-1">
                         {msg.senderName}
                         {msg.senderId === "AI" && " (AI)"}
                       </p>
                     )}
                     <p
-                      className="text-sm"
                       dangerouslySetInnerHTML={{
                         __html: highlightText(msg.content, searchQuery),
                       }}
@@ -785,114 +773,89 @@ const Ticket = () => {
                     {msg.attachment && (
                       <div className="mt-2">
                         {msg.attachment.match(/\.(jpg|jpeg|png)$/i) ? (
-                          <a
-                            href={msg.attachment}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <img
-                              src={msg.attachment}
-                              alt="Attachment"
-                              className="max-w-full h-auto rounded-md max-h-48"
-                            />
-                          </a>
+                          <img
+                            src={msg.attachment}
+                            alt="Attachment"
+                            className="max-w-full h-auto rounded-md max-h-48"
+                          />
                         ) : (
                           <a
                             href={msg.attachment}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2 text-[#1E88E5] hover:underline text-sm"
+                            className="flex items-center gap-1 text-xs underline"
                           >
-                            <Paperclip className="h-4 w-4" />
+                            <Paperclip className="h-3 w-3" />
                             {msg.attachment.split("/").pop()}
                           </a>
                         )}
                       </div>
                     )}
-                    {msg.content.startsWith("Price of ₹") &&
-                      isBuyer &&
-                      ticket.status === "negotiating" && (
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          onClick={handleAcceptPrice}
-                          className="mt-2 px-3 py-1 bg-[#4CAF50] text-white rounded-md hover:bg-[#43A047] text-sm"
-                        >
-                          Accept Price
-                        </motion.button>
-                      )}
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs opacity-70 mt-1">
                       {moment(msg.timestamp).fromNow()}
-                      {msg.read && msg.senderId !== userId && (
-                        <span className="ml-2 text-[#1E88E5]">Read</span>
-                      )}
+                      {msg.read && msg.senderId !== userId && " Read"}
                     </p>
                   </div>
                 </motion.div>
               ))
             )}
             {typingUser && (
-              <p className="text-gray-500 text-sm italic">
+              <p className="text-xs text-gray-500 italic text-center">
                 {typingUser} is typing...
               </p>
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Scroll‑to‑bottom button */}
+          {/* Scroll to Bottom Button */}
           <AnimatePresence>
             {showScrollButton && (
               <motion.button
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
                 onClick={() => {
                   scrollToBottom();
+                  wasNearBottom.current = true;
                   setShowScrollButton(false);
-                  userScrolledUp.current = false;
                 }}
-                className="absolute bottom-24 right-4 bg-[#1E88E5] text-white p-2 rounded-full shadow-lg hover:bg-[#1565C0] z-20"
+                className="fixed bottom-24 right-6 bg-[#1E88E5] text-white p-3 rounded-full shadow-lg hover:bg-[#1565C0] z-50"
               >
                 <ChevronDown className="h-5 w-5" />
               </motion.button>
             )}
           </AnimatePresence>
 
-          {/* Input */}
+          {/* INPUT FOOTER - STICKY */}
           {ticket.status !== "closed" && (
-            <div className="p-4 border-t border-gray-200 bg-white">
+            <div className="border-t border-gray-200 bg-white p-3">
               {file && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center justify-between bg-gray-100 rounded-md p-2 mb-2"
-                >
+                <div className="flex items-center justify-between bg-gray-100 rounded-md p-2 mb-2 text-sm">
                   <div className="flex items-center gap-2">
                     {filePreview ? (
                       <img
                         src={filePreview}
                         alt="Preview"
-                        className="h-10 w-10 object-cover rounded"
+                        className="h-8 w-8 object-cover rounded"
                       />
                     ) : (
-                      <Paperclip className="h-5 w-5 text-gray-600" />
+                      <Paperclip className="h-4 w-4 text-gray-600" />
                     )}
-                    <p className="text-sm text-gray-600 truncate">
-                      {file.name}
-                    </p>
+                    <span className="truncate max-w-[180px]">{file.name}</span>
                   </div>
                   <button
                     onClick={() => {
                       setFile(null);
                       setFilePreview(null);
-                      if (fileInputRef.current) fileInputRef.current.value = "";
+                      fileInputRef.current.value = "";
                     }}
-                    className="text-red-500 text-sm"
+                    className="text-red-500 text-xs"
                   >
                     Remove
                   </button>
-                </motion.div>
+                </div>
               )}
-              <div className="flex items-center gap-2">
+              <div className="flex items-end gap-2">
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
@@ -902,115 +865,49 @@ const Ticket = () => {
                       handleSendMessage();
                     }
                   }}
-                  placeholder="Type your message... (Enter to send)"
-                  className="flex-1 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1E88E5] text-sm resize-none"
-                  rows="3"
+                  placeholder="Type a message..."
+                  className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E88E5] text-sm resize-none max-h-24"
+                  rows="1"
                 />
-                <div className="flex flex-col gap-2">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    accept="image/jpeg,image/jpg,image/png,application/pdf"
-                    className="hidden"
-                  />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="p-3 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
-                  >
-                    <Paperclip className="h-5 w-5" />
-                  </button>
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={isSending || (!message.trim() && !file)}
-                    className="p-3 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] disabled:bg-gray-300"
-                  >
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  className="hidden"
+                  accept="image/*,.pdf"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-3 bg-gray-200 rounded-lg hover:bg-gray-300"
+                >
+                  <Paperclip className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={handleSendMessage}
+                  disabled={isSending || (!message.trim() && !file)}
+                  className="p-3 bg-[#1E88E5] text-white rounded-lg hover:bg-[#1565C0] disabled:bg-gray-400"
+                >
+                  {isSending ? (
+                    <Loader className="h-5 w-5 animate-spin" />
+                  ) : (
                     <Send className="h-5 w-5" />
-                  </button>
-                  <button
-                    onClick={handleAIResponse}
-                    disabled={isSending || !message.trim()}
-                    className="p-3 bg-[#4CAF50] text-white rounded-md hover:bg-[#43A047] disabled:bg-gray-300"
-                  >
-                    <MessageSquare className="h-5 w-5" />
-                  </button>
-                </div>
+                  )}
+                </button>
+                <button
+                  onClick={handleAIResponse}
+                  disabled={isSending || !message.trim()}
+                  className="p-3 bg-[#4CAF50] text-white rounded-lg hover:bg-[#43A047] disabled:bg-gray-400"
+                >
+                  <MessageSquare className="h-5 w-5" />
+                </button>
               </div>
-            </div>
-          )}
-        </motion.div>
-
-        {/* ---------- FIXED MEMBERS SIDEBAR (desktop) ---------- */}
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="hidden lg:block fixed right-4 top-1/2 -translate-y-1/2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 p-6 z-30"
-          style={{ maxHeight: "calc(100vh - 8rem)", overflowY: "auto" }}
-        >
-          <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">
-            <User className="h-5 w-5" /> Ticket Members
-          </h3>
-
-          {/* Seller */}
-          <div className="mb-6">
-            <p className="text-sm font-medium text-gray-600 mb-2">
-              Owner (Seller)
-            </p>
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 bg-[#1E88E5] rounded-full flex items-center justify-center text-white font-bold text-lg">
-                {ticket.sellerId.fullName.charAt(0)}
-              </div>
-              <div>
-                <p className="font-medium text-gray-800">
-                  {ticket.sellerId.fullName}
-                </p>
-                <p className="text-xs text-gray-500">{ticket.sellerId.email}</p>
-              </div>
-            </div>
-            <button
-              onClick={() => navigate(`/users/${ticket.sellerId._id}`)}
-              className="mt-3 w-full px-3 py-2 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] text-sm"
-            >
-              View Profile
-            </button>
-          </div>
-
-          {/* Buyer */}
-          <div>
-            <p className="text-sm font-medium text-gray-600 mb-2">
-              Applicant (Buyer)
-            </p>
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 bg-[#43A047] rounded-full flex items-center justify-center text-white font-bold text-lg">
-                {ticket.buyerId.fullName.charAt(0)}
-              </div>
-              <div>
-                <p className="font-medium text-gray-800">
-                  {ticket.buyerId.fullName}
-                </p>
-                <p className="text-xs text-gray-500">{ticket.buyerId.email}</p>
-              </div>
-            </div>
-            <button
-              onClick={() => navigate(`/users/${ticket.buyerId._id}`)}
-              className="mt-3 w-full px-3 py-2 bg-[#43A047] text-white rounded-md hover:bg-[#388E3C] text-sm"
-            >
-              View Profile
-            </button>
-          </div>
-
-          {ticket.agreedPrice && (
-            <div className="mt-6 pt-4 border-t">
-              <p className="text-sm font-medium text-gray-600">Agreed Price</p>
-              <p className="text-2xl font-bold text-[#1E88E5]">
-                ₹{ticket.agreedPrice.toLocaleString()}
-              </p>
             </div>
           )}
         </motion.div>
       </div>
 
       {/* ---------- MODALS ---------- */}
+
       {/* Rating Modal */}
       <AnimatePresence>
         {isRatingModalOpen && (
@@ -1029,7 +926,7 @@ const Ticket = () => {
               <h2 className="text-xl font-bold text-gray-800 mb-2">
                 Rate Your Experience
               </h2>
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-sm text-gray-600 mb-6">
                 How was your experience with{" "}
                 <span className="font-semibold">
                   {isBuyer ? ticket.sellerId.fullName : ticket.buyerId.fullName}
@@ -1037,16 +934,16 @@ const Ticket = () => {
                 ?
               </p>
               <div className="flex justify-center gap-2 mb-6">
-                {[1, 2, 3, 4, 5].map((s) => (
+                {[1, 2, 3, 4, 5].map((star) => (
                   <motion.button
-                    key={s}
+                    key={star}
                     whileHover={{ scale: 1.2 }}
-                    onClick={() => setRating(s)}
+                    onClick={() => setRating(star)}
                     className="p-1"
                   >
                     <Star
                       className={`h-8 w-8 ${
-                        rating >= s
+                        rating >= star
                           ? "fill-yellow-400 text-yellow-400"
                           : "text-gray-300"
                       }`}
@@ -1061,7 +958,7 @@ const Ticket = () => {
                     setIsRatingModalOpen(false);
                     setRating(0);
                   }}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-medium transition-colors"
                 >
                   Cancel
                 </motion.button>
@@ -1069,7 +966,7 @@ const Ticket = () => {
                   whileHover={{ scale: 1.05 }}
                   onClick={handleCloseTicket}
                   disabled={rating === 0 || isSubmittingRating}
-                  className="flex-1 px-4 py-2 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] disabled:bg-gray-300 flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-2 bg-[#1E88E5] text-white rounded-lg hover:bg-[#1565C0] disabled:bg-gray-400 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2 transition-colors"
                 >
                   {isSubmittingRating ? (
                     <>
@@ -1105,22 +1002,22 @@ const Ticket = () => {
               <h2 className="text-xl font-bold text-gray-800 mb-2">
                 Rate the Buyer
               </h2>
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-sm text-gray-600 mb-6">
                 How was your experience with{" "}
                 <span className="font-semibold">{ticket.buyerId.fullName}</span>
                 ?
               </p>
               <div className="flex justify-center gap-2 mb-6">
-                {[1, 2, 3, 4, 5].map((s) => (
+                {[1, 2, 3, 4, 5].map((star) => (
                   <motion.button
-                    key={s}
+                    key={star}
                     whileHover={{ scale: 1.2 }}
-                    onClick={() => setRating(s)}
+                    onClick={() => setRating(star)}
                     className="p-1"
                   >
                     <Star
                       className={`h-8 w-8 ${
-                        rating >= s
+                        rating >= star
                           ? "fill-yellow-400 text-yellow-400"
                           : "text-gray-300"
                       }`}
@@ -1135,7 +1032,7 @@ const Ticket = () => {
                     setIsCompletionModalOpen(false);
                     setRating(0);
                   }}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-medium transition-colors"
                 >
                   Cancel
                 </motion.button>
@@ -1143,7 +1040,7 @@ const Ticket = () => {
                   whileHover={{ scale: 1.05 }}
                   onClick={handleSubmitCompletionRating}
                   disabled={rating === 0 || isSubmittingRating}
-                  className="flex-1 px-4 py-2 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] disabled:bg-gray-300 flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-2 bg-[#1E88E5] text-white rounded-lg hover:bg-[#1565C0] disabled:bg-gray-400 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2 transition-colors"
                 >
                   {isSubmittingRating ? (
                     <>
@@ -1176,48 +1073,48 @@ const Ticket = () => {
               exit={{ scale: 0.9, opacity: 0 }}
               className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 max-h-[80vh] overflow-y-auto"
             >
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold text-gray-800">
                   Ticket Details
                 </h2>
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   onClick={() => setIsDetailsModalOpen(false)}
-                  className="text-gray-600 hover:text-[#1E88E5]"
+                  className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
                 >
-                  <X className="h-6 w-6" />
+                  <X className="h-5 w-5" />
                 </motion.button>
               </div>
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-800">
+                  <h3 className="text-sm font-semibold text-gray-800 mb-2">
                     Status
                   </h3>
-                  <p className="text-sm text-gray-600 capitalize bg-gray-100 px-2 py-1 rounded inline-block">
-                    {ticket.status}
-                  </p>
+                  <span className="inline-flex px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
+                    {ticket.status.replace("_", " ")}
+                  </span>
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-800">
+                  <h3 className="text-sm font-semibold text-gray-800 mb-3">
                     {isBuyer ? "Seller" : "Buyer"}
                   </h3>
-                  <div className="flex items-center gap-2 mt-2">
-                    <div className="h-8 w-8 bg-[#1E88E5] rounded-full flex items-center justify-center text-white font-bold">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="h-10 w-10 bg-[#1E88E5] rounded-full flex items-center justify-center text-white font-bold text-sm">
                       {ticket[
                         isBuyer ? "sellerId" : "buyerId"
                       ]?.fullName?.charAt(0) || "U"}
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-800 truncate">
                         {ticket[isBuyer ? "sellerId" : "buyerId"]?.fullName}
                       </p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-gray-500 truncate">
                         {ticket[isBuyer ? "sellerId" : "buyerId"]?.email}
                       </p>
                     </div>
                   </div>
                   <motion.button
-                    whileHover={{ scale: 1.05 }}
+                    whileHover={{ scale: 1.02 }}
                     onClick={() =>
                       navigate(
                         `/users/${
@@ -1225,14 +1122,14 @@ const Ticket = () => {
                         }`
                       )
                     }
-                    className="mt-2 px-3 py-1 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0] text-sm"
+                    className="w-full px-4 py-2 bg-[#1E88E5] text-white rounded-lg hover:bg-[#1565C0] text-sm font-medium transition-colors"
                   >
                     View Profile
                   </motion.button>
                 </div>
                 {ticket.agreedPrice && (
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-800">
+                  <div className="bg-blue-50 rounded-lg p-4">
+                    <h3 className="text-sm font-semibold text-gray-800 mb-2">
                       Agreed Price
                     </h3>
                     <p className="text-lg font-bold text-[#1E88E5]">
@@ -1242,20 +1139,22 @@ const Ticket = () => {
                 )}
                 {ticket.timeline?.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2 mb-4">
                       <Clock className="h-4 w-4" /> Timeline
                     </h3>
-                    <div className="mt-2 space-y-2">
-                      {ticket.timeline.map((e) => (
-                        <div key={e._id} className="flex gap-2">
+                    <div className="space-y-4">
+                      {ticket.timeline.map((event) => (
+                        <div key={event._id} className="flex gap-4">
                           <div className="flex flex-col items-center">
-                            <div className="h-2 w-2 bg-[#1E88E5] rounded-full mt-1" />
-                            <div className="h-8 w-0.5 bg-gray-200" />
+                            <div className="h-3 w-3 bg-[#1E88E5] rounded-full" />
+                            <div className="h-20 w-0.5 bg-gray-200 mt-2" />
                           </div>
-                          <div>
-                            <p className="text-sm text-gray-800">{e.action}</p>
-                            <p className="text-xs text-gray-500">
-                              {moment(e.timestamp).fromNow()}
+                          <div className="flex-1">
+                            <p className="text-sm text-gray-800 font-medium">
+                              {event.action}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {moment(event.timestamp).fromNow()}
                             </p>
                           </div>
                         </div>
@@ -1269,16 +1168,31 @@ const Ticket = () => {
         )}
       </AnimatePresence>
 
-      <style>{`
+      <style jsx>{`
         @keyframes blob {
-          0%, 100% { transform: translate(0,0) scale(1); }
-          33% { transform: translate(30px,-50px) scale(1.1); }
-          66% { transform: translate(-20px,20px) scale(0.9); }
+          0%,
+          100% {
+            transform: translate(0, 0) scale(1);
+          }
+          33% {
+            transform: translate(30px, -50px) scale(1.1);
+          }
+          66% {
+            transform: translate(-20px, 20px) scale(0.9);
+          }
         }
-        .animate-blob { animation: blob 7s infinite; }
-        .animation‑delay‑2000 { animation-delay: 2s; }
-        .animation‑delay‑3000 { animation-delay: 3s; }
-        .animation‑delay‑4000 { animation-delay: 4s; }
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        .animation-delay-3000 {
+          animation-delay: 3s;
+        }
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
       `}</style>
     </div>
   );
