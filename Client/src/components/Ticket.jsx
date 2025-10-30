@@ -312,7 +312,7 @@ const Ticket = () => {
       if (message.trim()) fd.append("content", message);
       if (file) fd.append("attachment", file);
       if (replyingTo) fd.append("replyTo", replyingTo._id);
-      
+
       const { data } = await axios.post(
         `${API_BASE}/tickets/${id}/messages`,
         fd,
@@ -495,7 +495,10 @@ const Ticket = () => {
   const highlightText = (text, q) => {
     if (!q) return text;
     const r = new RegExp(`(${q})`, "gi");
-    return text.replace(r, '<mark class="bg-yellow-300 text-gray-900 px-1 rounded">$1</mark>');
+    return text.replace(
+      r,
+      '<mark class="bg-yellow-300 text-gray-900 px-1 rounded">$1</mark>'
+    );
   };
 
   const getStatusColor = (status) => {
@@ -558,8 +561,13 @@ const Ticket = () => {
           <div className="h-16 w-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="h-8 w-8 text-red-600" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Ticket Not Found</h2>
-          <p className="text-gray-600 mb-6">The ticket you're looking for doesn't exist or you don't have access to it.</p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Ticket Not Found
+          </h2>
+          <p className="text-gray-600 mb-6">
+            The ticket you're looking for doesn't exist or you don't have access
+            to it.
+          </p>
           <button
             onClick={() => navigate("/gigs")}
             className="w-full px-6 py-3 bg-[#1E88E5] text-white rounded-xl hover:bg-[#1565C0] font-medium transition-all transform hover:scale-105"
@@ -583,9 +591,17 @@ const Ticket = () => {
       a.push({ id: "payment", label: "Confirm Payment", icon: DollarSign });
     }
     if (ticket.status === "paid" && isBuyer)
-      a.push({ id: "request-complete", label: "Request Completion", icon: Package });
+      a.push({
+        id: "request-complete",
+        label: "Request Completion",
+        icon: Package,
+      });
     if (ticket.status === "pending_completion" && isSeller)
-      a.push({ id: "confirm-complete", label: "Confirm Completion", icon: CheckCircle });
+      a.push({
+        id: "confirm-complete",
+        label: "Confirm Completion",
+        icon: CheckCircle,
+      });
     if (ticket.status === "completed")
       a.push({
         id: "close",
@@ -611,12 +627,18 @@ const Ticket = () => {
       "w-full px-4 py-2.5 rounded-xl font-medium text-sm flex items-center justify-center gap-2 transition-all transform hover:scale-105 shadow-sm";
     const styles =
       {
-        price: "bg-gradient-to-r from-[#1E88E5] to-[#1565C0] hover:from-[#1565C0] hover:to-[#0D47A1] text-white",
-        "accept-price": "bg-gradient-to-r from-[#4CAF50] to-[#43A047] hover:from-[#43A047] hover:to-[#388E3C] text-white",
-        "request-complete": "bg-gradient-to-r from-[#4CAF50] to-[#43A047] hover:from-[#43A047] hover:to-[#388E3C] text-white",
-        "confirm-complete": "bg-gradient-to-r from-[#4CAF50] to-[#43A047] hover:from-[#43A047] hover:to-[#388E3C] text-white",
-        payment: "bg-gradient-to-r from-[#0288D1] to-[#0277BD] hover:from-[#0277BD] hover:to-[#01579B] text-white",
-        close: "bg-gradient-to-r from-[#D32F2F] to-[#C62828] hover:from-[#C62828] hover:to-[#B71C1C] text-white",
+        price:
+          "bg-gradient-to-r from-[#1E88E5] to-[#1565C0] hover:from-[#1565C0] hover:to-[#0D47A1] text-white",
+        "accept-price":
+          "bg-gradient-to-r from-[#4CAF50] to-[#43A047] hover:from-[#43A047] hover:to-[#388E3C] text-white",
+        "request-complete":
+          "bg-gradient-to-r from-[#4CAF50] to-[#43A047] hover:from-[#43A047] hover:to-[#388E3C] text-white",
+        "confirm-complete":
+          "bg-gradient-to-r from-[#4CAF50] to-[#43A047] hover:from-[#43A047] hover:to-[#388E3C] text-white",
+        payment:
+          "bg-gradient-to-r from-[#0288D1] to-[#0277BD] hover:from-[#0277BD] hover:to-[#01579B] text-white",
+        close:
+          "bg-gradient-to-r from-[#D32F2F] to-[#C62828] hover:from-[#C62828] hover:to-[#B71C1C] text-white",
       }[act.id] || "bg-gray-600 hover:bg-gray-700 text-white";
 
     const Icon = act.icon;
@@ -685,7 +707,11 @@ const Ticket = () => {
         <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-gradient-to-br from-cyan-300 to-cyan-100 rounded-full mix-blend-multiply filter blur-3xl opacity-15 animate-blob animation-delay-3000"></div>
       </div>
 
-      <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+      />
 
       {/* ---------- HEADER ---------- */}
       <motion.header
@@ -710,11 +736,17 @@ const Ticket = () => {
                   {ticket.gigId.title}
                 </h1>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(ticket.status)}`}>
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
+                      ticket.status
+                    )}`}
+                  >
                     {getStatusIcon(ticket.status)}
                     {ticket.status.replace("_", " ")}
                   </span>
-                  <span className="text-xs text-gray-500">ID: {ticket._id.slice(-8)}</span>
+                  <span className="text-xs text-gray-500">
+                    ID: {ticket._id.slice(-8)}
+                  </span>
                 </div>
               </div>
             </div>
@@ -816,7 +848,9 @@ const Ticket = () => {
                 className="text-center py-3"
               >
                 <Loader className="h-5 w-5 animate-spin inline text-[#1E88E5]" />
-                <p className="text-xs text-gray-500 mt-1">Loading older messages...</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Loading older messages...
+                </p>
               </motion.div>
             )}
 
@@ -830,15 +864,21 @@ const Ticket = () => {
                   <div className="h-20 w-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <MessageSquare className="h-10 w-10 text-[#1E88E5] opacity-50" />
                   </div>
-                  <p className="text-gray-600 font-medium mb-1">No messages yet</p>
-                  <p className="text-sm text-gray-500">Start the conversation!</p>
+                  <p className="text-gray-600 font-medium mb-1">
+                    No messages yet
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Start the conversation!
+                  </p>
                 </div>
               </motion.div>
             ) : (
               ticket.messages.map((msg, index) => {
                 const isOwn = msg.senderId === userId;
                 const isAI = msg.senderId === "AI";
-                const showAvatar = index === 0 || ticket.messages[index - 1].senderId !== msg.senderId;
+                const showAvatar =
+                  index === 0 ||
+                  ticket.messages[index - 1].senderId !== msg.senderId;
 
                 return (
                   <motion.div
@@ -846,16 +886,24 @@ const Ticket = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className={`flex gap-2 ${isOwn ? "justify-end" : "justify-start"}`}
+                    className={`flex gap-2 ${
+                      isOwn ? "justify-end" : "justify-start"
+                    }`}
                   >
                     {!isOwn && showAvatar && (
                       <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                         {isAI ? "AI" : msg.senderName?.charAt(0) || "U"}
                       </div>
                     )}
-                    {!isOwn && !showAvatar && <div className="w-8 flex-shrink-0" />}
+                    {!isOwn && !showAvatar && (
+                      <div className="w-8 flex-shrink-0" />
+                    )}
 
-                    <div className={`max-w-[75%] group relative ${isOwn ? "items-end" : "items-start"} flex flex-col`}>
+                    <div
+                      className={`max-w-[75%] group relative ${
+                        isOwn ? "items-end" : "items-start"
+                      } flex flex-col`}
+                    >
                       {!isOwn && showAvatar && (
                         <p className="text-xs font-medium text-gray-600 mb-1 ml-3">
                           {msg.senderName}
@@ -873,7 +921,11 @@ const Ticket = () => {
                         }`}
                       >
                         {msg.replyTo && (
-                          <div className={`mb-2 pb-2 border-l-2 pl-2 text-xs opacity-75 ${isOwn ? "border-white/30" : "border-gray-300"}`}>
+                          <div
+                            className={`mb-2 pb-2 border-l-2 pl-2 text-xs opacity-75 ${
+                              isOwn ? "border-white/30" : "border-gray-300"
+                            }`}
+                          >
                             <p className="font-medium">Replying to:</p>
                             <p className="truncate">{msg.replyTo.content}</p>
                           </div>
@@ -888,13 +940,17 @@ const Ticket = () => {
 
                         {msg.attachment && (
                           <div className="mt-3">
-                            {msg.attachment.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                            {msg.attachment.match(
+                              /\.(jpg|jpeg|png|gif|webp)$/i
+                            ) ? (
                               <motion.img
                                 whileHover={{ scale: 1.05 }}
                                 src={msg.attachment}
                                 alt="Attachment"
                                 className="max-w-full h-auto rounded-xl max-h-64 cursor-pointer border-2 border-white/20"
-                                onClick={() => window.open(msg.attachment, "_blank")}
+                                onClick={() =>
+                                  window.open(msg.attachment, "_blank")
+                                }
                               />
                             ) : (
                               <a
@@ -902,17 +958,25 @@ const Ticket = () => {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className={`flex items-center gap-2 text-xs underline p-2 rounded-lg ${
-                                  isOwn ? "bg-white/10 hover:bg-white/20" : "bg-gray-100 hover:bg-gray-200"
+                                  isOwn
+                                    ? "bg-white/10 hover:bg-white/20"
+                                    : "bg-gray-100 hover:bg-gray-200"
                                 }`}
                               >
                                 <File className="h-4 w-4" />
-                                <span className="truncate">{msg.attachment.split("/").pop()}</span>
+                                <span className="truncate">
+                                  {msg.attachment.split("/").pop()}
+                                </span>
                               </a>
                             )}
                           </div>
                         )}
 
-                        <div className={`flex items-center justify-between mt-2 text-xs ${isOwn ? "text-white/70" : "text-gray-500"}`}>
+                        <div
+                          className={`flex items-center justify-between mt-2 text-xs ${
+                            isOwn ? "text-white/70" : "text-gray-500"
+                          }`}
+                        >
                           <span>{moment(msg.timestamp).format("h:mm A")}</span>
                           {isOwn && msg.read && (
                             <span className="flex items-center gap-1">
@@ -923,9 +987,17 @@ const Ticket = () => {
 
                         {/* Message Options */}
                         <button
-                          onClick={() => setMessageOptionsId(messageOptionsId === msg._id ? null : msg._id)}
-                          className={`absolute top-2 ${isOwn ? "left-2" : "right-2"} opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full ${
-                            isOwn ? "bg-white/10 hover:bg-white/20" : "bg-gray-100 hover:bg-gray-200"
+                          onClick={() =>
+                            setMessageOptionsId(
+                              messageOptionsId === msg._id ? null : msg._id
+                            )
+                          }
+                          className={`absolute top-2 ${
+                            isOwn ? "left-2" : "right-2"
+                          } opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full ${
+                            isOwn
+                              ? "bg-white/10 hover:bg-white/20"
+                              : "bg-gray-100 hover:bg-gray-200"
                           }`}
                         >
                           <MoreVertical className="h-3 w-3" />
@@ -935,7 +1007,9 @@ const Ticket = () => {
                           <motion.div
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            className={`absolute ${isOwn ? "left-0" : "right-0"} top-10 bg-white rounded-lg shadow-xl border border-gray-200 p-2 z-10 min-w-[120px]`}
+                            className={`absolute ${
+                              isOwn ? "left-0" : "right-0"
+                            } top-10 bg-white rounded-lg shadow-xl border border-gray-200 p-2 z-10 min-w-[120px]`}
                           >
                             <button
                               onClick={() => {
@@ -954,10 +1028,14 @@ const Ticket = () => {
 
                     {isOwn && showAvatar && (
                       <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#1E88E5] to-[#1565C0] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                        {ticket[isBuyer ? "buyerId" : "sellerId"]?.fullName?.charAt(0) || "Y"}
+                        {ticket[
+                          isBuyer ? "buyerId" : "sellerId"
+                        ]?.fullName?.charAt(0) || "Y"}
                       </div>
                     )}
-                    {isOwn && !showAvatar && <div className="w-8 flex-shrink-0" />}
+                    {isOwn && !showAvatar && (
+                      <div className="w-8 flex-shrink-0" />
+                    )}
                   </motion.div>
                 );
               })
@@ -1019,8 +1097,12 @@ const Ticket = () => {
                   className="mb-3 bg-white rounded-lg p-3 border border-gray-200 flex items-start justify-between"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-600 mb-1">Replying to {replyingTo.senderName}</p>
-                    <p className="text-sm text-gray-800 truncate">{replyingTo.content}</p>
+                    <p className="text-xs font-medium text-gray-600 mb-1">
+                      Replying to {replyingTo.senderName}
+                    </p>
+                    <p className="text-sm text-gray-800 truncate">
+                      {replyingTo.content}
+                    </p>
                   </div>
                   <button
                     onClick={() => setReplyingTo(null)}
@@ -1052,15 +1134,20 @@ const Ticket = () => {
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">{file.name}</p>
-                        <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
+                        <p className="text-sm font-medium text-gray-800 truncate">
+                          {file.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {(file.size / 1024).toFixed(1)} KB
+                        </p>
                       </div>
                     </div>
                     <button
                       onClick={() => {
                         setFile(null);
                         setFilePreview(null);
-                        if (fileInputRef.current) fileInputRef.current.value = "";
+                        if (fileInputRef.current)
+                          fileInputRef.current.value = "";
                       }}
                       className="ml-2 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                     >
@@ -1172,7 +1259,9 @@ const Ticket = () => {
                 <p className="text-sm text-gray-600">
                   How was your experience with{" "}
                   <span className="font-semibold text-[#1E88E5]">
-                    {isBuyer ? ticket.sellerId.fullName : ticket.buyerId.fullName}
+                    {isBuyer
+                      ? ticket.sellerId.fullName
+                      : ticket.buyerId.fullName}
                   </span>
                   ?
                 </p>
@@ -1339,4 +1428,245 @@ const Ticket = () => {
                 <div className="flex justify-between items-center">
                   <div>
                     <h2 className="text-2xl font-bold">Ticket Details</h2>
-                    <p className="text-sm opacity-90 mt-1
+                    <p className="text-sm opacity-90 mt-1">
+                      ID: {ticket._id.slice(-8)}
+                    </p>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setIsDetailsModalOpen(false)}
+                    className="p-2 hover:bg-white/20 rounded-xl transition-all"
+                  >
+                    <X className="h-6 w-6" />
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-6 space-y-6">
+                {/* Status Section */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <Info className="h-4 w-4" /> Current Status
+                  </h3>
+                  <div
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium ${getStatusColor(
+                      ticket.status
+                    )}`}
+                  >
+                    {getStatusIcon(ticket.status)}
+                    {ticket.status.replace("_", " ").toUpperCase()}
+                  </div>
+                </div>
+
+                {/* Gig Information */}
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <Package className="h-4 w-4" /> Gig Information
+                  </h3>
+                  <p className="text-base font-medium text-gray-900">
+                    {ticket.gigId.title}
+                  </p>
+                  {ticket.gigId.description && (
+                    <p className="text-sm text-gray-600 mt-2">
+                      {ticket.gigId.description}
+                    </p>
+                  )}
+                </div>
+
+                {/* Other Party Info */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <User className="h-4 w-4" /> {isBuyer ? "Seller" : "Buyer"}{" "}
+                    Information
+                  </h3>
+                  <div className="bg-white border border-gray-200 rounded-xl p-4">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="h-16 w-16 bg-gradient-to-br from-[#1E88E5] to-[#1565C0] rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                        {ticket[
+                          isBuyer ? "sellerId" : "buyerId"
+                        ]?.fullName?.charAt(0) || "U"}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900 text-lg truncate">
+                          {ticket[isBuyer ? "sellerId" : "buyerId"]?.fullName}
+                        </p>
+                        <p className="text-sm text-gray-600 truncate">
+                          {ticket[isBuyer ? "sellerId" : "buyerId"]?.email}
+                        </p>
+                      </div>
+                    </div>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        navigate(
+                          `/users/${
+                            ticket[isBuyer ? "sellerId" : "buyerId"]?._id
+                          }`
+                        );
+                        setIsDetailsModalOpen(false);
+                      }}
+                      className="w-full px-4 py-3 bg-gradient-to-r from-[#1E88E5] to-[#1565C0] text-white rounded-xl hover:from-[#1565C0] hover:to-[#0D47A1] font-medium transition-all shadow-lg flex items-center justify-center gap-2"
+                    >
+                      <User className="h-4 w-4" /> View Full Profile
+                    </motion.button>
+                  </div>
+                </div>
+
+                {/* Price Information */}
+                {ticket.agreedPrice && (
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border-2 border-green-200">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" /> Agreed Price
+                    </h3>
+                    <p className="text-3xl font-bold text-green-600">
+                      ₹{ticket.agreedPrice.toLocaleString()}
+                    </p>
+                  </div>
+                )}
+
+                {/* Timeline */}
+                {ticket.timeline && ticket.timeline.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                      <Clock className="h-4 w-4" /> Activity Timeline
+                    </h3>
+                    <div className="space-y-4">
+                      {ticket.timeline.map((event, index) => (
+                        <motion.div
+                          key={event._id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                          className="flex gap-4"
+                        >
+                          <div className="flex flex-col items-center">
+                            <div
+                              className={`h-3 w-3 rounded-full ${
+                                index === 0 ? "bg-[#1E88E5]" : "bg-gray-300"
+                              } shadow-md`}
+                            />
+                            {index < ticket.timeline.length - 1 && (
+                              <div className="h-full w-0.5 bg-gray-200 mt-2" />
+                            )}
+                          </div>
+                          <div className="flex-1 pb-6">
+                            <p className="text-sm font-medium text-gray-900">
+                              {event.action}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Calendar className="h-3 w-3 text-gray-400" />
+                              <p className="text-xs text-gray-500">
+                                {moment(event.timestamp).format("MMM D, YYYY")}{" "}
+                                at {moment(event.timestamp).format("h:mm A")}
+                              </p>
+                            </div>
+                            <p className="text-xs text-gray-400 mt-1">
+                              {moment(event.timestamp).fromNow()}
+                            </p>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Statistics */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-blue-50 rounded-xl p-4 text-center">
+                    <MessageSquare className="h-6 w-6 text-[#1E88E5] mx-auto mb-2" />
+                    <p className="text-2xl font-bold text-gray-900">
+                      {ticket.messages.length}
+                    </p>
+                    <p className="text-xs text-gray-600">Messages</p>
+                  </div>
+                  <div className="bg-purple-50 rounded-xl p-4 text-center">
+                    <Clock className="h-6 w-6 text-purple-600 mx-auto mb-2" />
+                    <p className="text-2xl font-bold text-gray-900">
+                      {moment(ticket.createdAt).fromNow(true)}
+                    </p>
+                    <p className="text-xs text-gray-600">Active</p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Custom Styles */}
+      <style jsx>{`
+        @keyframes blob {
+          0%,
+          100% {
+            transform: translate(0, 0) scale(1);
+          }
+          33% {
+            transform: translate(30px, -50px) scale(1.1);
+          }
+          66% {
+            transform: translate(-20px, 20px) scale(0.9);
+          }
+        }
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        .animation-delay-3000 {
+          animation-delay: 3s;
+        }
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+          background: #f1f1f1;
+          border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+          background: linear-gradient(180deg, #1e88e5, #1565c0);
+          border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(180deg, #1565c0, #0d47a1);
+        }
+
+        /* Smooth scroll */
+        .scroll-smooth {
+          scroll-behavior: smooth;
+        }
+
+        /* Text selection */
+        ::selection {
+          background-color: #1e88e5;
+          color: white;
+        }
+
+        /* Mark element styling */
+        mark {
+          animation: highlight 0.5s ease;
+        }
+
+        @keyframes highlight {
+          0% {
+            background-color: transparent;
+          }
+          100% {
+            background-color: #fef08a;
+          }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default Ticket;
