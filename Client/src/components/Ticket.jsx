@@ -22,6 +22,15 @@ import {
   Info,
   Clock,
   ChevronDown,
+  Image as ImageIcon,
+  File,
+  Smile,
+  MoreVertical,
+  AlertCircle,
+  TrendingUp,
+  Package,
+  Calendar,
+  Shield,
 } from "lucide-react";
 import io from "socket.io-client";
 import { debounce } from "lodash";
@@ -55,6 +64,9 @@ const Ticket = () => {
   const [page, setPage] = useState(1);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [messageOptionsId, setMessageOptionsId] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
 
   /* ---------- REFS ---------- */
   const messagesEndRef = useRef(null);
@@ -62,7 +74,7 @@ const Ticket = () => {
   const socketRef = useRef(null);
   const fileInputRef = useRef(null);
   const menuRef = useRef(null);
-  const wasNearBottom = useRef(true);
+  const messageInputRef = useRef(null);
 
   /* ---------- HELPERS ---------- */
   const scrollToBottom = useCallback(() => {
@@ -74,11 +86,9 @@ const Ticket = () => {
     const container = messagesContainerRef.current;
     const { scrollTop, scrollHeight, clientHeight } = container;
 
-    const nearBottom = scrollHeight - scrollTop - clientHeight < 150;
-    setShowScrollButton(!nearBottom);
-    wasNearBottom.current = nearBottom;
+    const atBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 10;
+    setShowScrollButton(!atBottom);
 
-    // Load older messages only when scrolling near top
     if (scrollTop < 300 && hasMore && !loadingOlder) {
       loadOlderMessages();
     }
@@ -114,9 +124,11 @@ const Ticket = () => {
 
     const onNewMessage = (updatedTicket) => {
       setTicket(updatedTicket);
-      // Only auto-scroll if user was near bottom
-      if (wasNearBottom.current) {
-        setTimeout(scrollToBottom, 100);
+      if (messagesContainerRef.current) {
+        const { scrollHeight, scrollTop, clientHeight } =
+          messagesContainerRef.current;
+        const atBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 10;
+        setShowScrollButton(!atBottom);
       }
     };
 
@@ -147,7 +159,7 @@ const Ticket = () => {
       socketRef.current?.off("messagesRead", onRead);
       socketRef.current?.disconnect();
     };
-  }, [userId, id, ticket, scrollToBottom]);
+  }, [userId, id, ticket]);
 
   /* ---------- FETCH TICKET ---------- */
   useEffect(() => {
@@ -159,10 +171,7 @@ const Ticket = () => {
         });
         setTicket(data);
         setLoading(false);
-        setTimeout(() => {
-          scrollToBottom();
-          wasNearBottom.current = true;
-        }, 100);
+        setTimeout(scrollToBottom, 100);
       } catch (e) {
         toast.error(e.response?.data?.error || "Failed to load ticket.");
         if (e.response?.status === 401 || e.response?.status === 403) {
@@ -248,6 +257,7 @@ const Ticket = () => {
 
   /* ---------- SEARCH ---------- */
   const debouncedSearch = debounce(async (q) => {
+    setIsSearching(true);
     try {
       const { data } = await axios.get(
         `${API_BASE}/tickets/${id}/messages/search`,
@@ -257,15 +267,18 @@ const Ticket = () => {
         }
       );
       setTicket((t) => ({ ...t, messages: data.messages }));
-      toast.success("Messages filtered!");
+      toast.success(`Found ${data.messages.length} message(s)`);
     } catch (e) {
       toast.error(e.response?.data?.error || "Search failed.");
+    } finally {
+      setIsSearching(false);
     }
   }, 500);
 
   useEffect(() => {
-    if (searchQuery) debouncedSearch(searchQuery);
-    else if (ticket) {
+    if (searchQuery) {
+      debouncedSearch(searchQuery);
+    } else if (ticket) {
       const refetch = async () => {
         const { data } = await axios.get(`${API_BASE}/tickets/${id}`, {
           headers: {
@@ -298,6 +311,8 @@ const Ticket = () => {
       const fd = new FormData();
       if (message.trim()) fd.append("content", message);
       if (file) fd.append("attachment", file);
+      if (replyingTo) fd.append("replyTo", replyingTo._id);
+      
       const { data } = await axios.post(
         `${API_BASE}/tickets/${id}/messages`,
         fd,
@@ -312,9 +327,9 @@ const Ticket = () => {
       setMessage("");
       setFile(null);
       setFilePreview(null);
+      setReplyingTo(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       toast.success("Message sent!");
-      wasNearBottom.current = true;
       setTimeout(scrollToBottom, 100);
     } catch (e) {
       toast.error(e.response?.data?.error || "Failed to send.");
@@ -364,6 +379,7 @@ const Ticket = () => {
       toast.error(e.response?.data?.error || "Failed.");
     }
   };
+
   const handleAcceptPrice = async () => {
     try {
       const { data } = await axios.patch(
@@ -380,6 +396,7 @@ const Ticket = () => {
       toast.error(e.response?.data?.error || "Failed.");
     }
   };
+
   const handleConfirmPayment = async () => {
     try {
       const { data } = await axios.patch(
@@ -396,6 +413,7 @@ const Ticket = () => {
       toast.error(e.response?.data?.error || "Failed.");
     }
   };
+
   const handleRequestComplete = async () => {
     try {
       const { data } = await axios.patch(
@@ -412,7 +430,9 @@ const Ticket = () => {
       toast.error(e.response?.data?.error || "Failed.");
     }
   };
+
   const handleConfirmComplete = () => setIsCompletionModalOpen(true);
+
   const handleSubmitCompletionRating = async () => {
     if (!rating || rating < 1 || rating > 5)
       return toast.error("Select 1‑5 stars.");
@@ -436,6 +456,7 @@ const Ticket = () => {
       setIsSubmittingRating(false);
     }
   };
+
   const handleCloseTicket = async () => {
     if (isBuyer && ticket?.status === "completed" && rating === 0) {
       setIsRatingModalOpen(true);
@@ -474,7 +495,34 @@ const Ticket = () => {
   const highlightText = (text, q) => {
     if (!q) return text;
     const r = new RegExp(`(${q})`, "gi");
-    return text.replace(r, '<span class="bg-yellow-200">$1</span>');
+    return text.replace(r, '<mark class="bg-yellow-300 text-gray-900 px-1 rounded">$1</mark>');
+  };
+
+  const getStatusColor = (status) => {
+    const colors = {
+      open: "bg-blue-100 text-blue-800",
+      negotiating: "bg-purple-100 text-purple-800",
+      accepted: "bg-green-100 text-green-800",
+      paid: "bg-cyan-100 text-cyan-800",
+      pending_completion: "bg-amber-100 text-amber-800",
+      completed: "bg-emerald-100 text-emerald-800",
+      closed: "bg-gray-100 text-gray-800",
+    };
+    return colors[status] || "bg-gray-100 text-gray-800";
+  };
+
+  const getStatusIcon = (status) => {
+    const icons = {
+      open: MessageSquare,
+      negotiating: TrendingUp,
+      accepted: CheckCircle,
+      paid: DollarSign,
+      pending_completion: Clock,
+      completed: Package,
+      closed: Shield,
+    };
+    const Icon = icons[status] || AlertCircle;
+    return <Icon className="h-4 w-4" />;
   };
 
   /* ---------- RENDER ---------- */
@@ -482,29 +530,39 @@ const Ticket = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
         <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center"
         >
-          <Loader className="h-12 w-12 text-[#1E88E5]" />
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            className="inline-block"
+          >
+            <Loader className="h-12 w-12 text-[#1E88E5]" />
+          </motion.div>
+          <p className="mt-4 text-gray-600 font-medium">Loading ticket...</p>
         </motion.div>
       </div>
     );
   }
+
   if (!ticket) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-lg shadow-lg p-8 max-w-md text-center border border-gray-200"
+          className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center border border-gray-100"
         >
-          <MessageSquare className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <p className="text-gray-800 text-lg font-semibold">
-            Failed to load ticket
-          </p>
+          <div className="h-16 w-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="h-8 w-8 text-red-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Ticket Not Found</h2>
+          <p className="text-gray-600 mb-6">The ticket you're looking for doesn't exist or you don't have access to it.</p>
           <button
             onClick={() => navigate("/gigs")}
-            className="mt-4 px-4 py-2 bg-[#1E88E5] text-white rounded-md hover:bg-[#1565C0]"
+            className="w-full px-6 py-3 bg-[#1E88E5] text-white rounded-xl hover:bg-[#1565C0] font-medium transition-all transform hover:scale-105"
           >
             Back to Gigs
           </button>
@@ -519,19 +577,20 @@ const Ticket = () => {
   const getVisibleActions = () => {
     const a = [];
     if (["open", "negotiating"].includes(ticket.status))
-      a.push({ id: "price", label: "Propose Price" });
+      a.push({ id: "price", label: "Propose Price", icon: DollarSign });
     if (ticket.status === "accepted" && isBuyer && ticket.agreedPrice) {
-      a.push({ id: "accept-price", label: "Accept Price" });
-      a.push({ id: "payment", label: "Confirm Payment" });
+      a.push({ id: "accept-price", label: "Accept Price", icon: CheckCircle });
+      a.push({ id: "payment", label: "Confirm Payment", icon: DollarSign });
     }
     if (ticket.status === "paid" && isBuyer)
-      a.push({ id: "request-complete", label: "Request Completion" });
+      a.push({ id: "request-complete", label: "Request Completion", icon: Package });
     if (ticket.status === "pending_completion" && isSeller)
-      a.push({ id: "confirm-complete", label: "Confirm Completion" });
+      a.push({ id: "confirm-complete", label: "Confirm Completion", icon: CheckCircle });
     if (ticket.status === "completed")
       a.push({
         id: "close",
         label: isBuyer ? "Close & Rate" : "Close Ticket",
+        icon: Shield,
         disabled: isSubmittingRating,
       });
     if (
@@ -541,6 +600,7 @@ const Ticket = () => {
       a.push({
         id: "close",
         label: "Close Ticket",
+        icon: X,
         disabled: isSubmittingRating,
       });
     return a;
@@ -548,25 +608,18 @@ const Ticket = () => {
 
   const renderActionButton = (act) => {
     const base =
-      "w-full px-4 py-2 rounded-md font-medium text-sm flex items-center justify-center gap-2 transition";
+      "w-full px-4 py-2.5 rounded-xl font-medium text-sm flex items-center justify-center gap-2 transition-all transform hover:scale-105 shadow-sm";
     const styles =
       {
-        price: "bg-[#1E88E5] hover:bg-[#1565C0] text-white",
-        "accept-price": "bg-[#4CAF50] hover:bg-[#43A047] text-white",
-        "request-complete": "bg-[#4CAF50] hover:bg-[#43A047] text-white",
-        "confirm-complete": "bg-[#4CAF50] hover:bg-[#43A047] text-white",
-        payment: "bg-[#0288D1] hover:bg-[#0277BD] text-white",
-        close: "bg-[#D32F2F] hover:bg-[#C62828] text-white",
+        price: "bg-gradient-to-r from-[#1E88E5] to-[#1565C0] hover:from-[#1565C0] hover:to-[#0D47A1] text-white",
+        "accept-price": "bg-gradient-to-r from-[#4CAF50] to-[#43A047] hover:from-[#43A047] hover:to-[#388E3C] text-white",
+        "request-complete": "bg-gradient-to-r from-[#4CAF50] to-[#43A047] hover:from-[#43A047] hover:to-[#388E3C] text-white",
+        "confirm-complete": "bg-gradient-to-r from-[#4CAF50] to-[#43A047] hover:from-[#43A047] hover:to-[#388E3C] text-white",
+        payment: "bg-gradient-to-r from-[#0288D1] to-[#0277BD] hover:from-[#0277BD] hover:to-[#01579B] text-white",
+        close: "bg-gradient-to-r from-[#D32F2F] to-[#C62828] hover:from-[#C62828] hover:to-[#B71C1C] text-white",
       }[act.id] || "bg-gray-600 hover:bg-gray-700 text-white";
 
-    const icon = {
-      price: <DollarSign className="h-4 w-4" />,
-      payment: <DollarSign className="h-4 w-4" />,
-      "accept-price": <CheckCircle className="h-4 w-4" />,
-      "request-complete": <CheckCircle className="h-4 w-4" />,
-      "confirm-complete": <CheckCircle className="h-4 w-4" />,
-      close: <X className="h-4 w-4" />,
-    }[act.id];
+    const Icon = act.icon;
 
     const handler = {
       "accept-price": handleAcceptPrice,
@@ -579,19 +632,22 @@ const Ticket = () => {
     if (act.id === "price")
       return (
         <div key={act.id} className="space-y-2">
-          <input
-            type="number"
-            value={agreedPrice}
-            onChange={(e) => setAgreedPrice(e.target.value)}
-            placeholder="Enter price (₹)"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1E88E5] text-sm"
-            min="0"
-            step="0.01"
-          />
+          <div className="relative">
+            <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="number"
+              value={agreedPrice}
+              onChange={(e) => setAgreedPrice(e.target.value)}
+              placeholder="Enter price amount"
+              className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E88E5] focus:border-transparent text-sm"
+              min="0"
+              step="0.01"
+            />
+          </div>
           <button
             onClick={handleSetPrice}
             disabled={!agreedPrice || agreedPrice <= 0}
-            className={`${base} ${styles}`}
+            className={`${base} ${styles} disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none`}
           >
             <DollarSign className="h-4 w-4" /> Set Price
           </button>
@@ -603,15 +659,17 @@ const Ticket = () => {
         key={act.id}
         onClick={handler}
         disabled={act.disabled}
-        className={`${base} ${styles}`}
+        className={`${base} ${styles} disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none`}
       >
-        {icon}
         {act.id === "close" && isSubmittingRating ? (
           <>
             <Loader className="h-4 w-4 animate-spin" /> Submitting...
           </>
         ) : (
-          act.label
+          <>
+            <Icon className="h-4 w-4" />
+            {act.label}
+          </>
         )}
       </button>
     );
@@ -619,6 +677,7 @@ const Ticket = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex flex-col overflow-hidden">
+      {/* Animated Background */}
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute top-0 left-0 w-96 h-96 bg-gradient-to-br from-blue-300 to-blue-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-purple-300 to-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
@@ -626,184 +685,311 @@ const Ticket = () => {
         <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-gradient-to-br from-cyan-300 to-cyan-100 rounded-full mix-blend-multiply filter blur-3xl opacity-15 animate-blob animation-delay-3000"></div>
       </div>
 
-      <ToastContainer position="top-right" autoClose={3000} />
+      <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
 
       {/* ---------- HEADER ---------- */}
       <motion.header
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-40 shadow-sm"
+        className="bg-white/90 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-40 shadow-lg"
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              onClick={() => navigate("/gigs")}
-              className="text-gray-600 hover:text-[#1E88E5]"
-            >
-              <ArrowLeft className="h-6 w-6" />
-            </motion.button>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-800 truncate">
-                {ticket.gigId.title}
-              </h1>
-              <p className="text-sm text-gray-500">
-                Ticket ID: {ticket._id.slice(-8)}
-              </p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between gap-4">
+            {/* Left Section */}
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate("/gigs")}
+                className="p-2 text-gray-600 hover:text-[#1E88E5] rounded-xl hover:bg-blue-50 transition-all"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </motion.button>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
+                  {ticket.gigId.title}
+                </h1>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(ticket.status)}`}>
+                    {getStatusIcon(ticket.status)}
+                    {ticket.status.replace("_", " ")}
+                  </span>
+                  <span className="text-xs text-gray-500">ID: {ticket._id.slice(-8)}</span>
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* Mobile Menu */}
-          <div className="lg:hidden" ref={menuRef}>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="p-2 text-gray-600 hover:text-[#1E88E5] rounded-full"
-            >
-              <Menu className="h-6 w-6" />
-            </motion.button>
-            <AnimatePresence>
-              {isMenuOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="absolute right-4 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-50"
-                >
-                  <div className="space-y-2">
-                    {getVisibleActions().map(renderActionButton)}
-                    <button
-                      onClick={() => {
-                        setIsDetailsModalOpen(true);
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 font-medium text-sm flex items-center gap-2"
-                    >
-                      <Info className="h-4 w-4" /> More Details
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+            {/* Right Section - Mobile Menu */}
+            <div className="lg:hidden" ref={menuRef}>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="p-2.5 text-gray-600 hover:text-[#1E88E5] rounded-xl hover:bg-blue-50 transition-all"
+              >
+                <Menu className="h-5 w-5" />
+              </motion.button>
+              <AnimatePresence>
+                {isMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                    className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 p-4 z-50"
+                  >
+                    <div className="space-y-2">
+                      {getVisibleActions().map(renderActionButton)}
+                      <button
+                        onClick={() => {
+                          setIsDetailsModalOpen(true);
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full px-4 py-2.5 bg-gray-100 text-gray-800 rounded-xl hover:bg-gray-200 font-medium text-sm flex items-center justify-center gap-2 transition-all transform hover:scale-105"
+                      >
+                        <Info className="h-4 w-4" /> View Details
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
-          {/* Desktop Actions */}
-          <div className="hidden lg:flex items-center gap-2">
-            {getVisibleActions().map(renderActionButton)}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              onClick={() => setIsDetailsModalOpen(true)}
-              className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md text-sm flex items-center gap-1"
-            >
-              <Info className="h-4 w-4" /> Details
-            </motion.button>
+            {/* Right Section - Desktop Actions */}
+            <div className="hidden lg:flex items-center gap-2">
+              {getVisibleActions().map(renderActionButton)}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setIsDetailsModalOpen(true)}
+                className="px-4 py-2 bg-gradient-to-r from-gray-100 to-gray-50 text-gray-700 rounded-xl text-sm font-medium flex items-center gap-2 hover:from-gray-200 hover:to-gray-100 transition-all shadow-sm"
+              >
+                <Info className="h-4 w-4" /> Details
+              </motion.button>
+            </div>
           </div>
         </div>
       </motion.header>
 
-      {/* ---------- MAIN CHAT (FIXED HEIGHT) ---------- */}
-      <div className="flex-1 flex flex-col max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 gap-0">
+      {/* ---------- MAIN CHAT ---------- */}
+      <div className="flex-1 flex flex-col max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 gap-4">
         <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="flex-1 bg-white rounded-t-lg shadow-md border border-gray-200 flex flex-col overflow-hidden"
-          style={{ maxHeight: "calc(100vh - 220px)" }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex-1 bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 flex flex-col overflow-hidden"
+          style={{ maxHeight: "calc(100vh - 200px)" }}
         >
-          {/* Search */}
-          <div className="p-3 border-b border-gray-200 bg-white">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search messages..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1E88E5] text-sm"
-            />
+          {/* Search Bar */}
+          <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50/50 to-purple-50/50">
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search messages..."
+                className="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E88E5] focus:border-transparent text-sm bg-white/80 backdrop-blur-sm transition-all"
+              />
+              <MessageSquare className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              {isSearching && (
+                <Loader className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#1E88E5] animate-spin" />
+              )}
+              {searchQuery && !isSearching && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Messages - FIXED HEIGHT + SCROLLABLE */}
+          {/* Messages Container */}
           <div
             ref={messagesContainerRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto p-4 space-y-3"
+            className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth"
           >
             {loadingOlder && (
-              <div className="text-center py-2">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-center py-3"
+              >
                 <Loader className="h-5 w-5 animate-spin inline text-[#1E88E5]" />
-              </div>
+                <p className="text-xs text-gray-500 mt-1">Loading older messages...</p>
+              </motion.div>
             )}
+
             {ticket.messages.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-gray-500">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center justify-center h-full"
+              >
                 <div className="text-center">
-                  <MessageSquare className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">
-                    No messages yet. Start the conversation!
-                  </p>
+                  <div className="h-20 w-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <MessageSquare className="h-10 w-10 text-[#1E88E5] opacity-50" />
+                  </div>
+                  <p className="text-gray-600 font-medium mb-1">No messages yet</p>
+                  <p className="text-sm text-gray-500">Start the conversation!</p>
                 </div>
-              </div>
+              </motion.div>
             ) : (
-              ticket.messages.map((msg) => (
-                <motion.div
-                  key={msg._id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`flex ${
-                    msg.senderId === userId ? "justify-end" : "justify-start"
-                  }`}
-                >
-                  <div
-                    className={`max-w-[75%] p-3 rounded-xl shadow-sm text-sm ${
-                      msg.senderId === userId
-                        ? "bg-[#1E88E5] text-white"
-                        : msg.senderId === "AI"
-                        ? "bg-[#EDE7F6] text-gray-800"
-                        : "bg-gray-100 text-gray-800"
-                    }`}
+              ticket.messages.map((msg, index) => {
+                const isOwn = msg.senderId === userId;
+                const isAI = msg.senderId === "AI";
+                const showAvatar = index === 0 || ticket.messages[index - 1].senderId !== msg.senderId;
+
+                return (
+                  <motion.div
+                    key={msg._id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className={`flex gap-2 ${isOwn ? "justify-end" : "justify-start"}`}
                   >
-                    {msg.senderId !== userId && (
-                      <p className="text-xs font-medium opacity-80 mb-1">
-                        {msg.senderName}
-                        {msg.senderId === "AI" && " (AI)"}
-                      </p>
-                    )}
-                    <p
-                      dangerouslySetInnerHTML={{
-                        __html: highlightText(msg.content, searchQuery),
-                      }}
-                    />
-                    {msg.attachment && (
-                      <div className="mt-2">
-                        {msg.attachment.match(/\.(jpg|jpeg|png)$/i) ? (
-                          <img
-                            src={msg.attachment}
-                            alt="Attachment"
-                            className="max-w-full h-auto rounded-md max-h-48"
-                          />
-                        ) : (
-                          <a
-                            href={msg.attachment}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-xs underline"
-                          >
-                            <Paperclip className="h-3 w-3" />
-                            {msg.attachment.split("/").pop()}
-                          </a>
-                        )}
+                    {!isOwn && showAvatar && (
+                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                        {isAI ? "AI" : msg.senderName?.charAt(0) || "U"}
                       </div>
                     )}
-                    <p className="text-xs opacity-70 mt-1">
-                      {moment(msg.timestamp).fromNow()}
-                      {msg.read && msg.senderId !== userId && " Read"}
-                    </p>
-                  </div>
-                </motion.div>
-              ))
+                    {!isOwn && !showAvatar && <div className="w-8 flex-shrink-0" />}
+
+                    <div className={`max-w-[75%] group relative ${isOwn ? "items-end" : "items-start"} flex flex-col`}>
+                      {!isOwn && showAvatar && (
+                        <p className="text-xs font-medium text-gray-600 mb-1 ml-3">
+                          {msg.senderName}
+                          {isAI && " (AI Assistant)"}
+                        </p>
+                      )}
+
+                      <div
+                        className={`relative px-4 py-3 rounded-2xl shadow-sm text-sm ${
+                          isOwn
+                            ? "bg-gradient-to-r from-[#1E88E5] to-[#1565C0] text-white rounded-br-md"
+                            : isAI
+                            ? "bg-gradient-to-r from-purple-100 to-pink-100 text-gray-800 rounded-bl-md"
+                            : "bg-white text-gray-800 border border-gray-200 rounded-bl-md"
+                        }`}
+                      >
+                        {msg.replyTo && (
+                          <div className={`mb-2 pb-2 border-l-2 pl-2 text-xs opacity-75 ${isOwn ? "border-white/30" : "border-gray-300"}`}>
+                            <p className="font-medium">Replying to:</p>
+                            <p className="truncate">{msg.replyTo.content}</p>
+                          </div>
+                        )}
+
+                        <p
+                          dangerouslySetInnerHTML={{
+                            __html: highlightText(msg.content, searchQuery),
+                          }}
+                          className="break-words"
+                        />
+
+                        {msg.attachment && (
+                          <div className="mt-3">
+                            {msg.attachment.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                              <motion.img
+                                whileHover={{ scale: 1.05 }}
+                                src={msg.attachment}
+                                alt="Attachment"
+                                className="max-w-full h-auto rounded-xl max-h-64 cursor-pointer border-2 border-white/20"
+                                onClick={() => window.open(msg.attachment, "_blank")}
+                              />
+                            ) : (
+                              <a
+                                href={msg.attachment}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`flex items-center gap-2 text-xs underline p-2 rounded-lg ${
+                                  isOwn ? "bg-white/10 hover:bg-white/20" : "bg-gray-100 hover:bg-gray-200"
+                                }`}
+                              >
+                                <File className="h-4 w-4" />
+                                <span className="truncate">{msg.attachment.split("/").pop()}</span>
+                              </a>
+                            )}
+                          </div>
+                        )}
+
+                        <div className={`flex items-center justify-between mt-2 text-xs ${isOwn ? "text-white/70" : "text-gray-500"}`}>
+                          <span>{moment(msg.timestamp).format("h:mm A")}</span>
+                          {isOwn && msg.read && (
+                            <span className="flex items-center gap-1">
+                              <CheckCircle className="h-3 w-3" /> Read
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Message Options */}
+                        <button
+                          onClick={() => setMessageOptionsId(messageOptionsId === msg._id ? null : msg._id)}
+                          className={`absolute top-2 ${isOwn ? "left-2" : "right-2"} opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full ${
+                            isOwn ? "bg-white/10 hover:bg-white/20" : "bg-gray-100 hover:bg-gray-200"
+                          }`}
+                        >
+                          <MoreVertical className="h-3 w-3" />
+                        </button>
+
+                        {messageOptionsId === msg._id && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className={`absolute ${isOwn ? "left-0" : "right-0"} top-10 bg-white rounded-lg shadow-xl border border-gray-200 p-2 z-10 min-w-[120px]`}
+                          >
+                            <button
+                              onClick={() => {
+                                setReplyingTo(msg);
+                                setMessageOptionsId(null);
+                                messageInputRef.current?.focus();
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                              Reply
+                            </button>
+                          </motion.div>
+                        )}
+                      </div>
+                    </div>
+
+                    {isOwn && showAvatar && (
+                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#1E88E5] to-[#1565C0] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                        {ticket[isBuyer ? "buyerId" : "sellerId"]?.fullName?.charAt(0) || "Y"}
+                      </div>
+                    )}
+                    {isOwn && !showAvatar && <div className="w-8 flex-shrink-0" />}
+                  </motion.div>
+                );
+              })
             )}
+
             {typingUser && (
-              <p className="text-xs text-gray-500 italic text-center">
-                {typingUser} is typing...
-              </p>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-2 text-sm text-gray-500"
+              >
+                <div className="flex gap-1">
+                  <motion.div
+                    animate={{ y: [0, -5, 0] }}
+                    transition={{ duration: 0.6, repeat: Infinity }}
+                    className="h-2 w-2 bg-[#1E88E5] rounded-full"
+                  />
+                  <motion.div
+                    animate={{ y: [0, -5, 0] }}
+                    transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
+                    className="h-2 w-2 bg-[#1E88E5] rounded-full"
+                  />
+                  <motion.div
+                    animate={{ y: [0, -5, 0] }}
+                    transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
+                    className="h-2 w-2 bg-[#1E88E5] rounded-full"
+                  />
+                </div>
+                <span className="italic">{typingUser} is typing...</span>
+              </motion.div>
             )}
+
             <div ref={messagesEndRef} />
           </div>
 
@@ -814,49 +1000,80 @@ const Ticket = () => {
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.8 }}
-                onClick={() => {
-                  scrollToBottom();
-                  wasNearBottom.current = true;
-                  setShowScrollButton(false);
-                }}
-                className="fixed bottom-24 right-6 bg-[#1E88E5] text-white p-3 rounded-full shadow-lg hover:bg-[#1565C0] z-50"
+                onClick={scrollToBottom}
+                className="fixed bottom-32 right-8 bg-gradient-to-r from-[#1E88E5] to-[#1565C0] text-white p-3 rounded-full shadow-lg hover:shadow-xl z-50 transition-all transform hover:scale-110"
               >
                 <ChevronDown className="h-5 w-5" />
               </motion.button>
             )}
           </AnimatePresence>
 
-          {/* INPUT FOOTER - STICKY */}
+          {/* Input Footer */}
           {ticket.status !== "closed" && (
-            <div className="border-t border-gray-200 bg-white p-3">
-              {file && (
-                <div className="flex items-center justify-between bg-gray-100 rounded-md p-2 mb-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    {filePreview ? (
-                      <img
-                        src={filePreview}
-                        alt="Preview"
-                        className="h-8 w-8 object-cover rounded"
-                      />
-                    ) : (
-                      <Paperclip className="h-4 w-4 text-gray-600" />
-                    )}
-                    <span className="truncate max-w-[180px]">{file.name}</span>
+            <div className="border-t border-gray-100 bg-gradient-to-r from-blue-50/30 to-purple-50/30 p-4">
+              {/* Reply Preview */}
+              {replyingTo && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-3 bg-white rounded-lg p-3 border border-gray-200 flex items-start justify-between"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-gray-600 mb-1">Replying to {replyingTo.senderName}</p>
+                    <p className="text-sm text-gray-800 truncate">{replyingTo.content}</p>
                   </div>
                   <button
-                    onClick={() => {
-                      setFile(null);
-                      setFilePreview(null);
-                      fileInputRef.current.value = "";
-                    }}
-                    className="text-red-500 text-xs"
+                    onClick={() => setReplyingTo(null)}
+                    className="ml-2 text-gray-400 hover:text-gray-600"
                   >
-                    Remove
+                    <X className="h-4 w-4" />
                   </button>
-                </div>
+                </motion.div>
               )}
+
+              {/* File Preview */}
+              {file && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-3 bg-white rounded-lg p-3 border border-gray-200"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      {filePreview ? (
+                        <img
+                          src={filePreview}
+                          alt="Preview"
+                          className="h-12 w-12 object-cover rounded-lg border-2 border-gray-200"
+                        />
+                      ) : (
+                        <div className="h-12 w-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                          <File className="h-6 w-6 text-gray-400" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{file.name}</p>
+                        <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setFile(null);
+                        setFilePreview(null);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                      className="ml-2 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Input Area */}
               <div className="flex items-end gap-2">
                 <textarea
+                  ref={messageInputRef}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyDown={(e) => {
@@ -866,41 +1083,63 @@ const Ticket = () => {
                     }
                   }}
                   placeholder="Type a message..."
-                  className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E88E5] text-sm resize-none max-h-24"
+                  className="flex-1 p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E88E5] focus:border-transparent text-sm resize-none max-h-32 bg-white/80 backdrop-blur-sm transition-all"
                   rows="1"
                 />
+
                 <input
                   type="file"
                   ref={fileInputRef}
                   onChange={handleFileChange}
                   className="hidden"
-                  accept="image/*,.pdf"
+                  accept="image/*,.pdf,.doc,.docx"
                 />
-                <button
+
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => fileInputRef.current?.click()}
-                  className="p-3 bg-gray-200 rounded-lg hover:bg-gray-300"
+                  className="p-3 bg-white hover:bg-gray-50 rounded-xl border border-gray-200 transition-all shadow-sm"
+                  title="Attach file"
                 >
-                  <Paperclip className="h-5 w-5" />
-                </button>
-                <button
+                  <Paperclip className="h-5 w-5 text-gray-600" />
+                </motion.button>
+
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleAIResponse}
+                  disabled={isSending || !message.trim()}
+                  className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+                  title="AI suggestion"
+                >
+                  <MessageSquare className="h-5 w-5" />
+                </motion.button>
+
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={handleSendMessage}
                   disabled={isSending || (!message.trim() && !file)}
-                  className="p-3 bg-[#1E88E5] text-white rounded-lg hover:bg-[#1565C0] disabled:bg-gray-400"
+                  className="p-3 bg-gradient-to-r from-[#1E88E5] to-[#1565C0] hover:from-[#1565C0] hover:to-[#0D47A1] text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+                  title="Send message"
                 >
                   {isSending ? (
                     <Loader className="h-5 w-5 animate-spin" />
                   ) : (
                     <Send className="h-5 w-5" />
                   )}
-                </button>
-                <button
-                  onClick={handleAIResponse}
-                  disabled={isSending || !message.trim()}
-                  className="p-3 bg-[#4CAF50] text-white rounded-lg hover:bg-[#43A047] disabled:bg-gray-400"
-                >
-                  <MessageSquare className="h-5 w-5" />
-                </button>
+                </motion.button>
               </div>
+            </div>
+          )}
+
+          {ticket.status === "closed" && (
+            <div className="border-t border-gray-100 bg-gray-50 p-4 text-center">
+              <p className="text-sm text-gray-600 flex items-center justify-center gap-2">
+                <Shield className="h-4 w-4" />
+                This ticket is closed
+              </p>
             </div>
           )}
         </motion.div>
@@ -915,58 +1154,68 @@ const Ticket = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
             >
-              <h2 className="text-xl font-bold text-gray-800 mb-2">
-                Rate Your Experience
-              </h2>
-              <p className="text-sm text-gray-600 mb-6">
-                How was your experience with{" "}
-                <span className="font-semibold">
-                  {isBuyer ? ticket.sellerId.fullName : ticket.buyerId.fullName}
-                </span>
-                ?
-              </p>
-              <div className="flex justify-center gap-2 mb-6">
+              <div className="text-center mb-6">
+                <div className="h-16 w-16 bg-gradient-to-br from-yellow-400 to-orange-400 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Star className="h-8 w-8 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  Rate Your Experience
+                </h2>
+                <p className="text-sm text-gray-600">
+                  How was your experience with{" "}
+                  <span className="font-semibold text-[#1E88E5]">
+                    {isBuyer ? ticket.sellerId.fullName : ticket.buyerId.fullName}
+                  </span>
+                  ?
+                </p>
+              </div>
+
+              <div className="flex justify-center gap-3 mb-8">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <motion.button
                     key={star}
-                    whileHover={{ scale: 1.2 }}
+                    whileHover={{ scale: 1.2, rotate: 10 }}
+                    whileTap={{ scale: 0.9 }}
                     onClick={() => setRating(star)}
-                    className="p-1"
+                    className="p-1 transition-all"
                   >
                     <Star
-                      className={`h-8 w-8 ${
+                      className={`h-10 w-10 transition-all ${
                         rating >= star
-                          ? "fill-yellow-400 text-yellow-400"
-                          : "text-gray-300"
+                          ? "fill-yellow-400 text-yellow-400 drop-shadow-lg"
+                          : "text-gray-300 hover:text-gray-400"
                       }`}
                     />
                   </motion.button>
                 ))}
               </div>
+
               <div className="flex gap-3">
                 <motion.button
-                  whileHover={{ scale: 1.05 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => {
                     setIsRatingModalOpen(false);
                     setRating(0);
                   }}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-medium transition-colors"
+                  className="flex-1 px-6 py-3 bg-gray-100 text-gray-800 rounded-xl hover:bg-gray-200 font-medium transition-all"
                 >
                   Cancel
                 </motion.button>
                 <motion.button
-                  whileHover={{ scale: 1.05 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={handleCloseTicket}
                   disabled={rating === 0 || isSubmittingRating}
-                  className="flex-1 px-4 py-2 bg-[#1E88E5] text-white rounded-lg hover:bg-[#1565C0] disabled:bg-gray-400 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2 transition-colors"
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-[#1E88E5] to-[#1565C0] text-white rounded-xl hover:from-[#1565C0] hover:to-[#0D47A1] disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2 transition-all shadow-lg"
                 >
                   {isSubmittingRating ? (
                     <>
@@ -991,56 +1240,68 @@ const Ticket = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
             >
-              <h2 className="text-xl font-bold text-gray-800 mb-2">
-                Rate the Buyer
-              </h2>
-              <p className="text-sm text-gray-600 mb-6">
-                How was your experience with{" "}
-                <span className="font-semibold">{ticket.buyerId.fullName}</span>
-                ?
-              </p>
-              <div className="flex justify-center gap-2 mb-6">
+              <div className="text-center mb-6">
+                <div className="h-16 w-16 bg-gradient-to-br from-green-400 to-emerald-400 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="h-8 w-8 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  Rate the Buyer
+                </h2>
+                <p className="text-sm text-gray-600">
+                  How was your experience with{" "}
+                  <span className="font-semibold text-[#1E88E5]">
+                    {ticket.buyerId.fullName}
+                  </span>
+                  ?
+                </p>
+              </div>
+
+              <div className="flex justify-center gap-3 mb-8">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <motion.button
                     key={star}
-                    whileHover={{ scale: 1.2 }}
+                    whileHover={{ scale: 1.2, rotate: 10 }}
+                    whileTap={{ scale: 0.9 }}
                     onClick={() => setRating(star)}
-                    className="p-1"
+                    className="p-1 transition-all"
                   >
                     <Star
-                      className={`h-8 w-8 ${
+                      className={`h-10 w-10 transition-all ${
                         rating >= star
-                          ? "fill-yellow-400 text-yellow-400"
-                          : "text-gray-300"
+                          ? "fill-yellow-400 text-yellow-400 drop-shadow-lg"
+                          : "text-gray-300 hover:text-gray-400"
                       }`}
                     />
                   </motion.button>
                 ))}
               </div>
+
               <div className="flex gap-3">
                 <motion.button
-                  whileHover={{ scale: 1.05 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => {
                     setIsCompletionModalOpen(false);
                     setRating(0);
                   }}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-medium transition-colors"
+                  className="flex-1 px-6 py-3 bg-gray-100 text-gray-800 rounded-xl hover:bg-gray-200 font-medium transition-all"
                 >
                   Cancel
                 </motion.button>
                 <motion.button
-                  whileHover={{ scale: 1.05 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={handleSubmitCompletionRating}
                   disabled={rating === 0 || isSubmittingRating}
-                  className="flex-1 px-4 py-2 bg-[#1E88E5] text-white rounded-lg hover:bg-[#1565C0] disabled:bg-gray-400 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2 transition-colors"
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-[#1E88E5] to-[#1565C0] text-white rounded-xl hover:from-[#1565C0] hover:to-[#0D47A1] disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2 transition-all shadow-lg"
                 >
                   {isSubmittingRating ? (
                     <>
@@ -1065,137 +1326,17 @@ const Ticket = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 max-h-[80vh] overflow-y-auto"
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto"
             >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800">
-                  Ticket Details
-                </h2>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  onClick={() => setIsDetailsModalOpen(false)}
-                  className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </motion.button>
-              </div>
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-800 mb-2">
-                    Status
-                  </h3>
-                  <span className="inline-flex px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
-                    {ticket.status.replace("_", " ")}
-                  </span>
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-800 mb-3">
-                    {isBuyer ? "Seller" : "Buyer"}
-                  </h3>
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="h-10 w-10 bg-[#1E88E5] rounded-full flex items-center justify-center text-white font-bold text-sm">
-                      {ticket[
-                        isBuyer ? "sellerId" : "buyerId"
-                      ]?.fullName?.charAt(0) || "U"}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-800 truncate">
-                        {ticket[isBuyer ? "sellerId" : "buyerId"]?.fullName}
-                      </p>
-                      <p className="text-xs text-gray-500 truncate">
-                        {ticket[isBuyer ? "sellerId" : "buyerId"]?.email}
-                      </p>
-                    </div>
-                  </div>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    onClick={() =>
-                      navigate(
-                        `/users/${
-                          ticket[isBuyer ? "sellerId" : "buyerId"]?._id
-                        }`
-                      )
-                    }
-                    className="w-full px-4 py-2 bg-[#1E88E5] text-white rounded-lg hover:bg-[#1565C0] text-sm font-medium transition-colors"
-                  >
-                    View Profile
-                  </motion.button>
-                </div>
-                {ticket.agreedPrice && (
-                  <div className="bg-blue-50 rounded-lg p-4">
-                    <h3 className="text-sm font-semibold text-gray-800 mb-2">
-                      Agreed Price
-                    </h3>
-                    <p className="text-lg font-bold text-[#1E88E5]">
-                      ₹{ticket.agreedPrice.toLocaleString()}
-                    </p>
-                  </div>
-                )}
-                {ticket.timeline?.length > 0 && (
+              {/* Modal Header */}
+              <div className="sticky top-0 bg-gradient-to-r from-blue-500 to-purple-500 text-white p-6 rounded-t-2xl">
+                <div className="flex justify-between items-center">
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2 mb-4">
-                      <Clock className="h-4 w-4" /> Timeline
-                    </h3>
-                    <div className="space-y-4">
-                      {ticket.timeline.map((event) => (
-                        <div key={event._id} className="flex gap-4">
-                          <div className="flex flex-col items-center">
-                            <div className="h-3 w-3 bg-[#1E88E5] rounded-full" />
-                            <div className="h-20 w-0.5 bg-gray-200 mt-2" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm text-gray-800 font-medium">
-                              {event.action}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {moment(event.timestamp).fromNow()}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <style jsx>{`
-        @keyframes blob {
-          0%,
-          100% {
-            transform: translate(0, 0) scale(1);
-          }
-          33% {
-            transform: translate(30px, -50px) scale(1.1);
-          }
-          66% {
-            transform: translate(-20px, 20px) scale(0.9);
-          }
-        }
-        .animate-blob {
-          animation: blob 7s infinite;
-        }
-        .animation-delay-2000 {
-          animation-delay: 2s;
-        }
-        .animation-delay-3000 {
-          animation-delay: 3s;
-        }
-        .animation-delay-4000 {
-          animation-delay: 4s;
-        }
-      `}</style>
-    </div>
-  );
-};
-
-export default Ticket;
+                    <h2 className="text-2xl font-bold">Ticket Details</h2>
+                    <p className="text-sm opacity-90 mt-1
