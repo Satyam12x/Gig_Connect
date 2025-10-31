@@ -19,13 +19,13 @@ import {
   MessageSquare,
   Info,
   ArrowLeft,
-  Menu,
   File,
   MoreVertical,
   AlertCircle,
   TrendingUp,
   Package,
   Shield,
+  Users,
 } from "lucide-react";
 import io from "socket.io-client";
 import { debounce } from "lodash";
@@ -63,6 +63,7 @@ const Ticket = () => {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [messageOptionsId, setMessageOptionsId] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
+  const [showMembersOnMobile, setShowMembersOnMobile] = useState(false);
 
   const messagesContainerRef = useRef(null);
   const socketRef = useRef(null);
@@ -475,7 +476,11 @@ const Ticket = () => {
         <motion.div className="text-center">
           <motion.div
             animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            transition={{
+              duration: 1,
+              repeat: Number.POSITIVE_INFINITY,
+              ease: "linear",
+            }}
             className="inline-block"
           >
             <Loader className="h-12 w-12 text-[#1E88E5]" />
@@ -629,498 +634,631 @@ const Ticket = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-hidden">
+      {/* Fixed Navbar */}
       <Navbar />
+
+      {/* Main Content Area - flex row layout */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Chat Area - Left Side */}
+        <div className="flex flex-col flex-1 min-w-0">
+          {/* Ticket Header - Inside chat area, like WhatsApp */}
+          <motion.header
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white/90 backdrop-blur-xl border-b border-gray-200/50 shadow-md px-4 sm:px-6 py-4 flex-shrink-0"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => navigate("/gigs")}
+                  className="p-2 text-gray-600 hover:text-[#1E88E5] rounded-xl hover:bg-blue-50 transition-all flex-shrink-0"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </motion.button>
+                <div className="flex-1 min-w-0">
+                  <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
+                    {ticket.gigId.title}
+                  </h1>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
+                        ticket.status
+                      )}`}
+                    >
+                      {getStatusIcon(ticket.status)}{" "}
+                      {ticket.status.replace("_", " ")}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      ID: {ticket._id.slice(-8)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile Members Toggle */}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowMembersOnMobile(!showMembersOnMobile)}
+                className="lg:hidden p-2.5 text-gray-600 hover:text-[#1E88E5] rounded-xl hover:bg-blue-50 transition-all flex-shrink-0 relative"
+              >
+                <Users className="h-5 w-5" />
+                <span className="absolute -top-1 -right-1 h-5 w-5 bg-[#1E88E5] text-white text-xs rounded-full flex items-center justify-center">
+                  2
+                </span>
+              </motion.button>
+
+              {/* Desktop Action Menu */}
+              <div className="hidden lg:flex items-center gap-2 flex-shrink-0">
+                {getVisibleActions().slice(0, 2).map(renderActionButton)}
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setIsDetailsModalOpen(true)}
+                  className="px-4 py-2 bg-gradient-to-r from-gray-100 to-gray-50 text-gray-700 rounded-xl text-sm font-medium flex items-center gap-2 hover:from-gray-200 hover:to-gray-100 transition-all shadow-sm"
+                >
+                  <Info className="h-4 w-4" /> More
+                </motion.button>
+              </div>
+            </div>
+          </motion.header>
+
+          {/* Messages Area - Scrollable */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex-1 bg-white/95 backdrop-blur-sm rounded-none overflow-hidden flex flex-col"
+          >
+            {/* Search bar */}
+            <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50/50 to-purple-50/50 flex-shrink-0">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search messages..."
+                  className="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E88E5] focus:border-transparent text-sm bg-white/80 backdrop-blur-sm transition-all"
+                />
+                <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                {isSearching && (
+                  <Loader className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#1E88E5] animate-spin" />
+                )}
+                {searchQuery && !isSearching && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Messages Container - Internal Scroll */}
+            <div
+              ref={messagesContainerRef}
+              onScroll={handleScroll}
+              className="flex-1 overflow-y-auto p-4 space-y-4"
+            >
+              {loadingOlder && (
+                <div className="text-center py-3">
+                  <Loader className="h-5 w-5 animate-spin inline text-[#1E88E5]" />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Loading older messages...
+                  </p>
+                </div>
+              )}
+
+              {ticket.messages.length === 0 ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="h-20 w-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <MessageSquare className="h-10 w-10 text-[#1E88E5] opacity-50" />
+                    </div>
+                    <p className="text-gray-600 font-medium mb-1">
+                      No messages yet
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Start the conversation!
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                ticket.messages.map((msg, i) => {
+                  const isOwn = msg.senderId === userId;
+                  const isAI = msg.senderId === "AI";
+                  const showAvatar =
+                    i === 0 || ticket.messages[i - 1].senderId !== msg.senderId;
+                  return (
+                    <motion.div
+                      key={msg._id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      className={`flex gap-2 ${
+                        isOwn ? "justify-end" : "justify-start"
+                      }`}
+                    >
+                      {!isOwn && showAvatar && (
+                        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                          {isAI ? "AI" : msg.senderName?.charAt(0) || "U"}
+                        </div>
+                      )}
+                      {!isOwn && !showAvatar && (
+                        <div className="w-8 flex-shrink-0" />
+                      )}
+
+                      <div
+                        className={`max-w-[75%] group relative ${
+                          isOwn ? "items-end" : "items-start"
+                        } flex flex-col`}
+                      >
+                        {!isOwn && showAvatar && (
+                          <p className="text-xs font-medium text-gray-600 mb-1 ml-3">
+                            {msg.senderName}
+                            {isAI && " (AI Assistant)"}
+                          </p>
+                        )}
+                        <div
+                          className={`relative px-4 py-3 rounded-2xl shadow-sm text-sm ${
+                            isOwn
+                              ? "bg-gradient-to-r from-[#1E88E5] to-[#1565C0] text-white rounded-br-md"
+                              : isAI
+                              ? "bg-gradient-to-r from-purple-100 to-pink-100 text-gray-800 rounded-bl-md"
+                              : "bg-white text-gray-800 border border-gray-200 rounded-bl-md"
+                          }`}
+                        >
+                          {msg.replyTo && (
+                            <div
+                              className={`mb-2 pb-2 border-l-2 pl-2 text-xs opacity-75 ${
+                                isOwn ? "border-white/30" : "border-gray-300"
+                              }`}
+                            >
+                              <p className="font-medium">Replying to:</p>
+                              <p className="truncate">{msg.replyTo.content}</p>
+                            </div>
+                          )}
+                          <p
+                            dangerouslySetInnerHTML={{
+                              __html: highlightText(msg.content, searchQuery),
+                            }}
+                            className="break-words"
+                          />
+                          {msg.attachment && (
+                            <div className="mt-3">
+                              {msg.attachment.match(
+                                /\.(jpg|jpeg|png|gif|webp)$/i
+                              ) ? (
+                                <motion.img
+                                  whileHover={{ scale: 1.05 }}
+                                  src={msg.attachment}
+                                  alt="Attachment"
+                                  className="max-w-full h-auto rounded-xl max-h-64 cursor-pointer border-2 border-white/20"
+                                  onClick={() =>
+                                    window.open(msg.attachment, "_blank")
+                                  }
+                                />
+                              ) : (
+                                <a
+                                  href={msg.attachment}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`flex items-center gap-2 text-xs underline p-2 rounded-lg ${
+                                    isOwn
+                                      ? "bg-white/10 hover:bg-white/20"
+                                      : "bg-gray-100 hover:bg-gray-200"
+                                  }`}
+                                >
+                                  <File className="h-4 w-4" />
+                                  <span className="truncate">
+                                    {msg.attachment.split("/").pop()}
+                                  </span>
+                                </a>
+                              )}
+                            </div>
+                          )}
+                          <div
+                            className={`flex items-center justify-between mt-2 text-xs ${
+                              isOwn ? "text-white/70" : "text-gray-500"
+                            }`}
+                          >
+                            <span>
+                              {moment(msg.timestamp).format("h:mm A")}
+                            </span>
+                            {isOwn && msg.read && (
+                              <span className="flex items-center gap-1">
+                                <CheckCircle className="h-3 w-3" /> Read
+                              </span>
+                            )}
+                          </div>
+
+                          <button
+                            onClick={() =>
+                              setMessageOptionsId(
+                                messageOptionsId === msg._id ? null : msg._id
+                              )
+                            }
+                            className={`absolute top-2 ${
+                              isOwn ? "left-2" : "right-2"
+                            } opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full ${
+                              isOwn
+                                ? "bg-white/10 hover:bg-white/20"
+                                : "bg-gray-100 hover:bg-gray-200"
+                            }`}
+                          >
+                            <MoreVertical className="h-3 w-3" />
+                          </button>
+
+                          {messageOptionsId === msg._id && (
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              className={`absolute ${
+                                isOwn ? "left-0" : "right-0"
+                              } top-10 bg-white rounded-lg shadow-xl border border-gray-200 p-2 z-10 min-w-[120px]`}
+                            >
+                              <button
+                                onClick={() => {
+                                  setReplyingTo(msg);
+                                  setMessageOptionsId(null);
+                                  messageInputRef.current?.focus();
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                              >
+                                Reply
+                              </button>
+                            </motion.div>
+                          )}
+                        </div>
+                      </div>
+
+                      {isOwn && showAvatar && (
+                        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#1E88E5] to-[#1565C0] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                          {ticket[
+                            isBuyer ? "buyerId" : "sellerId"
+                          ]?.fullName?.charAt(0) || "Y"}
+                        </div>
+                      )}
+                      {isOwn && !showAvatar && (
+                        <div className="w-8 flex-shrink-0" />
+                      )}
+                    </motion.div>
+                  );
+                })
+              )}
+
+              {typingUser && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-2 text-sm text-gray-500"
+                >
+                  <div className="flex gap-1">
+                    <motion.div
+                      animate={{ y: [0, -5, 0] }}
+                      transition={{
+                        duration: 0.6,
+                        repeat: Number.POSITIVE_INFINITY,
+                      }}
+                      className="h-2 w-2 bg-[#1E88E5] rounded-full"
+                    />
+                    <motion.div
+                      animate={{ y: [0, -5, 0] }}
+                      transition={{
+                        duration: 0.6,
+                        repeat: Number.POSITIVE_INFINITY,
+                        delay: 0.2,
+                      }}
+                      className="h-2 w-2 bg-[#1E88E5] rounded-full"
+                    />
+                    <motion.div
+                      animate={{ y: [0, -5, 0] }}
+                      transition={{
+                        duration: 0.6,
+                        repeat: Number.POSITIVE_INFINITY,
+                        delay: 0.4,
+                      }}
+                      className="h-2 w-2 bg-[#1E88E5] rounded-full"
+                    />
+                  </div>
+                  <span className="italic">{typingUser} is typing...</span>
+                </motion.div>
+              )}
+            </div>
+
+            {/* Input area */}
+            {ticket.status !== "closed" && (
+              <div className="border-t border-gray-100 bg-gradient-to-r from-blue-50/30 to-purple-50/30 p-4 flex-shrink-0">
+                {replyingTo && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-3 bg-white rounded-lg p-3 border border-gray-200 flex items-start justify-between"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-600 mb-1">
+                        Replying to {replyingTo.senderName}
+                      </p>
+                      <p className="text-sm text-gray-800 truncate">
+                        {replyingTo.content}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setReplyingTo(null)}
+                      className="ml-2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </motion.div>
+                )}
+
+                {file && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-3 bg-white rounded-lg p-3 border border-gray-200"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {filePreview ? (
+                          <img
+                            src={filePreview || "/placeholder.svg"}
+                            alt="Preview"
+                            className="h-12 w-12 object-cover rounded-lg border-2 border-gray-200"
+                          />
+                        ) : (
+                          <div className="h-12 w-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                            <File className="h-6 w-6 text-gray-400" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">
+                            {file.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {(file.size / 1024).toFixed(1)} KB
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setFile(null);
+                          setFilePreview(null);
+                          if (fileInputRef.current)
+                            fileInputRef.current.value = "";
+                        }}
+                        className="ml-2 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                <div className="flex items-end gap-2">
+                  <textarea
+                    ref={messageInputRef}
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                    placeholder="Type a message..."
+                    rows="1"
+                    className="flex-1 p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E88E5] focus:border-transparent text-sm resize-none max-h-32 bg-white/80 backdrop-blur-sm transition-all"
+                  />
+
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    accept="image/*,.pdf,.doc,.docx"
+                  />
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-3 bg-white hover:bg-gray-50 rounded-xl border border-gray-200 transition-all shadow-sm flex-shrink-0"
+                    title="Attach file"
+                  >
+                    <Paperclip className="h-5 w-5 text-gray-600" />
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleAIResponse}
+                    disabled={isSending || !message.trim()}
+                    className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex-shrink-0"
+                    title="AI suggestion"
+                  >
+                    <MessageSquare className="h-5 w-5" />
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleSendMessage}
+                    disabled={isSending || (!message.trim() && !file)}
+                    className="p-3 bg-gradient-to-r from-[#1E88E5] to-[#1565C0] hover:from-[#1565C0] hover:to-[#0D47A1] text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex-shrink-0"
+                    title="Send message"
+                  >
+                    {isSending ? (
+                      <Loader className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Send className="h-5 w-5" />
+                    )}
+                  </motion.button>
+                </div>
+              </div>
+            )}
+
+            {ticket.status === "closed" && (
+              <div className="border-t border-gray-100 bg-gray-50 p-4 text-center flex-shrink-0">
+                <p className="text-sm text-gray-600 flex items-center justify-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  This ticket is closed
+                </p>
+              </div>
+            )}
+          </motion.div>
+        </div>
+
+        {/* Members Panel - Right Side (Fixed, Desktop Only, or Mobile Toggle) */}
+        <AnimatePresence>
+          {showMembersOnMobile || true ? (
+            <motion.aside
+              initial={{ x: showMembersOnMobile ? 350 : 0, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 350, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className={`${
+                showMembersOnMobile
+                  ? "fixed inset-0 top-[64px] right-0 w-full sm:w-80 z-40 lg:relative lg:inset-auto lg:top-auto"
+                  : "hidden lg:flex"
+              } flex-col bg-white/95 backdrop-blur-sm border-l border-gray-200 w-80 flex-shrink-0`}
+            >
+              {/* Members Header */}
+              <div className="p-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-[#1E88E5]" />
+                  <h3 className="font-semibold text-gray-900">Participants</h3>
+                </div>
+                {showMembersOnMobile && (
+                  <button
+                    onClick={() => setShowMembersOnMobile(false)}
+                    className="lg:hidden p-2 text-gray-600 hover:text-gray-800"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Members List - Scrollable */}
+              <div className="flex-1 overflow-y-auto">
+                {/* Buyer */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-4 border-b border-gray-100 hover:bg-blue-50/50 transition-colors"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold flex-shrink-0">
+                      {ticket.buyerId.fullName.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900">
+                        {ticket.buyerId.fullName}
+                      </p>
+                      <p className="text-xs text-gray-500">Buyer</p>
+                      {isBuyer && (
+                        <span className="inline-block mt-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-xs font-medium">
+                          You
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+
+                {/* Seller */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="p-4 hover:bg-purple-50/50 transition-colors"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white font-bold flex-shrink-0">
+                      {ticket.sellerId.fullName.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900">
+                        {ticket.sellerId.fullName}
+                      </p>
+                      <p className="text-xs text-gray-500">Seller</p>
+                      {isSeller && (
+                        <span className="inline-block mt-1 px-2 py-1 bg-purple-100 text-purple-700 rounded-md text-xs font-medium">
+                          You
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* Ticket Info in Members Panel */}
+              <div className="p-4 border-t border-gray-100 bg-gradient-to-r from-blue-50/50 to-purple-50/50 flex-shrink-0">
+                <div className="space-y-3 text-sm">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase">
+                      Status
+                    </p>
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium mt-1 ${getStatusColor(
+                        ticket.status
+                      )}`}
+                    >
+                      {getStatusIcon(ticket.status)}{" "}
+                      {ticket.status.replace("_", " ")}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase">
+                      Price
+                    </p>
+                    <p className="text-lg font-bold text-[#1E88E5] mt-1">
+                      ${ticket.agreedPrice?.toFixed(2) || "Not set"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase">
+                      Created
+                    </p>
+                    <p className="text-gray-700 mt-1">
+                      {moment(ticket.createdAt).format("MMM D, YYYY")}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons in Members Panel */}
+              <div className="p-4 border-t border-gray-100 space-y-2 flex-shrink-0">
+                {getVisibleActions().slice(0, 3).map(renderActionButton)}
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    setIsDetailsModalOpen(true);
+                    setShowMembersOnMobile(false);
+                  }}
+                  className="w-full px-4 py-2.5 bg-gray-100 text-gray-800 rounded-xl hover:bg-gray-200 font-medium text-sm flex items-center justify-center gap-2 transition-all"
+                >
+                  <Info className="h-4 w-4" /> Full Details
+                </motion.button>
+              </div>
+            </motion.aside>
+          ) : null}
+        </AnimatePresence>
+      </div>
+
+      {/* Fixed Footer */}
+      <div className="hidden lg:block flex-shrink-0">
+        <Footer />
+      </div>
+
       <ToastContainer
         position="top-right"
         autoClose={3000}
         hideProgressBar={false}
       />
-
-      {/* Ticket Header – sticky, under Navbar */}
-      <motion.header
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white/90 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-40 shadow-lg"
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => navigate("/gigs")}
-                className="p-2 text-gray-600 hover:text-[#1E88E5] rounded-xl hover:bg-blue-50 transition-all"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </motion.button>
-              <div className="flex-1 min-w-0">
-                <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
-                  {ticket.gigId.title}
-                </h1>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
-                      ticket.status
-                    )}`}
-                  >
-                    {getStatusIcon(ticket.status)}{" "}
-                    {ticket.status.replace("_", " ")}
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    ID: {ticket._id.slice(-8)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="lg:hidden" ref={menuRef}>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="p-2.5 text-gray-600 hover:text-[#1E88E5] rounded-xl hover:bg-blue-50 transition-all"
-              >
-                <Menu className="h-5 w-5" />
-              </motion.button>
-              <AnimatePresence>
-                {isMenuOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                    className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 p-4 z-50"
-                  >
-                    <div className="space-y-2">
-                      {getVisibleActions().map(renderActionButton)}
-                      <button
-                        onClick={() => {
-                          setIsDetailsModalOpen(true);
-                          setIsMenuOpen(false);
-                        }}
-                        className="w-full px-4 py-2.5 bg-gray-100 text-gray-800 rounded-xl hover:bg-gray-200 font-medium text-sm flex items-center justify-center gap-2 transition-all"
-                      >
-                        <Info className="h-4 w-4" /> View Details
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <div className="hidden lg:flex items-center gap-2">
-              {getVisibleActions().map(renderActionButton)}
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setIsDetailsModalOpen(true)}
-                className="px-4 py-2 bg-gradient-to-r from-gray-100 to-gray-50 text-gray-700 rounded-xl text-sm font-medium flex items-center gap-2 hover:from-gray-200 hover:to-gray-100 transition-all shadow-sm"
-              >
-                <Info className="h-4 w-4" /> Details
-              </motion.button>
-            </div>
-          </div>
-        </div>
-      </motion.header>
-
-      {/* Main chat – fills remaining height, internal scroll */}
-      <main className="flex-1 flex flex-col max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-4 pb-20 lg:pb-0">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex-1 bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 flex flex-col overflow-hidden"
-        >
-          {/* Search bar */}
-          <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50/50 to-purple-50/50">
-            <div className="relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search messages..."
-                className="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E88E5] focus:border-transparent text-sm bg-white/80 backdrop-blur-sm transition-all"
-              />
-              <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              {isSearching && (
-                <Loader className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#1E88E5] animate-spin" />
-              )}
-              {searchQuery && !isSearching && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Messages – internal scroll */}
-          <div
-            ref={messagesContainerRef}
-            onScroll={handleScroll}
-            className="flex-1 overflow-y-auto p-4 space-y-4"
-          >
-            {loadingOlder && (
-              <div className="text-center py-3">
-                <Loader className="h-5 w-5 animate-spin inline text-[#1E88E5]" />
-                <p className="text-xs text-gray-500 mt-1">
-                  Loading older messages...
-                </p>
-              </div>
-            )}
-
-            {ticket.messages.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <div className="h-20 w-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <MessageSquare className="h-10 w-10 text-[#1E88E5] opacity-50" />
-                  </div>
-                  <p className="text-gray-600 font-medium mb-1">
-                    No messages yet
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Start the conversation!
-                  </p>
-                </div>
-              </div>
-            ) : (
-              ticket.messages.map((msg, i) => {
-                const isOwn = msg.senderId === userId;
-                const isAI = msg.senderId === "AI";
-                const showAvatar =
-                  i === 0 || ticket.messages[i - 1].senderId !== msg.senderId;
-                return (
-                  <motion.div
-                    key={msg._id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    className={`flex gap-2 ${
-                      isOwn ? "justify-end" : "justify-start"
-                    }`}
-                  >
-                    {!isOwn && showAvatar && (
-                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                        {isAI ? "AI" : msg.senderName?.charAt(0) || "U"}
-                      </div>
-                    )}
-                    {!isOwn && !showAvatar && (
-                      <div className="w-8 flex-shrink-0" />
-                    )}
-
-                    <div
-                      className={`max-w-[75%] group relative ${
-                        isOwn ? "items-end" : "items-start"
-                      } flex flex-col`}
-                    >
-                      {!isOwn && showAvatar && (
-                        <p className="text-xs font-medium text-gray-600 mb-1 ml-3">
-                          {msg.senderName}
-                          {isAI && " (AI Assistant)"}
-                        </p>
-                      )}
-                      <div
-                        className={`relative px-4 py-3 rounded-2xl shadow-sm text-sm ${
-                          isOwn
-                            ? "bg-gradient-to-r from-[#1E88E5] to-[#1565C0] text-white rounded-br-md"
-                            : isAI
-                            ? "bg-gradient-to-r from-purple-100 to-pink-100 text-gray-800 rounded-bl-md"
-                            : "bg-white text-gray-800 border border-gray-200 rounded-bl-md"
-                        }`}
-                      >
-                        {msg.replyTo && (
-                          <div
-                            className={`mb-2 pb-2 border-l-2 pl-2 text-xs opacity-75 ${
-                              isOwn ? "border-white/30" : "border-gray-300"
-                            }`}
-                          >
-                            <p className="font-medium">Replying to:</p>
-                            <p className="truncate">{msg.replyTo.content}</p>
-                          </div>
-                        )}
-                        <p
-                          dangerouslySetInnerHTML={{
-                            __html: highlightText(msg.content, searchQuery),
-                          }}
-                          className="break-words"
-                        />
-                        {msg.attachment && (
-                          <div className="mt-3">
-                            {msg.attachment.match(
-                              /\.(jpg|jpeg|png|gif|webp)$/i
-                            ) ? (
-                              <motion.img
-                                whileHover={{ scale: 1.05 }}
-                                src={msg.attachment}
-                                alt="Attachment"
-                                className="max-w-full h-auto rounded-xl max-h-64 cursor-pointer border-2 border-white/20"
-                                onClick={() =>
-                                  window.open(msg.attachment, "_blank")
-                                }
-                              />
-                            ) : (
-                              <a
-                                href={msg.attachment}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={`flex items-center gap-2 text-xs underline p-2 rounded-lg ${
-                                  isOwn
-                                    ? "bg-white/10 hover:bg-white/20"
-                                    : "bg-gray-100 hover:bg-gray-200"
-                                }`}
-                              >
-                                <File className="h-4 w-4" />
-                                <span className="truncate">
-                                  {msg.attachment.split("/").pop()}
-                                </span>
-                              </a>
-                            )}
-                          </div>
-                        )}
-                        <div
-                          className={`flex items-center justify-between mt-2 text-xs ${
-                            isOwn ? "text-white/70" : "text-gray-500"
-                          }`}
-                        >
-                          <span>{moment(msg.timestamp).format("h:mm A")}</span>
-                          {isOwn && msg.read && (
-                            <span className="flex items-center gap-1">
-                              <CheckCircle className="h-3 w-3" /> Read
-                            </span>
-                          )}
-                        </div>
-
-                        <button
-                          onClick={() =>
-                            setMessageOptionsId(
-                              messageOptionsId === msg._id ? null : msg._id
-                            )
-                          }
-                          className={`absolute top-2 ${
-                            isOwn ? "left-2" : "right-2"
-                          } opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full ${
-                            isOwn
-                              ? "bg-white/10 hover:bg-white/20"
-                              : "bg-gray-100 hover:bg-gray-200"
-                          }`}
-                        >
-                          <MoreVertical className="h-3 w-3" />
-                        </button>
-
-                        {messageOptionsId === msg._id && (
-                          <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className={`absolute ${
-                              isOwn ? "left-0" : "right-0"
-                            } top-10 bg-white rounded-lg shadow-xl border border-gray-200 p-2 z-10 min-w-[120px]`}
-                          >
-                            <button
-                              onClick={() => {
-                                setReplyingTo(msg);
-                                setMessageOptionsId(null);
-                                messageInputRef.current?.focus();
-                              }}
-                              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                            >
-                              Reply
-                            </button>
-                          </motion.div>
-                        )}
-                      </div>
-                    </div>
-
-                    {isOwn && showAvatar && (
-                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#1E88E5] to-[#1565C0] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                        {ticket[
-                          isBuyer ? "buyerId" : "sellerId"
-                        ]?.fullName?.charAt(0) || "Y"}
-                      </div>
-                    )}
-                    {isOwn && !showAvatar && (
-                      <div className="w-8 flex-shrink-0" />
-                    )}
-                  </motion.div>
-                );
-              })
-            )}
-
-            {typingUser && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-2 text-sm text-gray-500"
-              >
-                <div className="flex gap-1">
-                  <motion.div
-                    animate={{ y: [0, -5, 0] }}
-                    transition={{ duration: 0.6, repeat: Infinity }}
-                    className="h-2 w-2 bg-[#1E88E5] rounded-full"
-                  />
-                  <motion.div
-                    animate={{ y: [0, -5, 0] }}
-                    transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
-                    className="h-2 w-2 bg-[#1E88E5] rounded-full"
-                  />
-                  <motion.div
-                    animate={{ y: [0, -5, 0] }}
-                    transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
-                    className="h-2 w-2 bg-[#1E88E5] rounded-full"
-                  />
-                </div>
-                <span className="italic">{typingUser} is typing...</span>
-              </motion.div>
-            )}
-          </div>
-
-          {/* Input area */}
-          {ticket.status !== "closed" && (
-            <div className="border-t border-gray-100 bg-gradient-to-r from-blue-50/30 to-purple-50/30 p-4">
-              {replyingTo && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mb-3 bg-white rounded-lg p-3 border border-gray-200 flex items-start justify-between"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-600 mb-1">
-                      Replying to {replyingTo.senderName}
-                    </p>
-                    <p className="text-sm text-gray-800 truncate">
-                      {replyingTo.content}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setReplyingTo(null)}
-                    className="ml-2 text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </motion.div>
-              )}
-
-              {file && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mb-3 bg-white rounded-lg p-3 border border-gray-200"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      {filePreview ? (
-                        <img
-                          src={filePreview}
-                          alt="Preview"
-                          className="h-12 w-12 object-cover rounded-lg border-2 border-gray-200"
-                        />
-                      ) : (
-                        <div className="h-12 w-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                          <File className="h-6 w-6 text-gray-400" />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">
-                          {file.name}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {(file.size / 1024).toFixed(1)} KB
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setFile(null);
-                        setFilePreview(null);
-                        if (fileInputRef.current)
-                          fileInputRef.current.value = "";
-                      }}
-                      className="ml-2 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-
-              <div className="flex items-end gap-2">
-                <textarea
-                  ref={messageInputRef}
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                  placeholder="Type a message..."
-                  rows="1"
-                  className="flex-1 p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E88E5] focus:border-transparent text-sm resize-none max-h-32 bg-white/80 backdrop-blur-sm transition-all"
-                />
-
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  className="hidden"
-                  accept="image/*,.pdf,.doc,.docx"
-                />
-
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-3 bg-white hover:bg-gray-50 rounded-xl border border-gray-200 transition-all shadow-sm"
-                  title="Attach file"
-                >
-                  <Paperclip className="h-5 w-5 text-gray-600" />
-                </motion.button>
-
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleAIResponse}
-                  disabled={isSending || !message.trim()}
-                  className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
-                  title="AI suggestion"
-                >
-                  <MessageSquare className="h-5 w-5" />
-                </motion.button>
-
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleSendMessage}
-                  disabled={isSending || (!message.trim() && !file)}
-                  className="p-3 bg-gradient-to-r from-[#1E88E5] to-[#1565C0] hover:from-[#1565C0] hover:to-[#0D47A1] text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
-                  title="Send message"
-                >
-                  {isSending ? (
-                    <Loader className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Send className="h-5 w-5" />
-                  )}
-                </motion.button>
-              </div>
-            </div>
-          )}
-
-          {ticket.status === "closed" && (
-            <div className="border-t border-gray-100 bg-gray-50 p-4 text-center">
-              <p className="text-sm text-gray-600 flex items-center justify-center gap-2">
-                <Shield className="h-4 w-4" />
-                This ticket is closed
-              </p>
-            </div>
-          )}
-        </motion.div>
-      </main>
-
-      {/* Footer – only on desktop */}
-      <div className="hidden lg:block">
-        <Footer />
-      </div>
 
       {/* ---------- MODALS ---------- */}
       <AnimatePresence>
@@ -1234,7 +1372,7 @@ const Ticket = () => {
                   <motion.button
                     key={s}
                     whileHover={{ scale: 1.2 }}
-                    whileTap={{ scale: 0.9 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => setRating(s)}
                     className="focus:outline-none"
                   >
