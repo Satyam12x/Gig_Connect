@@ -34,7 +34,6 @@ import io from "socket.io-client";
 import { debounce } from "lodash";
 import moment from "moment";
 
-// Components
 import Navbar from "../components/Navbar.jsx";
 import Footer from "../components/Footer.jsx";
 
@@ -45,7 +44,6 @@ const Ticket = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  /* ---------- STATE ---------- */
   const [ticket, setTicket] = useState(null);
   const [userId, setUserId] = useState(null);
   const [message, setMessage] = useState("");
@@ -58,7 +56,7 @@ const Ticket = () => {
   const [file, setFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isSearching, setIsSearching] = useState(false); // ← NEW
+  const [isSearching, setIsSearching] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -69,25 +67,21 @@ const Ticket = () => {
   const [messageOptionsId, setMessageOptionsId] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
 
-  /* ---------- REFS ---------- */
   const messagesContainerRef = useRef(null);
   const socketRef = useRef(null);
   const fileInputRef = useRef(null);
   const menuRef = useRef(null);
   const messageInputRef = useRef(null);
 
-  /* ---------- HELPERS ---------- */
   const handleScroll = useCallback(() => {
     if (!messagesContainerRef.current) return;
     const container = messagesContainerRef.current;
     const { scrollTop } = container;
-
     if (scrollTop < 300 && hasMore && !loadingOlder) {
       loadOlderMessages();
     }
   }, [hasMore, loadingOlder]);
 
-  /* ---------- AUTH ---------- */
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
@@ -105,7 +99,6 @@ const Ticket = () => {
     }
   }, [navigate, id]);
 
-  /* ---------- SOCKET ---------- */
   useEffect(() => {
     if (!userId || !ticket) return;
 
@@ -148,7 +141,6 @@ const Ticket = () => {
     };
   }, [userId, id, ticket]);
 
-  /* ---------- FETCH TICKET ---------- */
   useEffect(() => {
     if (!userId) return;
     const fetch = async () => {
@@ -170,7 +162,6 @@ const Ticket = () => {
     fetch();
   }, [id, userId, navigate]);
 
-  /* ---------- LOAD OLDER MESSAGES ---------- */
   const loadOlderMessages = useCallback(async () => {
     if (loadingOlder || !hasMore || !ticket) return;
     setLoadingOlder(true);
@@ -207,7 +198,6 @@ const Ticket = () => {
     }
   }, [id, page, loadingOlder, hasMore, ticket]);
 
-  /* ---------- MARK READ ---------- */
   useEffect(() => {
     if (!ticket || !userId) return;
     const mark = async () => {
@@ -227,7 +217,6 @@ const Ticket = () => {
     mark();
   }, [ticket, userId, id]);
 
-  /* ---------- TYPING ---------- */
   useEffect(() => {
     if (message && socketRef.current && ticket) {
       socketRef.current.emit("typing", {
@@ -241,9 +230,8 @@ const Ticket = () => {
     }
   }, [message, id, userId, ticket]);
 
-  /* ---------- SEARCH ---------- */
   const debouncedSearch = debounce(async (q) => {
-    setIsSearching(true); // ← show spinner
+    setIsSearching(true);
     try {
       const { data } = await axios.get(
         `${API_BASE}/tickets/${id}/messages/search`,
@@ -257,7 +245,7 @@ const Ticket = () => {
     } catch (e) {
       toast.error(e.response?.data?.error || "Search failed.");
     } finally {
-      setIsSearching(false); // ← hide spinner
+      setIsSearching(false);
     }
   }, 500);
 
@@ -277,7 +265,6 @@ const Ticket = () => {
     }
   }, [searchQuery, id, ticket]);
 
-  /* ---------- MENU OUTSIDE CLICK ---------- */
   useEffect(() => {
     const handler = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target))
@@ -287,7 +274,6 @@ const Ticket = () => {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  /* ---------- SEND MESSAGE ---------- */
   const handleSendMessage = async () => {
     if (!message.trim() && !file)
       return toast.error("Enter a message or attach a file.");
@@ -322,7 +308,6 @@ const Ticket = () => {
     }
   };
 
-  /* ---------- AI ---------- */
   const handleAIResponse = async () => {
     if (!message.trim()) return toast.error("Enter a message for AI.");
     setIsSending(true);
@@ -343,7 +328,6 @@ const Ticket = () => {
     }
   };
 
-  /* ---------- PRICE & ACTIONS ---------- */
   const handleSetPrice = async () => {
     if (!agreedPrice || agreedPrice <= 0)
       return toast.error("Enter a valid price.");
@@ -419,7 +403,7 @@ const Ticket = () => {
 
   const handleSubmitCompletionRating = async () => {
     if (!rating || rating < 1 || rating > 5)
-      return toast.error("Select 1‑5 stars.");
+      return toast.error("Select 1-5 stars.");
     setIsSubmittingRating(true);
     try {
       const { data } = await axios.patch(
@@ -467,11 +451,11 @@ const Ticket = () => {
     }
   };
 
-  /* ---------- FILE ---------- */
   const handleFileChange = (e) => {
     const f = e.target.files[0];
     if (!f) return;
-    if (f.size > 5 * 1024 * 1024) return toast.error("File ≤ 5 MB");
+    if (f.size > 5 * 1024 * 1024)
+      return toast.error("File less than or equal to 5 MB");
     setFile(f);
     setFilePreview(f.type.startsWith("image/") ? URL.createObjectURL(f) : null);
   };
@@ -512,7 +496,6 @@ const Ticket = () => {
     return <Icon className="h-4 w-4" />;
   };
 
-  /* ---------- RENDER ---------- */
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
@@ -683,7 +666,6 @@ const Ticket = () => {
         hideProgressBar={false}
       />
 
-      {/* Chat Header - Reused as Chatbox Heading */}
       <motion.header
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -720,7 +702,6 @@ const Ticket = () => {
               </div>
             </div>
 
-            {/* Mobile Menu */}
             <div className="lg:hidden" ref={menuRef}>
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -755,7 +736,6 @@ const Ticket = () => {
               </AnimatePresence>
             </div>
 
-            {/* Desktop Actions */}
             <div className="hidden lg:flex items-center gap-2">
               {getVisibleActions().map(renderActionButton)}
               <motion.button
@@ -771,14 +751,12 @@ const Ticket = () => {
         </div>
       </motion.header>
 
-      {/* Main Chat Area */}
-      <main className="flex-1 flex flex-col max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 gap-4">
+      <main className="flex-1 flex flex-col max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 gap-4 mt-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="flex-1 bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 flex flex-col overflow-hidden"
         >
-          {/* Search Bar */}
           <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50/50 to-purple-50/50">
             <div className="relative">
               <input
@@ -803,7 +781,6 @@ const Ticket = () => {
             </div>
           </div>
 
-          {/* Messages Container */}
           <div
             ref={messagesContainerRef}
             onScroll={handleScroll}
@@ -1028,7 +1005,6 @@ const Ticket = () => {
             )}
           </div>
 
-          {/* Input Footer */}
           {ticket.status !== "closed" && (
             <div className="border-t border-gray-100 bg-gradient-to-r from-blue-50/30 to-purple-50/30 p-4">
               {replyingTo && (
@@ -1173,8 +1149,301 @@ const Ticket = () => {
 
       <Footer />
 
-      {/* Modals remain unchanged */}
-      {/* ... Rating, Completion, Details Modals ... */}
+      <AnimatePresence>
+        {isRatingModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setIsRatingModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-900">
+                  Rate Your Experience
+                </h3>
+                <button
+                  onClick={() => setIsRatingModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <p className="text-sm text-gray-600 mb-6">
+                Please rate the seller before closing the ticket.
+              </p>
+
+              <div className="flex justify-center gap-2 mb-6">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <motion.button
+                    key={star}
+                    whileHover={{ scale: 1.2 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setRating(star)}
+                    className="focus:outline-none"
+                  >
+                    <Star
+                      className={`h-10 w-10 transition-all ${
+                        star <= rating
+                          ? "fill-yellow-400 text-yellow-400"
+                          : "text-gray-300"
+                      }`}
+                    />
+                  </motion.button>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setIsRatingModalOpen(false)}
+                  className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 font-medium transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCloseTicket}
+                  disabled={rating === 0 || isSubmittingRating}
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-[#1E88E5] to-[#1565C0] text-white rounded-xl hover:from-[#1565C0] hover:to-[#0D47A1] font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isSubmittingRating ? (
+                    <>
+                      <Loader className="h-4 w-4 animate-spin" /> Submitting...
+                    </>
+                  ) : (
+                    <>Submit Rating</>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isCompletionModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setIsCompletionModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-900">
+                  Confirm Completion
+                </h3>
+                <button
+                  onClick={() => setIsCompletionModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <p className="text-sm text-gray-600 mb-6">
+                Are you sure the work is complete? Please rate the buyer.
+              </p>
+
+              <div className="flex justify-center gap-2 mb-6">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <motion.button
+                    key={star}
+                    whileHover={{ scale: 1.2 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setRating(star)}
+                    className="focus:outline-none"
+                  >
+                    <Star
+                      className={`h-10 w-10 transition-all ${
+                        star <= rating
+                          ? "fill-yellow-400 text-yellow-400"
+                          : "text-gray-300"
+                      }`}
+                    />
+                  </motion.button>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setIsCompletionModalOpen(false);
+                    setRating(0);
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 font-medium transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmitCompletionRating}
+                  disabled={rating === 0 || isSubmittingRating}
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-[#4CAF50] to-[#43A047] text-white rounded-xl hover:from-[#43A047] hover:to-[#388E3C] font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isSubmittingRating ? (
+                    <>
+                      <Loader className="h-4 w-4 animate-spin" /> Confirming...
+                    </>
+                  ) : (
+                    <>Confirm & Rate</>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isDetailsModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
+            onClick={() => setIsDetailsModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-900">
+                  Ticket Details
+                </h3>
+                <button
+                  onClick={() => setIsDetailsModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Gig</h4>
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <p className="font-medium text-gray-900">
+                      {ticket.gigId.title}
+                    </p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {ticket.gigId.description}
+                    </p>
+                    <div className="flex items-center gap-4 mt-3 text-sm">
+                      <span className="text-gray-500">Category:</span>
+                      <span className="font-medium">
+                        {ticket.gigId.category}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">
+                    Participants
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-blue-50 rounded-xl p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold">
+                          {ticket.buyerId.fullName.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">Buyer</p>
+                          <p className="text-sm text-gray-600">
+                            {ticket.buyerId.fullName}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-purple-50 rounded-xl p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white font-bold">
+                          {ticket.sellerId.fullName.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">Seller</p>
+                          <p className="text-sm text-gray-600">
+                            {ticket.sellerId.fullName}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2">
+                      Agreed Price
+                    </h4>
+                    <p className="text-2xl font-bold text-[#1E88E5]">
+                      ${ticket.agreedPrice?.toFixed(2) || "Not set"}
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2">Status</h4>
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
+                        ticket.status
+                      )}`}
+                    >
+                      {getStatusIcon(ticket.status)}
+                      {ticket.status.replace("_", " ")}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Timeline</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Created:</span>
+                      <span className="font-medium">
+                        {moment(ticket.createdAt).format("MMM D, YYYY h:mm A")}
+                      </span>
+                    </div>
+                    {ticket.updatedAt !== ticket.createdAt && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Last Updated:</span>
+                        <span className="font-medium">
+                          {moment(ticket.updatedAt).format(
+                            "MMM D, YYYY h:mm A"
+                          )}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsDetailsModalOpen(false)}
+                className="mt-6 w-full px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 font-medium transition-all"
+              >
+                Close
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
