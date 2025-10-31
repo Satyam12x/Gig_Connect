@@ -14,20 +14,17 @@ import {
   CheckCircle,
   Star,
   X,
+  Clock,
   Loader,
   MessageSquare,
-  User,
   Info,
   ArrowLeft,
-  Clock,
   Menu,
   File,
-  Smile,
   MoreVertical,
   AlertCircle,
   TrendingUp,
   Package,
-  Calendar,
   Shield,
 } from "lucide-react";
 import io from "socket.io-client";
@@ -75,66 +72,53 @@ const Ticket = () => {
 
   const handleScroll = useCallback(() => {
     if (!messagesContainerRef.current) return;
-    const container = messagesContainerRef.current;
-    const { scrollTop } = container;
-    if (scrollTop < 300 && hasMore && !loadingOlder) {
-      loadOlderMessages();
-    }
+    const { scrollTop } = messagesContainerRef.current;
+    if (scrollTop < 300 && hasMore && !loadingOlder) loadOlderMessages();
   }, [hasMore, loadingOlder]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
       try {
-        const decoded = jwtDecode(token);
-        setUserId(decoded.id);
+        setUserId(jwtDecode(token).id);
       } catch {
         localStorage.removeItem("token");
-        toast.error("Session expired. Please log in again.");
+        toast.error("Session expired.");
         navigate("/login", { state: { from: `/tickets/${id}` } });
       }
     } else {
-      toast.error("Please log in to view tickets.");
+      toast.error("Please log in.");
       navigate("/login", { state: { from: `/tickets/${id}` } });
     }
   }, [navigate, id]);
 
   useEffect(() => {
     if (!userId || !ticket) return;
-
     socketRef.current = io(SOCKET_URL, {
       auth: { token: localStorage.getItem("token") },
     });
-
     socketRef.current.emit("joinTicket", id);
-
-    const onNewMessage = (updatedTicket) => {
-      setTicket(updatedTicket);
-    };
-
+    const onNew = (t) => setTicket(t);
     const onTyping = ({ userId: typerId, userName }) => {
       if (typerId !== userId) {
         setTypingUser(userName);
         setTimeout(() => setTypingUser(null), 3000);
       }
     };
-
     const onRead = ({ ticketId, userId: readerId }) => {
       if (ticketId !== id || readerId === userId) return;
-      setTicket((prev) => ({
-        ...prev,
-        messages: prev.messages.map((m) =>
+      setTicket((p) => ({
+        ...p,
+        messages: p.messages.map((m) =>
           m.senderId === userId && !m.read ? { ...m, read: true } : m
         ),
       }));
     };
-
-    socketRef.current.on("newMessage", onNewMessage);
+    socketRef.current.on("newMessage", onNew);
     socketRef.current.on("typing", onTyping);
     socketRef.current.on("messagesRead", onRead);
-
     return () => {
-      socketRef.current?.off("newMessage", onNewMessage);
+      socketRef.current?.off("newMessage", onNew);
       socketRef.current?.off("typing", onTyping);
       socketRef.current?.off("messagesRead", onRead);
       socketRef.current?.disconnect();
@@ -165,30 +149,23 @@ const Ticket = () => {
   const loadOlderMessages = useCallback(async () => {
     if (loadingOlder || !hasMore || !ticket) return;
     setLoadingOlder(true);
-
     const container = messagesContainerRef.current;
-    const prevScrollHeight = container.scrollHeight;
-    const prevScrollTop = container.scrollTop;
-
+    const prevHeight = container.scrollHeight;
+    const prevTop = container.scrollTop;
     try {
       const { data } = await axios.get(`${API_BASE}/tickets/${id}/messages`, {
         params: { page: page + 1, limit: 20 },
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
-      const newMsgs = data.messages;
-      if (!newMsgs.length) {
-        setHasMore(false);
-      } else {
+      if (!data.messages.length) setHasMore(false);
+      else {
         setTicket((p) => ({
           ...p,
-          messages: [...newMsgs.reverse(), ...p.messages],
+          messages: [...data.messages.reverse(), ...p.messages],
         }));
         setPage((p) => p + 1);
-
         requestAnimationFrame(() => {
-          const newScrollHeight = container.scrollHeight;
-          container.scrollTop =
-            prevScrollTop + (newScrollHeight - prevScrollHeight);
+          container.scrollTop = prevTop + (container.scrollHeight - prevHeight);
         });
       }
     } catch (e) {
@@ -250,14 +227,11 @@ const Ticket = () => {
   }, 500);
 
   useEffect(() => {
-    if (searchQuery) {
-      debouncedSearch(searchQuery);
-    } else if (ticket) {
+    if (searchQuery) debouncedSearch(searchQuery);
+    else if (ticket) {
       const refetch = async () => {
         const { data } = await axios.get(`${API_BASE}/tickets/${id}`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         });
         setTicket(data);
       };
@@ -283,7 +257,6 @@ const Ticket = () => {
       if (message.trim()) fd.append("content", message);
       if (file) fd.append("attachment", file);
       if (replyingTo) fd.append("replyTo", replyingTo._id);
-
       const { data } = await axios.post(
         `${API_BASE}/tickets/${id}/messages`,
         fd,
@@ -470,7 +443,7 @@ const Ticket = () => {
   };
 
   const getStatusColor = (status) => {
-    const colors = {
+    const c = {
       open: "bg-blue-100 text-blue-800",
       negotiating: "bg-purple-100 text-purple-800",
       accepted: "bg-green-100 text-green-800",
@@ -479,11 +452,11 @@ const Ticket = () => {
       completed: "bg-emerald-100 text-emerald-800",
       closed: "bg-gray-100 text-gray-800",
     };
-    return colors[status] || "bg-gray-100 text-gray-800";
+    return c[status] || "bg-gray-100 text-gray-800";
   };
 
   const getStatusIcon = (status) => {
-    const icons = {
+    const i = {
       open: MessageSquare,
       negotiating: TrendingUp,
       accepted: CheckCircle,
@@ -492,7 +465,7 @@ const Ticket = () => {
       completed: Package,
       closed: Shield,
     };
-    const Icon = icons[status] || AlertCircle;
+    const Icon = i[status] || AlertCircle;
     return <Icon className="h-4 w-4" />;
   };
 
@@ -599,9 +572,7 @@ const Ticket = () => {
         close:
           "bg-gradient-to-r from-[#D32F2F] to-[#C62828] hover:from-[#C62828] hover:to-[#B71C1C] text-white",
       }[act.id] || "bg-gray-600 hover:bg-gray-700 text-white";
-
     const Icon = act.icon;
-
     const handler = {
       "accept-price": handleAcceptPrice,
       payment: handleConfirmPayment,
@@ -614,7 +585,7 @@ const Ticket = () => {
       return (
         <div key={act.id} className="space-y-2">
           <div className="relative">
-            <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="number"
               value={agreedPrice}
@@ -644,12 +615,13 @@ const Ticket = () => {
       >
         {act.id === "close" && isSubmittingRating ? (
           <>
-            <Loader className="h-4 w-4 animate-spin" /> Submitting...
+            {" "}
+            <Loader className="h-4 w-4 animate-spin" /> Submitting...{" "}
           </>
         ) : (
           <>
-            <Icon className="h-4 w-4" />
-            {act.label}
+            {" "}
+            <Icon className="h-4 w-4" /> {act.label}{" "}
           </>
         )}
       </button>
@@ -659,13 +631,13 @@ const Ticket = () => {
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       <Navbar />
-
       <ToastContainer
         position="top-right"
         autoClose={3000}
         hideProgressBar={false}
       />
 
+      {/* Ticket Header – sticky, under Navbar */}
       <motion.header
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -692,7 +664,7 @@ const Ticket = () => {
                       ticket.status
                     )}`}
                   >
-                    {getStatusIcon(ticket.status)}
+                    {getStatusIcon(ticket.status)}{" "}
                     {ticket.status.replace("_", " ")}
                   </span>
                   <span className="text-xs text-gray-500">
@@ -751,12 +723,14 @@ const Ticket = () => {
         </div>
       </motion.header>
 
-      <main className="flex-1 flex flex-col max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 gap-4 mt-16">
+      {/* Main chat – fills remaining height, internal scroll */}
+      <main className="flex-1 flex flex-col max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-4 pb-20 lg:pb-0">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="flex-1 bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 flex flex-col overflow-hidden"
         >
+          {/* Search bar */}
           <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50/50 to-purple-50/50">
             <div className="relative">
               <input
@@ -766,14 +740,14 @@ const Ticket = () => {
                 placeholder="Search messages..."
                 className="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E88E5] focus:border-transparent text-sm bg-white/80 backdrop-blur-sm transition-all"
               />
-              <MessageSquare className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               {isSearching && (
-                <Loader className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#1E88E5] animate-spin" />
+                <Loader className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#1E88E5] animate-spin" />
               )}
               {searchQuery && !isSearching && (
                 <button
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -781,6 +755,7 @@ const Ticket = () => {
             </div>
           </div>
 
+          {/* Messages – internal scroll */}
           <div
             ref={messagesContainerRef}
             onScroll={handleScroll}
@@ -810,19 +785,17 @@ const Ticket = () => {
                 </div>
               </div>
             ) : (
-              ticket.messages.map((msg, index) => {
+              ticket.messages.map((msg, i) => {
                 const isOwn = msg.senderId === userId;
                 const isAI = msg.senderId === "AI";
                 const showAvatar =
-                  index === 0 ||
-                  ticket.messages[index - 1].senderId !== msg.senderId;
-
+                  i === 0 || ticket.messages[i - 1].senderId !== msg.senderId;
                 return (
                   <motion.div
                     key={msg._id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
+                    transition={{ delay: i * 0.05 }}
                     className={`flex gap-2 ${
                       isOwn ? "justify-end" : "justify-start"
                     }`}
@@ -847,7 +820,6 @@ const Ticket = () => {
                           {isAI && " (AI Assistant)"}
                         </p>
                       )}
-
                       <div
                         className={`relative px-4 py-3 rounded-2xl shadow-sm text-sm ${
                           isOwn
@@ -867,14 +839,12 @@ const Ticket = () => {
                             <p className="truncate">{msg.replyTo.content}</p>
                           </div>
                         )}
-
                         <p
                           dangerouslySetInnerHTML={{
                             __html: highlightText(msg.content, searchQuery),
                           }}
                           className="break-words"
                         />
-
                         {msg.attachment && (
                           <div className="mt-3">
                             {msg.attachment.match(
@@ -908,7 +878,6 @@ const Ticket = () => {
                             )}
                           </div>
                         )}
-
                         <div
                           className={`flex items-center justify-between mt-2 text-xs ${
                             isOwn ? "text-white/70" : "text-gray-500"
@@ -1005,6 +974,7 @@ const Ticket = () => {
             )}
           </div>
 
+          {/* Input area */}
           {ticket.status !== "closed" && (
             <div className="border-t border-gray-100 bg-gradient-to-r from-blue-50/30 to-purple-50/30 p-4">
               {replyingTo && (
@@ -1085,8 +1055,8 @@ const Ticket = () => {
                     }
                   }}
                   placeholder="Type a message..."
-                  className="flex-1 p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E88E5] focus:border-transparent text-sm resize-none max-h-32 bg-white/80 backdrop-blur-sm transition-all"
                   rows="1"
+                  className="flex-1 p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E88E5] focus:border-transparent text-sm resize-none max-h-32 bg-white/80 backdrop-blur-sm transition-all"
                 />
 
                 <input
@@ -1147,8 +1117,12 @@ const Ticket = () => {
         </motion.div>
       </main>
 
-      <Footer />
+      {/* Footer – only on desktop */}
+      <div className="hidden lg:block">
+        <Footer />
+      </div>
 
+      {/* ---------- MODALS ---------- */}
       <AnimatePresence>
         {isRatingModalOpen && (
           <motion.div
@@ -1176,23 +1150,21 @@ const Ticket = () => {
                   <X className="h-5 w-5" />
                 </button>
               </div>
-
               <p className="text-sm text-gray-600 mb-6">
                 Please rate the seller before closing the ticket.
               </p>
-
               <div className="flex justify-center gap-2 mb-6">
-                {[1, 2, 3, 4, 5].map((star) => (
+                {[1, 2, 3, 4, 5].map((s) => (
                   <motion.button
-                    key={star}
+                    key={s}
                     whileHover={{ scale: 1.2 }}
                     whileTap={{ scale: 0.9 }}
-                    onClick={() => setRating(star)}
+                    onClick={() => setRating(s)}
                     className="focus:outline-none"
                   >
                     <Star
                       className={`h-10 w-10 transition-all ${
-                        star <= rating
+                        s <= rating
                           ? "fill-yellow-400 text-yellow-400"
                           : "text-gray-300"
                       }`}
@@ -1200,7 +1172,6 @@ const Ticket = () => {
                   </motion.button>
                 ))}
               </div>
-
               <div className="flex gap-3">
                 <button
                   onClick={() => setIsRatingModalOpen(false)}
@@ -1215,7 +1186,8 @@ const Ticket = () => {
                 >
                   {isSubmittingRating ? (
                     <>
-                      <Loader className="h-4 w-4 animate-spin" /> Submitting...
+                      {" "}
+                      <Loader className="h-4 w-4 animate-spin" /> Submitting...{" "}
                     </>
                   ) : (
                     <>Submit Rating</>
@@ -1254,23 +1226,21 @@ const Ticket = () => {
                   <X className="h-5 w-5" />
                 </button>
               </div>
-
               <p className="text-sm text-gray-600 mb-6">
                 Are you sure the work is complete? Please rate the buyer.
               </p>
-
               <div className="flex justify-center gap-2 mb-6">
-                {[1, 2, 3, 4, 5].map((star) => (
+                {[1, 2, 3, 4, 5].map((s) => (
                   <motion.button
-                    key={star}
+                    key={s}
                     whileHover={{ scale: 1.2 }}
                     whileTap={{ scale: 0.9 }}
-                    onClick={() => setRating(star)}
+                    onClick={() => setRating(s)}
                     className="focus:outline-none"
                   >
                     <Star
                       className={`h-10 w-10 transition-all ${
-                        star <= rating
+                        s <= rating
                           ? "fill-yellow-400 text-yellow-400"
                           : "text-gray-300"
                       }`}
@@ -1278,7 +1248,6 @@ const Ticket = () => {
                   </motion.button>
                 ))}
               </div>
-
               <div className="flex gap-3">
                 <button
                   onClick={() => {
@@ -1296,7 +1265,8 @@ const Ticket = () => {
                 >
                   {isSubmittingRating ? (
                     <>
-                      <Loader className="h-4 w-4 animate-spin" /> Confirming...
+                      {" "}
+                      <Loader className="h-4 w-4 animate-spin" /> Confirming...{" "}
                     </>
                   ) : (
                     <>Confirm & Rate</>
@@ -1335,7 +1305,6 @@ const Ticket = () => {
                   <X className="h-5 w-5" />
                 </button>
               </div>
-
               <div className="space-y-6">
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-2">Gig</h4>
@@ -1354,7 +1323,6 @@ const Ticket = () => {
                     </div>
                   </div>
                 </div>
-
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-2">
                     Participants
@@ -1388,7 +1356,6 @@ const Ticket = () => {
                     </div>
                   </div>
                 </div>
-
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <h4 className="font-semibold text-gray-900 mb-2">
@@ -1405,12 +1372,11 @@ const Ticket = () => {
                         ticket.status
                       )}`}
                     >
-                      {getStatusIcon(ticket.status)}
+                      {getStatusIcon(ticket.status)}{" "}
                       {ticket.status.replace("_", " ")}
                     </span>
                   </div>
                 </div>
-
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-2">Timeline</h4>
                   <div className="space-y-2 text-sm">
@@ -1433,7 +1399,6 @@ const Ticket = () => {
                   </div>
                 </div>
               </div>
-
               <button
                 onClick={() => setIsDetailsModalOpen(false)}
                 className="mt-6 w-full px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 font-medium transition-all"
