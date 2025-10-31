@@ -35,7 +35,7 @@ import Navbar from "../components/Navbar.jsx";
 import Footer from "../components/Footer.jsx";
 
 const API_BASE = "http://localhost:5000/api";
-const SOCKET_URL = "http://localhost:5000/ticket-socket";
+const SOCKET_URL = "http://localhost:5000";
 
 const Ticket = () => {
   const { id } = useParams();
@@ -55,7 +55,6 @@ const Ticket = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [typingUser, setTypingUser] = useState(null);
   const [hasMore, setHasMore] = useState(true);
@@ -68,7 +67,6 @@ const Ticket = () => {
   const messagesContainerRef = useRef(null);
   const socketRef = useRef(null);
   const fileInputRef = useRef(null);
-  const menuRef = useRef(null);
   const messageInputRef = useRef(null);
 
   const handleScroll = useCallback(() => {
@@ -97,6 +95,8 @@ const Ticket = () => {
     if (!userId || !ticket) return;
     socketRef.current = io(SOCKET_URL, {
       auth: { token: localStorage.getItem("token") },
+      path: "/socket.io",
+      transports: ["websocket", "polling"],
     });
     socketRef.current.emit("joinTicket", id);
     const onNew = (t) => setTicket(t);
@@ -240,15 +240,6 @@ const Ticket = () => {
     }
   }, [searchQuery, id, ticket]);
 
-  useEffect(() => {
-    const handler = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target))
-        setIsMenuOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
   const handleSendMessage = async () => {
     if (!message.trim() && !file)
       return toast.error("Enter a message or attach a file.");
@@ -315,7 +306,6 @@ const Ticket = () => {
       );
       setTicket(data.ticket);
       setAgreedPrice("");
-      setIsMenuOpen(false);
       toast.success("Price proposed!");
     } catch (e) {
       toast.error(e.response?.data?.error || "Failed.");
@@ -332,7 +322,6 @@ const Ticket = () => {
         }
       );
       setTicket(data.ticket);
-      setIsMenuOpen(false);
       toast.success("Price accepted!");
     } catch (e) {
       toast.error(e.response?.data?.error || "Failed.");
@@ -349,7 +338,6 @@ const Ticket = () => {
         }
       );
       setTicket(data.ticket);
-      setIsMenuOpen(false);
       toast.success("Payment confirmed!");
     } catch (e) {
       toast.error(e.response?.data?.error || "Failed.");
@@ -366,7 +354,6 @@ const Ticket = () => {
         }
       );
       setTicket(data.ticket);
-      setIsMenuOpen(false);
       toast.success("Completion request sent!");
     } catch (e) {
       toast.error(e.response?.data?.error || "Failed.");
@@ -390,7 +377,6 @@ const Ticket = () => {
       setTicket(data.ticket);
       setIsCompletionModalOpen(false);
       setRating(0);
-      setIsMenuOpen(false);
       toast.success("Completion confirmed!");
     } catch (e) {
       toast.error(e.response?.data?.error || "Failed.");
@@ -400,6 +386,7 @@ const Ticket = () => {
   };
 
   const handleCloseTicket = async () => {
+    const isBuyer = userId === ticket.buyerId?._id;
     if (isBuyer && ticket?.status === "completed" && rating === 0) {
       setIsRatingModalOpen(true);
       return;
@@ -416,7 +403,6 @@ const Ticket = () => {
       setTicket(data.ticket);
       setIsRatingModalOpen(false);
       setRating(0);
-      setIsMenuOpen(false);
       toast.success("Ticket closed!");
     } catch (e) {
       toast.error(e.response?.data?.error || "Failed.");
@@ -620,13 +606,11 @@ const Ticket = () => {
       >
         {act.id === "close" && isSubmittingRating ? (
           <>
-            {" "}
-            <Loader className="h-4 w-4 animate-spin" /> Submitting...{" "}
+            <Loader className="h-4 w-4 animate-spin" /> Submitting...
           </>
         ) : (
           <>
-            {" "}
-            <Icon className="h-4 w-4" /> {act.label}{" "}
+            <Icon className="h-4 w-4" /> {act.label}
           </>
         )}
       </button>
@@ -635,14 +619,10 @@ const Ticket = () => {
 
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-hidden">
-      {/* Fixed Navbar */}
       <Navbar />
 
-      {/* Main Content Area - flex row layout */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Chat Area - Left Side */}
         <div className="flex flex-col flex-1 min-w-0">
-          {/* Ticket Header - Inside chat area, like WhatsApp */}
           <motion.header
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -678,7 +658,6 @@ const Ticket = () => {
                 </div>
               </div>
 
-              {/* Mobile Members Toggle */}
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -691,7 +670,6 @@ const Ticket = () => {
                 </span>
               </motion.button>
 
-              {/* Desktop Action Menu */}
               <div className="hidden lg:flex items-center gap-2 flex-shrink-0">
                 {getVisibleActions().slice(0, 2).map(renderActionButton)}
                 <motion.button
@@ -706,13 +684,11 @@ const Ticket = () => {
             </div>
           </motion.header>
 
-          {/* Messages Area - Scrollable */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex-1 bg-white/95 backdrop-blur-sm rounded-none overflow-hidden flex flex-col"
+            className="flex-1 bg-white/95 backdrop-blur-sm flex flex-col overflow-hidden"
           >
-            {/* Search bar */}
             <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50/50 to-purple-50/50 flex-shrink-0">
               <div className="relative">
                 <input
@@ -737,7 +713,6 @@ const Ticket = () => {
               </div>
             </div>
 
-            {/* Messages Container - Internal Scroll */}
             <div
               ref={messagesContainerRef}
               onScroll={handleScroll}
@@ -969,7 +944,6 @@ const Ticket = () => {
               )}
             </div>
 
-            {/* Input area */}
             {ticket.status !== "closed" && (
               <div className="border-t border-gray-100 bg-gradient-to-r from-blue-50/30 to-purple-50/30 p-4 flex-shrink-0">
                 {replyingTo && (
@@ -1005,7 +979,7 @@ const Ticket = () => {
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         {filePreview ? (
                           <img
-                            src={filePreview || "/placeholder.svg"}
+                            src={filePreview}
                             alt="Preview"
                             className="h-12 w-12 object-cover rounded-lg border-2 border-gray-200"
                           />
@@ -1112,9 +1086,8 @@ const Ticket = () => {
           </motion.div>
         </div>
 
-        {/* Members Panel - Right Side (Fixed, Desktop Only, or Mobile Toggle) */}
         <AnimatePresence>
-          {showMembersOnMobile || true ? (
+          {(showMembersOnMobile || true) && (
             <motion.aside
               initial={{ x: showMembersOnMobile ? 350 : 0, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
@@ -1126,7 +1099,6 @@ const Ticket = () => {
                   : "hidden lg:flex"
               } flex-col bg-white/95 backdrop-blur-sm border-l border-gray-200 w-80 flex-shrink-0`}
             >
-              {/* Members Header */}
               <div className="p-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <Users className="h-5 w-5 text-[#1E88E5]" />
@@ -1142,9 +1114,7 @@ const Ticket = () => {
                 )}
               </div>
 
-              {/* Members List - Scrollable */}
               <div className="flex-1 overflow-y-auto">
-                {/* Buyer */}
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -1168,7 +1138,6 @@ const Ticket = () => {
                   </div>
                 </motion.div>
 
-                {/* Seller */}
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -1194,7 +1163,6 @@ const Ticket = () => {
                 </motion.div>
               </div>
 
-              {/* Ticket Info in Members Panel */}
               <div className="p-4 border-t border-gray-100 bg-gradient-to-r from-blue-50/50 to-purple-50/50 flex-shrink-0">
                 <div className="space-y-3 text-sm">
                   <div>
@@ -1229,7 +1197,6 @@ const Ticket = () => {
                 </div>
               </div>
 
-              {/* Action Buttons in Members Panel */}
               <div className="p-4 border-t border-gray-100 space-y-2 flex-shrink-0">
                 {getVisibleActions().slice(0, 3).map(renderActionButton)}
                 <motion.button
@@ -1245,11 +1212,10 @@ const Ticket = () => {
                 </motion.button>
               </div>
             </motion.aside>
-          ) : null}
+          )}
         </AnimatePresence>
       </div>
 
-      {/* Fixed Footer */}
       <div className="hidden lg:block flex-shrink-0">
         <Footer />
       </div>
@@ -1260,7 +1226,6 @@ const Ticket = () => {
         hideProgressBar={false}
       />
 
-      {/* ---------- MODALS ---------- */}
       <AnimatePresence>
         {isRatingModalOpen && (
           <motion.div
@@ -1324,8 +1289,7 @@ const Ticket = () => {
                 >
                   {isSubmittingRating ? (
                     <>
-                      {" "}
-                      <Loader className="h-4 w-4 animate-spin" /> Submitting...{" "}
+                      <Loader className="h-4 w-4 animate-spin" /> Submitting...
                     </>
                   ) : (
                     <>Submit Rating</>
@@ -1403,8 +1367,7 @@ const Ticket = () => {
                 >
                   {isSubmittingRating ? (
                     <>
-                      {" "}
-                      <Loader className="h-4 w-4 animate-spin" /> Confirming...{" "}
+                      <Loader className="h-4 w-4 animate-spin" /> Confirming...
                     </>
                   ) : (
                     <>Confirm & Rate</>
