@@ -15,6 +15,10 @@ import {
   ChevronRight,
   MapPin,
   MessageSquare,
+  Star,
+  Heart,
+  Clock,
+  DollarSign,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -33,6 +37,7 @@ const GigDetails = () => {
   const [isApplying, setIsApplying] = useState(false);
   const [error, setError] = useState(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isFavorite, setIsFavorite] = useState(false);
   const navigate = useNavigate();
 
   // Fetch user info from token
@@ -131,7 +136,6 @@ const GigDetails = () => {
     }
   }, [id, userId]);
 
-  // Handle apply for gig
   const handleApply = async () => {
     if (!userId) {
       toast.error("Please log in to apply for gigs.");
@@ -169,7 +173,6 @@ const GigDetails = () => {
     }
   };
 
-  // Handle application status update
   const handleApplicationStatus = async (applicationId, status) => {
     try {
       await axios.patch(
@@ -210,7 +213,6 @@ const GigDetails = () => {
     }
   };
 
-  // Handle share with proper route
   const handleShare = async () => {
     try {
       const shareData = {
@@ -233,7 +235,6 @@ const GigDetails = () => {
     }
   };
 
-  // Handle retry
   const handleRetry = () => {
     setError(null);
     setLoading(true);
@@ -292,7 +293,6 @@ const GigDetails = () => {
     fetchData();
   };
 
-  // Image carousel
   const images = gig?.thumbnail
     ? [gig.thumbnail, ...(gig.additionalImages || []).slice(0, 3)]
     : [];
@@ -303,22 +303,21 @@ const GigDetails = () => {
     setCurrentImageIndex((prev) => (prev + 1) % images.length);
   };
 
-  // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col">
+      <div className="min-h-screen bg-white flex flex-col">
         <Navbar />
-        <div className="container mx-auto px-4 pt-20 pb-12 flex-1">
-          <div className="max-w-5xl mx-auto animate-pulse space-y-6">
-            <div className="h-12 bg-slate-200 rounded-lg w-3/4"></div>
-            <div className="h-96 bg-slate-200 rounded-xl"></div>
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 flex-1">
+          <div className="max-w-6xl mx-auto space-y-8">
+            <div className="h-8 bg-gray-200 rounded w-1/3 animate-pulse"></div>
+            <div className="h-96 sm:h-[500px] bg-gray-200 rounded-lg animate-pulse"></div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 space-y-4">
-                <div className="h-4 bg-slate-200 rounded w-full"></div>
-                <div className="h-4 bg-slate-200 rounded w-5/6"></div>
-                <div className="h-4 bg-slate-200 rounded w-4/6"></div>
+                <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-4 bg-gray-200 rounded w-5/6 animate-pulse"></div>
+                <div className="h-4 bg-gray-200 rounded w-4/6 animate-pulse"></div>
               </div>
-              <div className="h-48 bg-slate-200 rounded-xl"></div>
+              <div className="h-80 bg-gray-200 rounded-lg animate-pulse"></div>
             </div>
           </div>
         </div>
@@ -327,21 +326,19 @@ const GigDetails = () => {
     );
   }
 
-  // Error state
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col">
+      <div className="min-h-screen bg-white flex flex-col">
         <Navbar />
-        <div className="container mx-auto px-4 pt-20 pb-12 flex-1 flex items-center justify-center">
-          <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center animate-slide-in-bottom">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 flex-1 flex items-center justify-center">
+          <div className="bg-white border border-gray-200 rounded-lg p-8 max-w-md w-full text-center shadow-sm">
             <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
             <p className="text-gray-700 mb-6 font-medium">{error}</p>
             <button
               onClick={handleRetry}
-              className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold relative overflow-hidden group"
+              className="w-full px-6 py-3 bg-[#1A2A4F] text-white rounded-lg hover:bg-[#0f1a35] transition-colors font-medium"
             >
-              <span className="relative z-10">Try Again</span>
-              <span className="absolute inset-0 bg-blue-800 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300 ease-out"></span>
+              Try Again
             </button>
           </div>
         </div>
@@ -350,21 +347,19 @@ const GigDetails = () => {
     );
   }
 
-  // Not found state
   if (!gig) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col">
+      <div className="min-h-screen bg-white flex flex-col">
         <Navbar />
-        <div className="container mx-auto px-4 pt-20 pb-12 flex-1 flex items-center justify-center">
-          <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center animate-slide-in-bottom">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 flex-1 flex items-center justify-center">
+          <div className="bg-white border border-gray-200 rounded-lg p-8 max-w-md w-full text-center shadow-sm">
             <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
             <p className="text-gray-700 font-medium mb-6">Gig not found.</p>
             <button
               onClick={() => navigate("/gigs")}
-              className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold relative overflow-hidden group"
+              className="w-full px-6 py-3 bg-[#1A2A4F] text-white rounded-lg hover:bg-[#0f1a35] transition-colors font-medium"
             >
-              <span className="relative z-10">Back to Gigs</span>
-              <span className="absolute inset-0 bg-blue-800 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300 ease-out"></span>
+              Back to Gigs
             </button>
           </div>
         </div>
@@ -379,150 +374,148 @@ const GigDetails = () => {
   const isSeller = gig.sellerId === userId;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col">
+    <div className="min-h-screen bg-white flex flex-col">
       <style>{`
-        @keyframes slideInBottom {
-          from { opacity: 0; transform: translateY(50px); }
-          to { opacity: 1; transform: translateY(0); }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
-        @keyframes scaleIn {
-          from { opacity: 0; transform: scale(0.95); }
-          to { opacity: 1; transform: scale(1); }
+        
+        .fade-in {
+          animation: fadeIn 0.6s ease-out;
         }
-        @keyframes pulseGlow {
-          0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
-          70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        
+        .hover-lift {
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
-        .animate-slide-in-bottom { animation: slideInBottom 0.6s ease-out; }
-        .animate-scale-in { animation: scaleIn 0.5s ease-out; }
-        .animate-pulse-glow { animation: pulseGlow 2s infinite; }
+        
+        .hover-lift:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 16px rgba(26, 42, 79, 0.12);
+        }
+        
         .status-badge {
           display: inline-block;
-          padding: 0.5rem 1rem;
-          border-radius: 0.5rem;
-          font-weight: 600;
+          padding: 0.375rem 0.875rem;
+          border-radius: 0.375rem;
+          font-weight: 500;
           font-size: 0.875rem;
         }
-        .status-pending { background-color: #fef3c7; color: #92400e; }
-        .status-accepted { background-color: #dcfce7; color: #166534; }
-        .status-rejected { background-color: #fee2e2; color: #991b1b; }
-        .status-closed { background-color: #f3f4f6; color: #374151; }
-        .button-click-effect {
-          position: relative;
-          overflow: hidden;
+        
+        .status-pending {
+          background-color: #fef3c7;
+          color: #92400e;
         }
-        .button-click-effect::after {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: -100%;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(
-            90deg,
-            transparent,
-            rgba(255, 255, 255, 0.3),
-            transparent
-          );
-          transition: transform 0.4s ease-out;
+        
+        .status-accepted {
+          background-color: #dcfce7;
+          color: #166534;
         }
-        .button-click-effect:hover::after {
-          transform: translateX(100%);
+        
+        .status-rejected {
+          background-color: #fee2e2;
+          color: #991b1b;
+        }
+        
+        .status-closed {
+          background-color: #f3f4f6;
+          color: #374151;
         }
       `}</style>
 
       <Navbar />
 
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-8 sm:pb-12 flex-1">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-16 flex-1">
         <div className="max-w-6xl mx-auto">
-          {/* Header Section */}
-          <div className="mb-8 animate-slide-in-bottom">
-            <button
-              onClick={() => navigate("/gigs")}
-              className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-6 font-medium transition-colors button-click-effect"
-            >
-              <ChevronLeft className="h-5 w-5" />
-              Back to Gigs
-            </button>
+          {/* Breadcrumb */}
+          <button
+            onClick={() => navigate("/gigs")}
+            className="flex items-center gap-2 text-[#1A2A4F] hover:text-[#0f1a35] mb-8 font-medium transition-colors fade-in"
+          >
+            <ChevronLeft className="h-5 w-5" />
+            Back to Gigs
+          </button>
 
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          {/* Header Section */}
+          <div className="mb-10 fade-in">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
               <div>
-                <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2 animate-scale-in">
+                <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-3 leading-tight">
                   {gig.title}
                 </h1>
-                <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-                  <span className="status-badge status-closed animate-scale-in">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="status-badge status-closed">
                     {gig.status.charAt(0).toUpperCase() + gig.status.slice(1)}
                   </span>
-                  <span className="flex items-center gap-1 animate-scale-in">
+                  <span className="flex items-center gap-1 text-gray-600 text-sm font-medium">
                     <MapPin className="h-4 w-4" />
                     {gig.category}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  onClick={() => setIsFavorite(!isFavorite)}
+                  className="p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors hover-lift"
+                  title="Add to favorites"
+                >
+                  <Heart
+                    className={`h-5 w-5 ${
+                      isFavorite ? "fill-red-500 text-red-500" : "text-gray-600"
+                    }`}
+                  />
+                </button>
                 <button
                   onClick={handleShare}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium text-gray-700 button-click-effect animate-pulse-glow"
+                  className="flex items-center gap-2 px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors font-medium text-gray-700 hover-lift"
                   title="Share this gig"
                 >
                   <Share2 className="h-5 w-5" />
                   <span className="hidden sm:inline">Share</span>
                 </button>
-                {userId && (
-                  <button
-                    onClick={() => navigate("/tickets")}
-                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium text-gray-700 button-click-effect animate-pulse-glow"
-                    title="View my tickets"
-                  >
-                    <Users className="h-5 w-5" />
-                    <span className="hidden sm:inline">Tickets</span>
-                  </button>
-                )}
               </div>
             </div>
           </div>
 
           {/* Main Content Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
             {/* Left Column - Gig Details */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="lg:col-span-2 space-y-8">
               {/* Image Gallery */}
               {images.length > 0 && (
-                <div className="relative rounded-xl overflow-hidden shadow-lg bg-white animate-scale-in group">
+                <div className="relative rounded-lg overflow-hidden shadow-sm border border-gray-100 group fade-in">
                   <img
                     src={images[currentImageIndex] || "/placeholder.svg"}
                     alt={`${gig.title} - Image ${currentImageIndex + 1}`}
-                    className="w-full h-80 sm:h-96 object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+                    className="w-full h-80 sm:h-[500px] object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                   {images.length > 1 && (
                     <>
                       <button
                         onClick={goToPreviousImage}
-                        className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-all opacity-0 group-hover:opacity-100 button-click-effect"
+                        className="absolute left-4 top-1/2 -translate-y-1/2 bg-[#1A2A4F]/80 hover:bg-[#1A2A4F] text-white p-2 rounded-full transition-all opacity-0 group-hover:opacity-100"
                         aria-label="Previous image"
                       >
-                        <ChevronLeft className="h-6 w-6" />
+                        <ChevronLeft className="h-5 w-5" />
                       </button>
                       <button
                         onClick={goToNextImage}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-all opacity-0 group-hover:opacity-100 button-click-effect"
+                        className="absolute right-4 top-1/2 -translate-y-1/2 bg-[#1A2A4F]/80 hover:bg-[#1A2A4F] text-white p-2 rounded-full transition-all opacity-0 group-hover:opacity-100"
                         aria-label="Next image"
                       >
-                        <ChevronRight className="h-6 w-6" />
+                        <ChevronRight className="h-5 w-5" />
                       </button>
-                      <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
+                      <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-1.5">
                         {images.map((_, index) => (
                           <button
                             key={index}
                             onClick={() => setCurrentImageIndex(index)}
-                            className={`h-2 w-2 rounded-full transition-all ${
+                            className={`h-2 rounded-full transition-all ${
                               index === currentImageIndex
                                 ? "bg-white w-6"
-                                : "bg-white/50 hover:bg-white/75"
-                            } button-click-effect`}
+                                : "bg-white/50 hover:bg-white/70 w-2"
+                            }`}
                             aria-label={`Go to image ${index + 1}`}
                           />
                         ))}
@@ -532,47 +525,47 @@ const GigDetails = () => {
                 </div>
               )}
 
-              {/* Description Card */}
-              <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 animate-scale-in">
+              {/* Description Section */}
+              <div className="fade-in">
                 <h2 className="text-2xl font-bold text-gray-900 mb-4">
                   About this gig
                 </h2>
-                <p className="text-gray-700 leading-relaxed mb-6">
+                <p className="text-gray-700 leading-relaxed text-lg">
                   {gig.description}
                 </p>
+              </div>
 
-                {/* Details Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 pt-6 border-t border-gray-200">
-                  <div>
-                    <p className="text-sm text-gray-600 font-medium mb-1">
-                      Category
-                    </p>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {gig.category}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 font-medium mb-1">
-                      Price
-                    </p>
-                    <p className="text-lg font-semibold text-blue-600">
-                      ₹{gig.price.toLocaleString("en-IN")}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 font-medium mb-1">
-                      Status
-                    </p>
-                    <span className="status-badge status-closed">
-                      {gig.status.charAt(0).toUpperCase() + gig.status.slice(1)}
-                    </span>
-                  </div>
+              {/* Details Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 p-6 bg-gray-50 rounded-lg fade-in">
+                <div>
+                  <p className="text-sm text-gray-600 font-medium mb-2">
+                    Category
+                  </p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {gig.category}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 font-medium mb-2">
+                    Price
+                  </p>
+                  <p className="text-lg font-semibold text-[#1A2A4F]">
+                    ₹{gig.price.toLocaleString("en-IN")}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 font-medium mb-2">
+                    Status
+                  </p>
+                  <span className="status-badge status-closed">
+                    {gig.status.charAt(0).toUpperCase() + gig.status.slice(1)}
+                  </span>
                 </div>
               </div>
 
               {/* Seller Card */}
-              <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 animate-scale-in">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              <div className="border border-gray-200 rounded-lg p-6 fade-in hover-lift">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">
                   About the seller
                 </h2>
                 <div className="flex items-center justify-between">
@@ -580,10 +573,14 @@ const GigDetails = () => {
                     <p className="text-lg font-semibold text-gray-900">
                       {gig.sellerName}
                     </p>
+                    <div className="flex items-center gap-1 mt-2 text-sm text-gray-600">
+                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                      <span>4.9 (128 reviews)</span>
+                    </div>
                   </div>
                   <button
                     onClick={() => navigate(`/profile/${gig.sellerId}`)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium button-click-effect animate-pulse-glow"
+                    className="px-4 py-2 bg-[#1A2A4F] text-white rounded-lg hover:bg-[#0f1a35] transition-colors font-medium"
                   >
                     View Profile
                   </button>
@@ -595,8 +592,8 @@ const GigDetails = () => {
             <div className="lg:col-span-1">
               {isSeller ? (
                 // Seller View - Applicants Panel
-                <div className="bg-white rounded-xl shadow-lg p-6 sticky top-20 animate-scale-in">
-                  <h2 className="text-xl font-bold text-gray-900 mb-4">
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 sticky top-24 fade-in">
+                  <h2 className="text-lg font-bold text-gray-900 mb-5">
                     Applicants ({applicants.length})
                   </h2>
 
@@ -605,7 +602,7 @@ const GigDetails = () => {
                       {applicants.map((app) => (
                         <div
                           key={app._id}
-                          className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors animate-scale-in"
+                          className="bg-white border border-gray-200 rounded-lg p-4 hover-lift"
                         >
                           <div className="flex items-start justify-between mb-3">
                             <div>
@@ -613,7 +610,7 @@ const GigDetails = () => {
                                 {app.applicantName}
                               </p>
                               <span
-                                className={`status-badge ${
+                                className={`status-badge inline-block mt-2 ${
                                   app.status === "pending"
                                     ? "status-pending"
                                     : app.status === "accepted"
@@ -633,7 +630,7 @@ const GigDetails = () => {
                                   }`
                                 )
                               }
-                              className="text-blue-600 hover:text-blue-700 transition-colors button-click-effect"
+                              className="text-[#1A2A4F] hover:text-[#0f1a35] transition-colors"
                               title="View profile"
                             >
                               <User className="h-5 w-5" />
@@ -646,7 +643,7 @@ const GigDetails = () => {
                                 onClick={() =>
                                   handleApplicationStatus(app._id, "accepted")
                                 }
-                                className="flex-1 px-3 py-2 bg-green-50 text-green-700 rounded hover:bg-green-100 transition-colors font-medium text-sm button-click-effect animate-pulse-glow"
+                                className="flex-1 px-3 py-2 bg-green-50 text-green-700 rounded hover:bg-green-100 transition-colors font-medium text-sm"
                               >
                                 Accept
                               </button>
@@ -654,7 +651,7 @@ const GigDetails = () => {
                                 onClick={() =>
                                   handleApplicationStatus(app._id, "rejected")
                                 }
-                                className="flex-1 px-3 py-2 bg-red-50 text-red-700 rounded hover:bg-red-100 transition-colors font-medium text-sm button-click-effect animate-pulse-glow"
+                                className="flex-1 px-3 py-2 bg-red-50 text-red-700 rounded hover:bg-red-100 transition-colors font-medium text-sm"
                               >
                                 Reject
                               </button>
@@ -664,20 +661,24 @@ const GigDetails = () => {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-8 animate-scale-in">
-                      <Users className="h-12 w-12 text-gray-300 mx-auto mb-2" />
-                      <p className="text-gray-500">No applicants yet</p>
+                    <div className="text-center py-8">
+                      <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500 font-medium">
+                        No applicants yet
+                      </p>
                     </div>
                   )}
                 </div>
               ) : (
                 // Buyer View - Action Panel
-                <div className="bg-white rounded-xl shadow-lg p-6 sticky top-20 animate-scale-in">
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 sticky top-24 fade-in">
                   <div className="space-y-4">
                     {/* Price Display */}
-                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-200 animate-pulse-glow">
-                      <p className="text-sm text-gray-600 mb-1">Total Price</p>
-                      <p className="text-3xl font-bold text-blue-600">
+                    <div className="bg-white border-2 border-[#1A2A4F] rounded-lg p-5">
+                      <p className="text-sm text-gray-600 mb-2 font-medium">
+                        Total Price
+                      </p>
+                      <p className="text-4xl font-bold text-[#1A2A4F]">
                         ₹{gig.price.toLocaleString("en-IN")}
                       </p>
                     </div>
@@ -685,7 +686,7 @@ const GigDetails = () => {
                     {/* Apply Button or Status */}
                     {hasApplied ? (
                       <div
-                        className={`px-4 py-4 rounded-lg text-center font-semibold status-badge animate-scale-in ${
+                        className={`px-4 py-4 rounded-lg text-center font-semibold status-badge ${
                           userApplication.status === "pending"
                             ? "status-pending"
                             : userApplication.status === "accepted"
@@ -703,10 +704,10 @@ const GigDetails = () => {
                         disabled={
                           isClosed || hasApplied || isApplying || !isVerified
                         }
-                        className={`w-full px-6 py-4 rounded-lg font-bold transition-all flex items-center justify-center gap-2 text-lg button-click-effect animate-pulse-glow ${
+                        className={`w-full px-6 py-4 rounded-lg font-bold transition-all flex items-center justify-center gap-2 text-base ${
                           isClosed || hasApplied || isApplying || !isVerified
                             ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                            : "bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl"
+                            : "bg-[#1A2A4F] text-white hover:bg-[#0f1a35] shadow-md hover:shadow-lg"
                         }`}
                       >
                         <Briefcase className="h-5 w-5" />
@@ -721,20 +722,20 @@ const GigDetails = () => {
                     )}
 
                     {/* Message Button */}
-                    <button className="w-full px-6 py-3 bg-gray-100 text-gray-900 rounded-lg hover:bg-gray-200 transition-colors font-semibold flex items-center justify-center gap-2 button-click-effect animate-pulse-glow">
+                    <button className="w-full px-6 py-3 bg-white border border-gray-200 text-gray-900 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center justify-center gap-2 hover-lift">
                       <MessageSquare className="h-5 w-5" />
                       Message Seller
                     </button>
 
                     {/* Info Messages */}
                     {!isVerified && (
-                      <p className="text-sm text-amber-700 bg-amber-50 p-3 rounded-lg animate-scale-in">
-                        ✓ Verify your email to apply for gigs
+                      <p className="text-sm text-amber-700 bg-amber-50 p-3 rounded-lg border border-amber-200">
+                        Verify your email to apply for gigs
                       </p>
                     )}
                     {isClosed && (
-                      <p className="text-sm text-gray-700 bg-gray-100 p-3 rounded-lg animate-scale-in">
-                        ✗ This gig is no longer accepting applications
+                      <p className="text-sm text-gray-700 bg-gray-100 p-3 rounded-lg border border-gray-200">
+                        This gig is no longer accepting applications
                       </p>
                     )}
                   </div>
