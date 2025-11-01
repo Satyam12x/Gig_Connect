@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 const API_BASE = "http://localhost:5000/api";
+const NAVY = "#1A2A4F";
 
 const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -25,18 +26,13 @@ const Navbar = () => {
   const navigate = useNavigate();
 
   const navItems = [
-    { icon: Home, label: "Home", href: "#home", id: "home" },
-    { icon: Briefcase, label: "Gigs", href: "#gigs", id: "gigs" },
-    {
-      icon: MessageCircle,
-      label: "Messages",
-      href: "#messages",
-      id: "messages",
-    },
+    { icon: Home, label: "Home", to: "/", id: "home" },
+    { icon: Briefcase, label: "Gigs", to: "/gigs", id: "gigs" },
+    { icon: MessageCircle, label: "Messages", to: "/messages", id: "messages" },
     {
       icon: Bell,
       label: "Notifications",
-      href: "#notifications",
+      to: "/notifications",
       id: "notifications",
       badge: notificationCount,
     },
@@ -91,7 +87,7 @@ const Navbar = () => {
     <>
       {/* Fixed Navbar */}
       <nav
-        className={`fixed w-full top-0 z-40 transition-all duration-300 bg-white ${
+        className={`fixed w-full top-0 z-50 transition-all duration-300 bg-white ${
           isScrolled ? "shadow-lg" : "shadow-md"
         }`}
       >
@@ -99,7 +95,10 @@ const Navbar = () => {
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
             <Link to="/" className="flex-shrink-0 group cursor-pointer">
-              <h1 className="text-2xl font-bold text-[#1A2A4F] font-sans transition-colors duration-300 group-hover:text-blue-600">
+              <h1
+                className="text-2xl font-bold font-sans transition-colors duration-300 group-hover:text-[#2d3d63]"
+                style={{ color: NAVY }}
+              >
                 Gig Connect
               </h1>
             </Link>
@@ -110,9 +109,10 @@ const Navbar = () => {
                 const Icon = item.icon;
                 return (
                   <div key={item.id} className="relative group">
-                    <a
-                      href={item.href}
-                      className="relative flex items-center justify-center w-10 h-10 text-[#1A2A4F] rounded-lg hover:bg-blue-50 transition-all duration-300 p-2"
+                    <Link
+                      to={item.to}
+                      className="relative flex items-center justify-center w-10 h-10 text-white rounded-lg hover:bg-[#1A2A4F]/10 transition-all duration-300 p-2"
+                      style={{ color: NAVY }}
                       aria-label={item.label}
                     >
                       <Icon size={24} />
@@ -121,9 +121,11 @@ const Navbar = () => {
                           {item.badge}
                         </span>
                       )}
-                    </a>
-                    {/* Tooltip */}
-                    <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 opacity-0 group-hover:opacity-100 text-sm text-white bg-[#1A2A4F] px-3 py-1 rounded-md shadow-md whitespace-nowrap font-sans transition-all duration-200 pointer-events-none">
+                    </Link>
+                    <span
+                      className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 opacity-0 group-hover:opacity-100 text-sm text-white px-3 py-1 rounded-md shadow-md whitespace-nowrap font-sans transition-all duration-200 pointer-events-none"
+                      style={{ backgroundColor: NAVY }}
+                    >
                       {item.label}
                     </span>
                   </div>
@@ -131,27 +133,35 @@ const Navbar = () => {
               })}
             </div>
 
-            {/* Desktop Profile & Auth Section */}
+            {/* Desktop Profile & Auth */}
             <div className="hidden md:flex items-center space-x-4">
               {user ? (
                 <div className="relative">
                   <button
                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                    className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-blue-50 transition-all duration-300 group"
+                    className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-[#1A2A4F]/5 transition-all duration-300 group"
                   >
                     {user.profilePicture ? (
                       <img
-                        src={user.profilePicture || "/placeholder.svg"}
+                        src={user.profilePicture}
                         alt={user.fullName}
-                        className="w-10 h-10 rounded-full object-cover ring-2 ring-transparent group-hover:ring-blue-200 transition-all duration-300"
+                        className="w-10 h-10 rounded-full object-cover ring-2 ring-transparent group-hover:ring-[#1A2A4F]/20 transition-all duration-300"
                       />
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-bold font-sans text-sm">
+                      <div
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
+                        style={{
+                          background: `linear-gradient(135deg, ${NAVY}, #2d3d63)`,
+                        }}
+                      >
                         {user.fullName?.charAt(0).toUpperCase()}
                       </div>
                     )}
                     <div className="hidden lg:block text-left">
-                      <p className="text-sm font-semibold text-[#1A2A4F]">
+                      <p
+                        className="text-sm font-semibold"
+                        style={{ color: NAVY }}
+                      >
                         {user.fullName?.split(" ")[0]}
                       </p>
                       <p className="text-xs text-gray-500">Profile</p>
@@ -161,10 +171,11 @@ const Navbar = () => {
                       className={`transition-transform duration-300 ${
                         isDropdownOpen ? "rotate-180" : ""
                       }`}
+                      style={{ color: NAVY }}
                     />
                   </button>
 
-                  {/* Dropdown Menu */}
+                  {/* Dropdown */}
                   <div
                     className={`absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-100 transition-all duration-200 z-50 ${
                       isDropdownOpen
@@ -172,9 +183,11 @@ const Navbar = () => {
                         : "opacity-0 -translate-y-2 pointer-events-none"
                     }`}
                   >
-                    {/* User Info */}
                     <div className="px-4 py-3 border-b border-gray-100">
-                      <p className="text-sm font-semibold text-[#1A2A4F]">
+                      <p
+                        className="text-sm font-semibold"
+                        style={{ color: NAVY }}
+                      >
                         {user.fullName}
                       </p>
                       <p className="text-xs text-gray-500 truncate">
@@ -182,23 +195,23 @@ const Navbar = () => {
                       </p>
                     </div>
 
-                    {/* Menu Items */}
                     <Link
                       to="/profile"
-                      className="block px-4 py-2 text-sm text-[#1A2A4F] hover:bg-blue-50 transition-colors duration-200 font-sans"
+                      className="block px-4 py-2 text-sm hover:bg-[#1A2A4F]/5 transition-colors duration-200 font-sans"
+                      style={{ color: NAVY }}
                       onClick={() => setIsDropdownOpen(false)}
                     >
                       View Profile
                     </Link>
                     <a
                       href="#settings"
-                      className="block px-4 py-2 text-sm text-[#1A2A4F] hover:bg-blue-50 transition-colors duration-200 font-sans"
+                      className="block px-4 py-2 text-sm hover:bg-[#1A2A4F]/5 transition-colors duration-200 font-sans"
+                      style={{ color: NAVY }}
                       onClick={() => setIsDropdownOpen(false)}
                     >
                       Settings
                     </a>
 
-                    {/* Logout Button */}
                     <button
                       onClick={handleLogout}
                       className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors duration-200 font-sans flex items-center space-x-2 border-t border-gray-100"
@@ -212,13 +225,15 @@ const Navbar = () => {
                 <div className="flex items-center space-x-3">
                   <Link
                     to="/login"
-                    className="text-sm font-semibold text-[#1A2A4F] hover:text-blue-600 transition-colors duration-300 font-sans"
+                    className="text-sm font-semibold transition-colors duration-300 font-sans"
+                    style={{ color: NAVY }}
                   >
                     Sign In
                   </Link>
                   <Link
                     to="/signup"
-                    className="text-sm font-semibold px-4 py-2 bg-[#1A2A4F] text-white rounded-lg hover:bg-blue-700 transition-all duration-300 font-sans shadow-md hover:shadow-lg"
+                    className="text-sm font-semibold px-4 py-2 bg-white text-white rounded-lg hover:bg-[#2d3d63] transition-all duration-300 font-sans shadow-md hover:shadow-lg"
+                    style={{ backgroundColor: NAVY }}
                   >
                     Sign Up
                   </Link>
@@ -229,7 +244,8 @@ const Navbar = () => {
             {/* Mobile Menu Button */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="md:hidden text-[#1A2A4F] hover:bg-blue-50 p-2 rounded-lg transition-colors duration-300"
+              className="md:hidden p-2 rounded-lg transition-colors duration-300"
+              style={{ color: NAVY }}
               aria-label="Toggle mobile menu"
             >
               {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
@@ -241,46 +257,53 @@ const Navbar = () => {
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
-          aria-hidden="true"
         />
       )}
 
-      {/* Mobile Menu Drawer */}
+      {/* Mobile Drawer */}
       <div
-        className={`fixed top-0 right-0 h-full w-4/5 max-w-sm bg-white shadow-xl transform transition-transform duration-300 z-40 md:hidden ${
+        className={`fixed top-0 right-0 h-full w-4/5 max-w-sm bg-white shadow-xl transform transition-transform duration-300 z-50 md:hidden ${
           isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        {/* Mobile Menu Header */}
         <div className="flex justify-between items-center px-4 py-4 border-b border-gray-100">
-          <h2 className="text-xl font-bold text-[#1A2A4F] font-sans">Menu</h2>
+          <h2 className="text-xl font-bold font-sans" style={{ color: NAVY }}>
+            Menu
+          </h2>
           <button
             onClick={() => setIsMobileMenuOpen(false)}
-            className="text-[#1A2A4F] hover:bg-blue-50 p-2 rounded-lg transition-colors duration-300"
-            aria-label="Close menu"
+            className="p-2 rounded-lg transition-colors duration-300"
+            style={{ color: NAVY }}
           >
             <X size={24} />
           </button>
         </div>
 
-        {/* Mobile User Info */}
         {user && (
-          <div className="flex items-center px-4 py-4 bg-blue-50 border-b border-gray-100">
+          <div className="flex items-center px-4 py-4 bg-[#1A2A4F]/5 border-b border-gray-100">
             {user.profilePicture ? (
               <img
-                src={user.profilePicture || "/placeholder.svg"}
+                src={user.profilePicture}
                 alt={user.fullName}
-                className="w-12 h-12 rounded-full object-cover mr-3 ring-2 ring-blue-200"
+                className="w-12 h-12 rounded-full object-cover mr-3 ring-2 ring-[#1A2A4F]/20"
               />
             ) : (
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-bold font-sans mr-3">
+              <div
+                className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold mr-3"
+                style={{
+                  background: `linear-gradient(135deg, ${NAVY}, #2d3d63)`,
+                }}
+              >
                 {user.fullName?.charAt(0).toUpperCase()}
               </div>
             )}
             <div className="flex-1">
-              <p className="text-sm font-semibold text-[#1A2A4F] font-sans">
+              <p
+                className="text-sm font-semibold font-sans"
+                style={{ color: NAVY }}
+              >
                 {user.fullName}
               </p>
               <p className="text-xs text-gray-600 font-sans truncate">
@@ -290,15 +313,15 @@ const Navbar = () => {
           </div>
         )}
 
-        {/* Mobile Navigation Items */}
         <div className="px-2 py-4 space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
-              <a
+              <Link
                 key={item.id}
-                href={item.href}
-                className="flex items-center px-4 py-3 text-[#1A2A4F] hover:bg-blue-50 rounded-lg transition-all duration-300 font-medium font-sans group"
+                to={item.to}
+                className="flex items-center px-4 py-3 rounded-lg transition-all duration-300 font-medium font-sans group"
+                style={{ color: NAVY }}
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 <Icon
@@ -311,24 +334,25 @@ const Navbar = () => {
                     {item.badge}
                   </span>
                 )}
-              </a>
+              </Link>
             );
           })}
         </div>
 
-        {/* Mobile Profile Links */}
         {user && (
           <div className="px-2 py-4 border-t border-gray-100 space-y-2">
             <Link
               to="/profile"
-              className="flex items-center px-4 py-3 text-[#1A2A4F] hover:bg-blue-50 rounded-lg transition-all duration-300 font-medium font-sans"
+              className="flex items-center px-4 py-3 rounded-lg transition-all duration-300 font-medium font-sans"
+              style={{ color: NAVY }}
               onClick={() => setIsMobileMenuOpen(false)}
             >
               View Profile
             </Link>
             <a
               href="#settings"
-              className="flex items-center px-4 py-3 text-[#1A2A4F] hover:bg-blue-50 rounded-lg transition-all duration-300 font-medium font-sans"
+              className="flex items-center px-4 py-3 rounded-lg transition-all duration-300 font-medium font-sans"
+              style={{ color: NAVY }}
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Settings
@@ -343,19 +367,20 @@ const Navbar = () => {
           </div>
         )}
 
-        {/* Mobile Auth Links (if not logged in) */}
         {!user && (
           <div className="px-2 py-4 border-t border-gray-100 space-y-2">
             <Link
               to="/login"
-              className="flex items-center px-4 py-3 text-[#1A2A4F] hover:bg-blue-50 rounded-lg transition-all duration-300 font-medium font-sans"
+              className="flex items-center px-4 py-3 rounded-lg transition-all duration-300 font-medium font-sans"
+              style={{ color: NAVY }}
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Sign In
             </Link>
             <Link
               to="/signup"
-              className="flex items-center px-4 py-3 bg-[#1A2A4F] text-white rounded-lg hover:bg-blue-700 transition-all duration-300 font-medium font-sans"
+              className="flex items-center px-4 py-3 text-white rounded-lg hover:bg-[#2d3d63] transition-all duration-300 font-medium font-sans"
+              style={{ backgroundColor: NAVY }}
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Sign Up
@@ -364,7 +389,7 @@ const Navbar = () => {
         )}
       </div>
 
-      {/* Spacer for fixed navbar */}
+      {/* Spacer */}
       <div className="h-16" />
     </>
   );
