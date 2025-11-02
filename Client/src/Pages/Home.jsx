@@ -1,8 +1,8 @@
-"use client";
+"use client"
 
-import { useState, useEffect, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import axios from "axios";
+import { useState, useEffect, useRef } from "react"
+import { Link, useNavigate } from "react-router-dom"
+import axios from "axios"
 import {
   Search,
   Code,
@@ -19,54 +19,54 @@ import {
   Sparkles,
   ArrowRight,
   Star,
-} from "lucide-react";
+} from "lucide-react"
 
-const API_BASE = "http://localhost:5000/api";
+const API_BASE = "http://localhost:5000/api"
 
 // Animation Hook for Scroll-Based Effects
 const useIntersectionObserver = (options = {}) => {
-  const ref = useRef(null);
-  const [isVisible, setIsVisible] = useState(false);
+  const ref = useRef(null)
+  const [isVisible, setIsVisible] = useState(false)
 
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.unobserve(entry.target);
+          setIsVisible(true)
+          observer.unobserve(entry.target)
         }
       },
-      { threshold: 0.1, ...options }
-    );
+      { threshold: 0.1, ...options },
+    )
 
     if (ref.current) {
-      observer.observe(ref.current);
+      observer.observe(ref.current)
     }
 
-    return () => observer.disconnect();
-  }, [options]);
+    return () => observer.disconnect()
+  }, [options])
 
-  return [ref, isVisible];
-};
+  return [ref, isVisible]
+}
 
 // Hero Section
 const HeroSection = ({ userRole }) => {
-  const [searchQuery, setSearchQuery] = useState("");
-  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState("")
+  const navigate = useNavigate()
 
   const handleSearch = (e) => {
-    e.preventDefault();
+    e.preventDefault()
     if (searchQuery.trim()) {
-      navigate(`/gigs?search=${encodeURIComponent(searchQuery.trim())}`);
+      navigate(`/gigs?search=${encodeURIComponent(searchQuery.trim())}`)
     }
-  };
+  }
 
   const message =
     userRole === "Seller"
       ? "Showcase your skills and start earning with gigs!"
       : userRole === "Buyer"
-      ? "Hire talented students for your projects!"
-      : "Discover or offer services in your campus community!";
+        ? "Hire talented students for your projects!"
+        : "Discover or offer services in your campus community!"
 
   return (
     <section className="relative min-h-[90vh] bg-gradient-to-br from-white via-blue-50 to-indigo-50 overflow-hidden pt-24 pb-20">
@@ -92,9 +92,7 @@ const HeroSection = ({ userRole }) => {
                   Student Talent
                 </span>
               </h1>
-              <p className="text-xl text-gray-600 max-w-lg leading-relaxed mb-8">
-                {message}
-              </p>
+              <p className="text-xl text-gray-600 max-w-lg leading-relaxed mb-8">{message}</p>
             </div>
 
             {/* Search Bar */}
@@ -147,11 +145,7 @@ const HeroSection = ({ userRole }) => {
               <div className="flex items-center gap-2">
                 <div className="flex">
                   {[...Array(5)].map((_, i) => (
-                    <Star
-                      key={i}
-                      size={18}
-                      className="fill-yellow-400 text-yellow-400"
-                    />
+                    <Star key={i} size={18} className="fill-yellow-400 text-yellow-400" />
                   ))}
                 </div>
                 <span className="text-gray-600">4.9/5 Rating</span>
@@ -179,67 +173,33 @@ const HeroSection = ({ userRole }) => {
 
       <style jsx>{`
         @keyframes float {
-          0%,
-          100% {
-            transform: translateY(0px);
-          }
-          50% {
-            transform: translateY(-20px);
-          }
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-20px); }
         }
         @keyframes float-slow {
-          0%,
-          100% {
-            transform: translateY(0px);
-          }
-          50% {
-            transform: translateY(-15px);
-          }
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-15px); }
         }
         @keyframes slide-in-left {
-          from {
-            opacity: 0;
-            transform: translateX(-30px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
+          from { opacity: 0; transform: translateX(-30px); }
+          to { opacity: 1; transform: translateX(0); }
         }
         @keyframes bounce-slow {
-          0%,
-          100% {
-            transform: translateY(0);
-          }
-          50% {
-            transform: translateY(-10px);
-          }
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-10px); }
         }
-        .animate-float {
-          animation: float 6s ease-in-out infinite;
-        }
-        .animate-float-slow {
-          animation: float-slow 8s ease-in-out infinite;
-        }
-        .animate-slide-in-left {
-          animation: slide-in-left 0.8s ease-out;
-        }
-        .animate-bounce-slow {
-          animation: bounce-slow 3s ease-in-out infinite;
-        }
+        .animate-float { animation: float 6s ease-in-out infinite; }
+        .animate-float-slow { animation: float-slow 8s ease-in-out infinite; }
+        .animate-slide-in-left { animation: slide-in-left 0.8s ease-out; }
+        .animate-bounce-slow { animation: bounce-slow 3s ease-in-out infinite; }
       `}</style>
     </section>
-  );
-};
+  )
+}
 
 // Premium Card Component
-const PremiumCard = ({
-  children,
-  className = "",
-  animated = true,
-  delay = 0,
-}) => {
-  const [ref, isVisible] = useIntersectionObserver();
+const PremiumCard = ({ children, className = "", animated = true, delay = 0 }) => {
+  const [ref, isVisible] = useIntersectionObserver()
 
   return (
     <div
@@ -251,20 +211,20 @@ const PremiumCard = ({
     >
       {children}
     </div>
-  );
-};
+  )
+}
 
 // Featured Gigs Section
 const FeaturedGigsSection = ({ userId }) => {
-  const [gigs, setGigs] = useState([]);
-  const [applications, setApplications] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [gigs, setGigs] = useState([])
+  const [applications, setApplications] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const token = localStorage.getItem("token");
+        const token = localStorage.getItem("token")
         const [gigsResponse, applicationsResponse] = await Promise.all([
           axios.get(`${API_BASE}/gigs/recent`),
           token
@@ -272,22 +232,22 @@ const FeaturedGigsSection = ({ userId }) => {
                 headers: { Authorization: `Bearer ${token}` },
               })
             : { data: [] },
-        ]);
-        setGigs(gigsResponse.data.slice(0, 4));
-        setApplications(applicationsResponse.data);
-        setLoading(false);
+        ])
+        setGigs(gigsResponse.data.slice(0, 4))
+        setApplications(applicationsResponse.data)
+        setLoading(false)
       } catch (err) {
-        setError(err.response?.data?.error || "Failed to fetch gigs");
-        setLoading(false);
+        setError(err.response?.data?.error || "Failed to fetch gigs")
+        setLoading(false)
       }
-    };
-    fetchData();
-  }, [userId]);
+    }
+    fetchData()
+  }, [userId])
 
   const getApplicationStatus = (gigId) => {
-    const application = applications.find((app) => app.gigId._id === gigId);
-    return application ? application.status : null;
-  };
+    const application = applications.find((app) => app.gigId._id === gigId)
+    return application ? application.status : null
+  }
 
   return (
     <section className="relative py-20 bg-gradient-to-br from-gray-50 to-white overflow-hidden">
@@ -298,12 +258,9 @@ const FeaturedGigsSection = ({ userId }) => {
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">
-            Featured Gigs
-          </h2>
+          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">Featured Gigs</h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Discover top services offered by talented students in your campus
-            community.
+            Discover top services offered by talented students in your campus community.
           </p>
         </div>
 
@@ -317,22 +274,17 @@ const FeaturedGigsSection = ({ userId }) => {
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[...Array(4)].map((_, i) => (
-              <div
-                key={i}
-                className="h-80 bg-gray-200 rounded-2xl animate-pulse"
-              ></div>
+              <div key={i} className="h-80 bg-gray-200 rounded-2xl animate-pulse"></div>
             ))}
           </div>
         ) : gigs.length === 0 ? (
-          <div className="text-center text-gray-600">
-            No gigs available at the moment.
-          </div>
+          <div className="text-center text-gray-600">No gigs available at the moment.</div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {gigs.map((gig, idx) => {
-              const applicationStatus = getApplicationStatus(gig._id);
-              const hasApplied = !!applicationStatus;
-              const isClosed = gig.status === "closed";
+              const applicationStatus = getApplicationStatus(gig._id)
+              const hasApplied = !!applicationStatus
+              const isClosed = gig.status === "closed"
 
               return (
                 <PremiumCard key={gig._id} delay={idx * 100}>
@@ -356,20 +308,13 @@ const FeaturedGigsSection = ({ userId }) => {
                     </div>
 
                     {/* Content */}
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
-                      {gig.title}
-                    </h3>
-                    <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                      {gig.description}
-                    </p>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">{gig.title}</h3>
+                    <p className="text-sm text-gray-600 mb-4 line-clamp-2">{gig.description}</p>
 
                     {/* Seller Info */}
                     <p className="text-sm text-gray-700 mb-4">
                       By{" "}
-                      <Link
-                        to={`/profile/${gig.sellerId}`}
-                        className="text-blue-600 hover:underline"
-                      >
+                      <Link to={`/profile/${gig.sellerId}`} className="text-blue-600 hover:underline">
                         {gig.sellerName}
                       </Link>
                     </p>
@@ -377,14 +322,8 @@ const FeaturedGigsSection = ({ userId }) => {
                     {/* Status and Price */}
                     <div className="flex items-center justify-between mb-4 pt-4 border-t border-gray-100">
                       <div>
-                        <p className="text-2xl font-bold text-gray-900">
-                          ${gig.price}
-                        </p>
-                        <p
-                          className={`text-xs font-medium ${
-                            isClosed ? "text-red-600" : "text-green-600"
-                          }`}
-                        >
+                        <p className="text-2xl font-bold text-gray-900">${gig.price}</p>
+                        <p className={`text-xs font-medium ${isClosed ? "text-red-600" : "text-green-600"}`}>
                           {isClosed ? "Closed" : "Open"}
                         </p>
                       </div>
@@ -407,7 +346,7 @@ const FeaturedGigsSection = ({ userId }) => {
                     </div>
                   </div>
                 </PremiumCard>
-              );
+              )
             })}
           </div>
         )}
@@ -429,20 +368,20 @@ const FeaturedGigsSection = ({ userId }) => {
         }
       `}</style>
     </section>
-  );
-};
+  )
+}
 
 // Recent Gigs Timeline Section
 const RecentGigsSection = ({ userId }) => {
-  const [gigs, setGigs] = useState([]);
-  const [applications, setApplications] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [gigs, setGigs] = useState([])
+  const [applications, setApplications] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const token = localStorage.getItem("token");
+        const token = localStorage.getItem("token")
         const [gigsResponse, applicationsResponse] = await Promise.all([
           axios.get(`${API_BASE}/gigs/recent`),
           token
@@ -450,22 +389,22 @@ const RecentGigsSection = ({ userId }) => {
                 headers: { Authorization: `Bearer ${token}` },
               })
             : { data: [] },
-        ]);
-        setGigs(gigsResponse.data.slice(0, 5));
-        setApplications(applicationsResponse.data);
-        setLoading(false);
+        ])
+        setGigs(gigsResponse.data.slice(0, 5))
+        setApplications(applicationsResponse.data)
+        setLoading(false)
       } catch (err) {
-        setError(err.response?.data?.error || "Failed to fetch recent gigs");
-        setLoading(false);
+        setError(err.response?.data?.error || "Failed to fetch recent gigs")
+        setLoading(false)
       }
-    };
-    fetchData();
-  }, [userId]);
+    }
+    fetchData()
+  }, [userId])
 
   const getApplicationStatus = (gigId) => {
-    const application = applications.find((app) => app.gigId._id === gigId);
-    return application ? application.status : null;
-  };
+    const application = applications.find((app) => app.gigId._id === gigId)
+    return application ? application.status : null
+  }
 
   return (
     <section className="relative py-20 bg-white overflow-hidden">
@@ -475,12 +414,8 @@ const RecentGigsSection = ({ userId }) => {
 
       <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">
-            Recently Uploaded
-          </h2>
-          <p className="text-xl text-gray-600">
-            Check out the latest services posted by talented students.
-          </p>
+          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">Recently Uploaded</h2>
+          <p className="text-xl text-gray-600">Check out the latest services posted by talented students.</p>
         </div>
 
         {error && (
@@ -493,29 +428,20 @@ const RecentGigsSection = ({ userId }) => {
         {loading ? (
           <div className="space-y-4">
             {[...Array(5)].map((_, i) => (
-              <div
-                key={i}
-                className="h-24 bg-gray-200 rounded-2xl animate-pulse"
-              ></div>
+              <div key={i} className="h-24 bg-gray-200 rounded-2xl animate-pulse"></div>
             ))}
           </div>
         ) : gigs.length === 0 ? (
-          <div className="text-center text-gray-600">
-            No recent gigs available.
-          </div>
+          <div className="text-center text-gray-600">No recent gigs available.</div>
         ) : (
           <div className="space-y-4">
             {gigs.map((gig, idx) => {
-              const applicationStatus = getApplicationStatus(gig._id);
-              const hasApplied = !!applicationStatus;
-              const isClosed = gig.status === "closed";
+              const applicationStatus = getApplicationStatus(gig._id)
+              const hasApplied = !!applicationStatus
+              const isClosed = gig.status === "closed"
 
               return (
-                <PremiumCard
-                  key={gig._id}
-                  delay={idx * 80}
-                  className="!shadow-sm hover:shadow-md"
-                >
+                <PremiumCard key={gig._id} delay={idx * 80} className="!shadow-sm hover:shadow-md">
                   <div className="p-6 flex items-center gap-6">
                     {/* Icon */}
                     {gig.thumbnail ? (
@@ -532,22 +458,15 @@ const RecentGigsSection = ({ userId }) => {
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                        {gig.title}
-                      </h3>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-1">{gig.title}</h3>
                       <p className="text-sm text-gray-600 mb-2">
                         By{" "}
-                        <Link
-                          to={`/profile/${gig.sellerId}`}
-                          className="text-blue-600 hover:underline"
-                        >
+                        <Link to={`/profile/${gig.sellerId}`} className="text-blue-600 hover:underline">
                           {gig.sellerName}
                         </Link>{" "}
                         • ${gig.price}
                       </p>
-                      <p className="text-sm text-gray-500 line-clamp-1">
-                        {gig.description}
-                      </p>
+                      <p className="text-sm text-gray-500 line-clamp-1">{gig.description}</p>
                     </div>
 
                     {/* Action */}
@@ -567,52 +486,48 @@ const RecentGigsSection = ({ userId }) => {
                     </div>
                   </div>
                 </PremiumCard>
-              );
+              )
             })}
           </div>
         )}
       </div>
     </section>
-  );
-};
+  )
+}
 
 // Categories Section
 const CategoriesSection = () => {
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [categories, setCategories] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   const categoryIcons = {
     "Web Development": Code,
     "Graphic Design": PenTool,
     Tutoring: BookOpen,
     "Digital Marketing": Search,
-  };
+  }
 
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await axios.get(`${API_BASE}/categories`);
-        setCategories(response.data.categories || []);
-        setLoading(false);
+        const response = await axios.get(`${API_BASE}/categories`)
+        setCategories(response.data.categories || [])
+        setLoading(false)
       } catch (err) {
-        setError(err.response?.data?.error || "Failed to fetch categories");
-        setLoading(false);
+        setError(err.response?.data?.error || "Failed to fetch categories")
+        setLoading(false)
       }
-    };
-    fetchCategories();
-  }, []);
+    }
+    fetchCategories()
+  }, [])
 
   return (
     <section className="relative py-20 bg-gradient-to-br from-blue-50 to-indigo-50 overflow-hidden">
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">
-            Explore Categories
-          </h2>
-          <p className="text-xl text-gray-600">
-            Find the perfect service for your needs.
-          </p>
+          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">Explore Categories</h2>
+          <p className="text-xl text-gray-600">Find the perfect service for your needs.</p>
         </div>
 
         {error && (
@@ -625,22 +540,15 @@ const CategoriesSection = () => {
         {loading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
             {[...Array(4)].map((_, i) => (
-              <div
-                key={i}
-                className="h-40 bg-gray-300 rounded-2xl animate-pulse"
-              ></div>
+              <div key={i} className="h-40 bg-gray-300 rounded-2xl animate-pulse"></div>
             ))}
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
             {categories.map((category, idx) => {
-              const Icon = categoryIcons[category] || Users;
+              const Icon = categoryIcons[category] || Users
               return (
-                <Link
-                  key={idx}
-                  to={`/gigs?category=${encodeURIComponent(category)}`}
-                  className="group relative"
-                >
+                <Link key={idx} to={`/gigs?category=${encodeURIComponent(category)}`} className="group relative">
                   <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-2xl opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
                   <PremiumCard
                     delay={idx * 50}
@@ -652,14 +560,14 @@ const CategoriesSection = () => {
                     </h3>
                   </PremiumCard>
                 </Link>
-              );
+              )
             })}
           </div>
         )}
       </div>
     </section>
-  );
-};
+  )
+}
 
 // How It Works Section
 const HowItWorksSection = () => {
@@ -667,21 +575,19 @@ const HowItWorksSection = () => {
     {
       icon: Search,
       title: "Browse Gigs",
-      description:
-        "Explore services offered by talented students in your community.",
+      description: "Explore services offered by talented students in your community.",
     },
     {
       icon: Briefcase,
       title: "Hire or Apply",
-      description:
-        "Hire skilled students or apply to gigs that match your expertise.",
+      description: "Hire skilled students or apply to gigs that match your expertise.",
     },
     {
       icon: CheckCircle,
       title: "Complete & Earn",
       description: "Get projects delivered through our secure platform.",
     },
-  ];
+  ]
 
   return (
     <section className="relative py-20 bg-white overflow-hidden">
@@ -691,17 +597,13 @@ const HowItWorksSection = () => {
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">
-            How It Works
-          </h2>
-          <p className="text-xl text-gray-600">
-            Getting started is easy and seamless.
-          </p>
+          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">How It Works</h2>
+          <p className="text-xl text-gray-600">Getting started is easy and seamless.</p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-8">
           {steps.map((step, idx) => {
-            const Icon = step.icon;
+            const Icon = step.icon
             return (
               <PremiumCard key={idx} delay={idx * 100} className="relative">
                 {idx < steps.length - 1 && (
@@ -711,90 +613,73 @@ const HowItWorksSection = () => {
                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                     <Icon className="w-8 h-8 text-blue-600" />
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                    {step.title}
-                  </h3>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-3">{step.title}</h3>
                   <p className="text-gray-600">{step.description}</p>
                 </div>
               </PremiumCard>
-            );
+            )
           })}
         </div>
       </div>
     </section>
-  );
-};
+  )
+}
 
 // Testimonials Section
 const TestimonialsSection = () => {
   const testimonials = [
     {
-      quote:
-        "Gig Connect connected me with a talented student developer who built my website in record time!",
+      quote: "Gig Connect connected me with a talented student developer who built my website in record time!",
       author: "Satyam Pandey",
       role: "Small Business Owner",
     },
     {
-      quote:
-        "As a student, I showcased my portfolio and landed my first freelance gig within a week.",
+      quote: "As a student, I showcased my portfolio and landed my first freelance gig within a week.",
       author: "Apoorva Sharma",
       role: "Computer Science Student",
     },
     {
-      quote:
-        "The platform made collaboration seamless and trustworthy. Highly recommended!",
+      quote: "The platform made collaboration seamless and trustworthy. Highly recommended!",
       author: "Priya Gupta",
       role: "Marketing Coordinator",
     },
-  ];
+  ]
 
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [isTransitioning, setIsTransitioning] = useState(false)
 
   const goToNext = () => {
     if (!isTransitioning) {
-      setIsTransitioning(true);
-      setCurrentIndex((prev) => (prev + 1) % testimonials.length);
-      setTimeout(() => setIsTransitioning(false), 500);
+      setIsTransitioning(true)
+      setCurrentIndex((prev) => (prev + 1) % testimonials.length)
+      setTimeout(() => setIsTransitioning(false), 500)
     }
-  };
+  }
 
   const goToPrev = () => {
     if (!isTransitioning) {
-      setIsTransitioning(true);
-      setCurrentIndex(
-        (prev) => (prev - 1 + testimonials.length) % testimonials.length
-      );
-      setTimeout(() => setIsTransitioning(false), 500);
+      setIsTransitioning(true)
+      setCurrentIndex((prev) => (prev - 1 + testimonials.length) % testimonials.length)
+      setTimeout(() => setIsTransitioning(false), 500)
     }
-  };
+  }
 
   return (
     <section className="relative py-20 bg-gradient-to-br from-gray-50 to-white overflow-hidden">
       <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">
-            What Users Say
-          </h2>
-          <p className="text-xl text-gray-600">
-            Hear from students and clients who transformed their projects.
-          </p>
+          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">What Users Say</h2>
+          <p className="text-xl text-gray-600">Hear from students and clients who transformed their projects.</p>
         </div>
 
         <div className="relative">
           <PremiumCard className="!border-0 !shadow-xl p-12">
             <div className="flex flex-col items-center text-center animate-fade-in">
               <Quote className="w-12 h-12 text-blue-600 mb-6" />
-              <p className="text-xl text-gray-600 mb-8 leading-relaxed">
-                "{testimonials[currentIndex].quote}"
-              </p>
+              <p className="text-xl text-gray-600 mb-8 leading-relaxed">"{testimonials[currentIndex].quote}"</p>
               <div>
-                <p className="text-lg font-semibold text-gray-900">
-                  {testimonials[currentIndex].author}
-                </p>
-                <p className="text-sm text-gray-600">
-                  {testimonials[currentIndex].role}
-                </p>
+                <p className="text-lg font-semibold text-gray-900">{testimonials[currentIndex].author}</p>
+                <p className="text-sm text-gray-600">{testimonials[currentIndex].role}</p>
               </div>
             </div>
           </PremiumCard>
@@ -835,20 +720,14 @@ const TestimonialsSection = () => {
 
       <style jsx>{`
         @keyframes fade-in {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
-        .animate-fade-in {
-          animation: fade-in 0.5s ease-in-out;
-        }
+        .animate-fade-in { animation: fade-in 0.5s ease-in-out; }
       `}</style>
     </section>
-  );
-};
+  )
+}
 
 // CTA Section
 const CTASection = ({ userRole, userId }) => {
@@ -860,12 +739,9 @@ const CTASection = ({ userRole, userId }) => {
       </div>
 
       <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
-          Ready to Get Started?
-        </h2>
+        <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">Ready to Get Started?</h2>
         <p className="text-xl text-blue-100 mb-10 max-w-2xl mx-auto">
-          Join thousands of students and clients transforming their projects on
-          Gig Connect.
+          Join thousands of students and clients transforming their projects on Gig Connect.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -886,44 +762,44 @@ const CTASection = ({ userRole, userId }) => {
         </div>
       </div>
     </section>
-  );
-};
+  )
+}
 
 // Main Home Component
 const Home = () => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     const fetchUser = async () => {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token")
       if (!token) {
-        setUser(null);
-        setLoading(false);
-        return;
+        setUser(null)
+        setLoading(false)
+        return
       }
 
       try {
         const response = await axios.get(`${API_BASE}/users/profile`, {
           headers: { Authorization: `Bearer ${token}` },
-        });
-        setUser(response.data);
-        setLoading(false);
+        })
+        setUser(response.data)
+        setLoading(false)
       } catch (err) {
-        setError(err.response?.data?.error || "Failed to fetch profile");
-        setLoading(false);
+        setError(err.response?.data?.error || "Failed to fetch profile")
+        setLoading(false)
       }
-    };
-    fetchUser();
-  }, []);
+    }
+    fetchUser()
+  }, [])
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
       </div>
-    );
+    )
   }
 
   if (error) {
@@ -932,7 +808,7 @@ const Home = () => {
         <AlertTriangle className="w-6 h-6 mr-2" />
         {error}
       </div>
-    );
+    )
   }
 
   return (
@@ -945,7 +821,7 @@ const Home = () => {
       <TestimonialsSection />
       <CTASection userRole={user?.role} userId={user?._id} />
     </div>
-  );
-};
+  )
+}
 
-export default Home;
+export default Home
