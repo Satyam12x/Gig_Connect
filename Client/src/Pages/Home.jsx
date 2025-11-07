@@ -15,6 +15,8 @@ import {
   ArrowRight,
   Sparkles,
   TrendingUp,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -93,25 +95,7 @@ const SectionDivider = ({ variant = "default" }) => {
     );
   }
 
-  if (variant === "dots") {
-    return (
-      <div className="relative h-12 flex items-center justify-center">
-        <div className="flex space-x-2">
-          {[...Array(5)].map((_, i) => (
-            <div
-              key={i}
-              className="w-2 h-2 rounded-full bg-[#1A2A4F] animate-pulse"
-              style={{
-                animationDelay: `${i * 0.2}s`,
-                opacity: 0.3 + i * 0.15,
-              }}
-            />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
+  // Removed dots variant — only wave and default line remain
   return (
     <div className="relative h-1 my-8 mx-auto max-w-xs">
       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#1A2A4F] to-transparent opacity-30" />
@@ -426,7 +410,7 @@ const FeaturedGigsSection = ({ userId }) => {
           )}
         </div>
       </div>
-      <SectionDivider variant="dots" />
+      {/* No divider here */}
     </>
   );
 };
@@ -638,7 +622,7 @@ const RecentGigsSection = ({ userId }) => {
           )}
         </div>
       </div>
-      <SectionDivider variant="dots" />
+      {/* No divider */}
     </>
   );
 };
@@ -738,7 +722,7 @@ const CategoriesSection = () => {
           )}
         </div>
       </div>
-      <SectionDivider />
+      {/* No divider */}
     </>
   );
 };
@@ -821,7 +805,7 @@ const HowItWorksSection = () => {
           </div>
         </div>
       </div>
-      <SectionDivider variant="dots" />
+      {/* No divider */}
     </>
   );
 };
@@ -850,7 +834,21 @@ const TestimonialsSection = () => {
 
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  const goToSlide = (index) => setCurrentIndex(index);
+  const goToPrev = () => {
+    setCurrentIndex((prev) =>
+      prev === 0 ? testimonials.length - 1 : prev - 1
+    );
+  };
+
+  const goToNext = () => {
+    setCurrentIndex((prev) =>
+      prev === testimonials.length - 1 ? 0 : prev + 1
+    );
+  };
+
+  const goToSlide = (index) => {
+    setCurrentIndex(index);
+  };
 
   return (
     <>
@@ -872,36 +870,56 @@ const TestimonialsSection = () => {
           </div>
 
           <div className="relative max-w-4xl mx-auto">
-            <div className="overflow-hidden">
-              <div className="transition-opacity duration-500 ease-in-out">
-                <div className="flex justify-center">
-                  <div className="group relative bg-white p-10 rounded-3xl shadow-xl border border-gray-200 w-full max-w-2xl hover:shadow-2xl transition-all duration-500">
-                    <div className="absolute inset-0 bg-[#1A2A4F]/5 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className="overflow-hidden rounded-3xl">
+              <div
+                className="flex transition-transform duration-500 ease-in-out"
+                style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+              >
+                {testimonials.map((testimonial, index) => (
+                  <div key={index} className="w-full flex-shrink-0 px-4">
+                    <div className="group relative bg-white p-10 rounded-3xl shadow-xl border border-gray-200 hover:shadow-2xl transition-all duration-500">
+                      <div className="absolute inset-0 bg-[#1A2A4F]/5 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-                    <div className="relative">
-                      <div className="w-16 h-16 rounded-full bg-[#1A2A4F] flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform duration-300">
-                        <Quote className="text-white" size={32} />
-                      </div>
+                      <div className="relative">
+                        <div className="w-16 h-16 rounded-full bg-[#1A2A4F] flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform duration-300">
+                          <Quote className="text-white" size={32} />
+                        </div>
 
-                      <p className="text-xl text-gray-700 mb-8 italic leading-relaxed text-center">
-                        "{testimonials[currentIndex].quote}"
-                      </p>
-
-                      <div className="text-center">
-                        <p className="text-[#1A2A4F] font-bold text-lg mb-1">
-                          {testimonials[currentIndex].author}
+                        <p className="text-xl text-gray-700 mb-8 italic leading-relaxed text-center">
+                          "{testimonial.quote}"
                         </p>
-                        <p className="text-gray-600">
-                          {testimonials[currentIndex].role}
-                        </p>
+
+                        <div className="text-center">
+                          <p className="text-[#1A2A4F] font-bold text-lg mb-1">
+                            {testimonial.author}
+                          </p>
+                          <p className="text-gray-600">{testimonial.role}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                ))}
               </div>
             </div>
 
-            <div className="flex justify-center mt-10 space-x-3">
+            {/* Navigation Arrows */}
+            <button
+              onClick={goToPrev}
+              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-12 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-[#1A2A4F] hover:text-white transition-all duration-300"
+              aria-label="Previous testimonial"
+            >
+              <ChevronLeft size={24} />
+            </button>
+            <button
+              onClick={goToNext}
+              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-12 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-[#1A2A4F] hover:text-white transition-all duration-300"
+              aria-label="Next testimonial"
+            >
+              <ChevronRight size={24} />
+            </button>
+
+            {/* Dots Indicator */}
+            <div className="flex justify-center mt-8 space-x-3">
               {testimonials.map((_, index) => (
                 <button
                   key={index}
@@ -911,6 +929,7 @@ const TestimonialsSection = () => {
                       ? "w-8 bg-[#1A2A4F]"
                       : "w-2 bg-gray-300 hover:bg-[#1A2A4F]/50"
                   }`}
+                  aria-label={`Go to testimonial ${index + 1}`}
                 />
               ))}
             </div>
