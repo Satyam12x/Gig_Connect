@@ -34,42 +34,39 @@ const formatINR = (amount) => {
 };
 
 const BackgroundShapes = () => (
-  <div className="absolute inset-0 overflow-hidden pointer-events-none">
-    {/* Irregular circular blob 1 - top right */}
-    <div className="absolute top-[-10%] right-[-10%] w-96 h-96 opacity-20">
+  <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-50">
+    {/* Glowing Cyan Blob 1 */}
+    <div className="absolute top-[-10%] right-[-10%] w-96 h-96">
       <div
-        className="w-full h-full bg-gradient-to-br from-[#1A2A4F] via-[#3A4A7F] to-purple-600 blur-3xl animate-pulse"
+        className="w-full h-full bg-gradient-to-br from-cyan-500 via-cyan-400 to-teal-600 blur-3xl animate-pulse"
         style={{
-          borderRadius: "50%",
-          clipPath:
-            "path('M 0.5 0.3 Q 0.7 0.1, 0.9 0.3 T 1 0.7 Q 0.8 0.9, 0.5 0.8 T 0 0.7 Q 0.2 0.5, 0.3 0.3 Z')",
-          transform: "scale(1.2) rotate(12deg)",
+          borderRadius: "60% 40% 30% 70% / 60% 30% 70% 40%",
+          filter: "blur(80px)",
+          animation: "blob 8s infinite",
         }}
       />
     </div>
 
-    {/* Irregular circular blob 2 - bottom left */}
-    <div className="absolute bottom-[-15%] left-[-8%] w-80 h-80 opacity-15">
+    {/* Glowing Cyan Blob 2 */}
+    <div className="absolute bottom-[-15%] left-[-8%] w-80 h-80">
       <div
-        className="w-full h-full bg-gradient-to-tr from-purple-600 via-[#1A2A4F] to-[#2A3A6F] blur-3xl animate-pulse animation-delay-2000"
+        className="w-full h-full bg-gradient-to-tr from-teal-500 via-cyan-400 to-cyan-600 blur-3xl animate-pulse animation-delay-2000"
         style={{
-          borderRadius: "50%",
-          clipPath:
-            "path('M 0.4 0.2 Q 0.6 0.05, 0.8 0.25 T 0.95 0.6 Q 0.85 0.85, 0.6 0.9 T 0.3 0.8 Q 0.15 0.6, 0.2 0.4 Z')",
-          transform: "scale(1.3) rotate(-6deg)",
+          borderRadius: "30% 70% 70% 30% / 30% 30% 70% 70%",
+          filter: "blur(80px)",
+          animation: "blob 10s infinite",
         }}
       />
     </div>
 
-    {/* Irregular circular blob 3 - middle left */}
-    <div className="absolute top-1/3 left-1/4 w-72 h-72 opacity-10">
+    {/* Glowing Cyan Blob 3 */}
+    <div className="absolute top-1/3 left-1/4 w-72 h-72">
       <div
-        className="w-full h-full bg-gradient-to-bl from-[#3A4A7F] via-purple-500 to-[#1A2A4F] blur-3xl animate-pulse animation-delay-4000"
+        className="w-full h-full bg-gradient-to-bl from-cyan-400 via-teal-500 to-cyan-700 blur-3xl animate-pulse animation-delay-4000"
         style={{
-          borderRadius: "50%",
-          clipPath:
-            "path('M 0.5 0.1 Q 0.7 0.05, 0.9 0.2 T 0.95 0.5 Q 0.85 0.75, 0.7 0.85 T 0.4 0.9 Q 0.2 0.75, 0.15 0.5 T 0.3 0.2 Z')",
-          transform: "scale(1.1) rotate(45deg)",
+          borderRadius: "70% 30% 50% 50% / 40% 60% 30% 70%",
+          filter: "blur(80px)",
+          animation: "blob 12s infinite",
         }}
       />
     </div>
@@ -87,18 +84,18 @@ const SectionDivider = ({ variant = "default" }) => {
         >
           <path
             d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z"
-            fill="#1A2A4F"
-            fillOpacity="0.08"
+            fill="currentColor"
+            className="text-cyan-900/20"
           />
         </svg>
       </div>
     );
   }
 
-  // Removed dots variant — only wave and default line remain
   return (
-    <div className="relative h-1 my-8 mx-auto max-w-xs">
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#1A2A4F] to-transparent opacity-30" />
+    <div className="relative h-px my-12 mx-auto max-w-4xl">
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-50 blur-sm" />
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-30" />
     </div>
   );
 };
@@ -123,24 +120,24 @@ const HeroSection = ({ userRole }) => {
 
   return (
     <>
-      <div className="relative min-h-screen bg-white overflow-hidden pt-16">
+      <div className="relative min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 overflow-hidden pt-16">
         <BackgroundShapes />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-28">
           <div className="flex flex-col lg:flex-row gap-12 items-center justify-between">
             <div className="w-full lg:w-1/2 space-y-8 text-center lg:text-left">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#1A2A4F]/10 rounded-full text-[#1A2A4F] text-sm font-medium mb-4">
-                <Sparkles size={16} />
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/20 backdrop-blur-md rounded-full text-cyan-300 text-sm font-medium mb-4 border border-cyan-500/30">
+                <Sparkles size={16} className="text-cyan-400" />
                 <span>Welcome to Gig Connect</span>
               </div>
 
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#1A2A4F] leading-tight">
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-tight">
                 Connect with
-                <span className="block text-[#1A2A4F] mt-2">
+                <span className="block text-cyan-400 mt-2 drop-shadow-lg">
                   Student Talent
                 </span>
               </h1>
 
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto lg:mx-0">
+              <p className="text-lg text-gray-300 max-w-2xl mx-auto lg:mx-0">
                 {message}
               </p>
 
@@ -148,18 +145,18 @@ const HeroSection = ({ userRole }) => {
                 onSubmit={handleSearch}
                 className="relative max-w-md mx-auto lg:mx-0 group"
               >
-                <div className="absolute -inset-0.5 bg-[#1A2A4F] rounded-lg blur opacity-20 group-hover:opacity-40 transition duration-300" />
-                <div className="relative flex">
+                <div className="absolute -inset-1 bg-cyan-500 rounded-lg blur-xl opacity-30 group-hover:opacity-60 transition duration-500" />
+                <div className="relative flex backdrop-blur-md bg-white/5 border border-cyan-500/30 rounded-lg overflow-hidden">
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search for gigs..."
-                    className="flex-grow p-4 rounded-l-lg border-2 border-[#1A2A4F] focus:outline-none focus:ring-2 focus:ring-[#1A2A4F] bg-white shadow-sm"
+                    className="flex-grow p-4 bg-transparent text-white placeholder-gray-400 focus:outline-none"
                   />
                   <button
                     type="submit"
-                    className="px-6 py-4 bg-[#1A2A4F] text-white rounded-r-lg hover:bg-[#2A3A6F] transition-all duration-300"
+                    className="px-6 py-4 bg-cyan-500 text-black font-bold hover:bg-cyan-400 transition-all duration-300 flex items-center gap-2"
                   >
                     <Search size={20} />
                   </button>
@@ -169,14 +166,20 @@ const HeroSection = ({ userRole }) => {
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                 <Link
                   to="/signup"
-                  className="px-8 py-4 bg-[#1A2A4F] text-white font-semibold rounded-lg hover:bg-[#2A3A6F] transition-all duration-300 flex items-center justify-center gap-2"
+                  className="group relative px-8 py-4 bg-cyan-500 text-black font-bold rounded-lg overflow-hidden transition-all duration-300 shadow-lg hover:shadow-cyan-500/50"
                 >
-                  Get Started Free
-                  <ArrowRight size={18} />
+                  <span className="relative z-10 flex items-center justify-center gap-2">
+                    Get Started Free
+                    <ArrowRight
+                      size={18}
+                      className="group-hover:translate-x-1 transition"
+                    />
+                  </span>
+                  <div className="absolute inset-0 bg-cyan-400 -translate-x-full group-hover:translate-x-0 transition-transform duration-300" />
                 </Link>
                 <Link
                   to="/gigs"
-                  className="px-8 py-4 bg-white text-[#1A2A4F] font-semibold rounded-lg border-2 border-[#1A2A4F] hover:bg-[#1A2A4F]/5 transition-all duration-300 flex items-center justify-center gap-2"
+                  className="px-8 py-4 bg-transparent text-cyan-400 font-bold rounded-lg border-2 border-cyan-500 hover:bg-cyan-500/10 transition-all duration-300 flex items-center justify-center gap-2 backdrop-blur-sm"
                 >
                   Browse Gigs
                   <TrendingUp size={18} />
@@ -190,10 +193,10 @@ const HeroSection = ({ userRole }) => {
                   { number: "4.9/5", label: "Average Rating" },
                 ].map((stat, idx) => (
                   <div key={idx} className="text-center lg:text-left">
-                    <p className="text-3xl font-bold text-[#1A2A4F]">
+                    <p className="text-3xl font-bold text-cyan-400 drop-shadow">
                       {stat.number}
                     </p>
-                    <p className="text-gray-600">{stat.label}</p>
+                    <p className="text-gray-400">{stat.label}</p>
                   </div>
                 ))}
               </div>
@@ -201,7 +204,8 @@ const HeroSection = ({ userRole }) => {
 
             <div className="w-full lg:w-1/2 flex justify-center">
               <div className="relative group">
-                <div className="relative w-64 h-64 sm:w-80 sm:h-80 lg:w-96 lg:h-96 rounded-full overflow-hidden shadow-2xl border-8 border-white">
+                <div className="absolute -inset-1 bg-cyan-500 rounded-full blur-2xl opacity-50 group-hover:opacity-80 transition duration-700" />
+                <div className="relative w-64 h-64 sm:w-80 sm:h-80 lg:w-96 lg:h-96 rounded-full overflow-hidden shadow-2xl border-8 border-gray-800">
                   <img
                     src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=800&fit=crop"
                     alt="Students collaborating"
@@ -254,25 +258,25 @@ const FeaturedGigsSection = ({ userId }) => {
 
   return (
     <>
-      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
+      <div className="relative bg-gradient-to-b from-black via-gray-900 to-black py-16 sm:py-24 overflow-hidden">
         <BackgroundShapes />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#1A2A4F]/10 rounded-full text-[#1A2A4F] text-sm font-medium mb-4">
-              <Sparkles size={16} />
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/20 backdrop-blur-md rounded-full text-cyan-300 text-sm font-medium mb-4 border border-cyan-500/30">
+              <Sparkles size={16} className="text-cyan-400" />
               <span>Top Services</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-[#1A2A4F] mb-4">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
               Featured Gigs
             </h2>
-            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+            <p className="text-lg text-gray-400 max-w-3xl mx-auto">
               Discover top services offered by talented students in your campus
               community.
             </p>
           </div>
 
           {error && (
-            <div className="text-center text-red-500 flex items-center justify-center gap-2 mb-6">
+            <div className="text-center text-red-400 flex items-center justify-center gap-2 mb-6">
               <AlertTriangle size={20} />
               {error}
             </div>
@@ -283,19 +287,19 @@ const FeaturedGigsSection = ({ userId }) => {
               {[...Array(4)].map((_, index) => (
                 <div
                   key={index}
-                  className="bg-white p-6 rounded-2xl shadow-lg border border-gray-200 animate-pulse"
+                  className="bg-white/5 backdrop-blur-md p-6 rounded-2xl border border-cyan-500/20 animate-pulse"
                 >
-                  <div className="w-16 h-16 rounded-full bg-gray-200 mx-auto mb-4" />
-                  <div className="h-6 bg-gray-200 rounded mb-2" />
-                  <div className="h-4 bg-gray-200 rounded mb-2" />
-                  <div className="h-4 bg-gray-200 rounded mb-2" />
-                  <div className="h-4 bg-gray-200 rounded mb-4" />
-                  <div className="h-10 bg-gray-200 rounded-lg" />
+                  <div className="w-16 h-16 rounded-full bg-gray-700 mx-auto mb-4" />
+                  <div className="h-6 bg-gray-700 rounded mb-2" />
+                  <div className="h-4 bg-gray-700 rounded mb-2" />
+                  <div className="h-4 bg-gray-700 rounded mb-2" />
+                  <div className="h-4 bg-gray-700 rounded mb-4" />
+                  <div className="h-10 bg-gray-700 rounded-lg" />
                 </div>
               ))}
             </div>
           ) : gigs.length === 0 ? (
-            <div className="text-center text-gray-600">
+            <div className="text-center text-gray-500">
               No gigs available at the moment.
             </div>
           ) : (
@@ -308,14 +312,14 @@ const FeaturedGigsSection = ({ userId }) => {
                 return (
                   <div
                     key={gig._id}
-                    className="group relative bg-white p-6 rounded-2xl shadow-md border border-gray-200 hover:shadow-2xl transition-all duration-500"
+                    className="group relative bg-white/5 backdrop-blur-md p-6 rounded-2xl border border-cyan-500/20 hover:border-cyan-400 transition-all duration-500 shadow-xl hover:shadow-cyan-500/20"
                     style={{ animationDelay: `${idx * 100}ms` }}
                   >
-                    <div className="absolute inset-0 bg-[#1A2A4F]/5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-teal-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl" />
 
                     <div className="relative">
                       {gig.thumbnail ? (
-                        <div className="w-16 h-16 rounded-full mx-auto mb-4 overflow-hidden ring-4 ring-transparent group-hover:ring-[#1A2A4F]/20 transition-all duration-300">
+                        <div className="w-16 h-16 rounded-full mx-auto mb-4 overflow-hidden ring-4 ring-cyan-500/30 group-hover:ring-cyan-400 transition-all duration-300">
                           <img
                             src={gig.thumbnail}
                             alt={gig.title}
@@ -323,32 +327,32 @@ const FeaturedGigsSection = ({ userId }) => {
                           />
                         </div>
                       ) : (
-                        <div className="w-16 h-16 rounded-full bg-[#1A2A4F] mx-auto mb-4 flex items-center justify-center text-white text-xl font-bold group-hover:scale-110 transition-transform duration-300">
+                        <div className="w-16 h-16 rounded-full bg-cyan-500 mx-auto mb-4 flex items-center justify-center text-black text-xl font-bold group-hover:scale-110 transition-transform duration-300 shadow-lg">
                           {gig.title.charAt(0).toUpperCase()}
                         </div>
                       )}
 
-                      <h3 className="text-xl font-semibold text-[#1A2A4F] mb-2 group-hover:text-[#2A3A6F] transition-colors">
+                      <h3 className="text-xl font-semibold text-cyan-300 mb-2 group-hover:text-cyan-200 transition-colors">
                         {gig.title}
                       </h3>
 
-                      <p className="text-gray-600 mb-2">
+                      <p className="text-gray-400 mb-2">
                         By{" "}
                         <Link
                           to={`/profile/${gig.sellerId}`}
-                          className="hover:underline hover:text-[#1A2A4F] transition-colors"
+                          className="hover:text-cyan-400 hover:underline transition-colors"
                         >
                           {gig.sellerName}
                         </Link>
                       </p>
 
-                      <p className="text-[#1A2A4F] font-bold mb-2">
+                      <p className="text-cyan-400 font-bold mb-2">
                         From {formatINR(gig.price)}
                       </p>
 
                       <p
                         className={`mb-2 font-semibold ${
-                          isClosed ? "text-red-600" : "text-[#1A2A4F]"
+                          isClosed ? "text-red-400" : "text-cyan-300"
                         }`}
                       >
                         Status:{" "}
@@ -360,10 +364,10 @@ const FeaturedGigsSection = ({ userId }) => {
                         <p
                           className={`text-sm font-semibold mb-2 ${
                             applicationStatus === "accepted"
-                              ? "text-green-600"
+                              ? "text-green-400"
                               : applicationStatus === "rejected"
-                              ? "text-red-600"
-                              : "text-yellow-600"
+                              ? "text-red-400"
+                              : "text-yellow-400"
                           }`}
                         >
                           Application:{" "}
@@ -372,7 +376,7 @@ const FeaturedGigsSection = ({ userId }) => {
                         </p>
                       )}
 
-                      <p className="text-gray-600 mb-4 line-clamp-2">
+                      <p className="text-gray-400 mb-4 line-clamp-2">
                         {gig.description}
                       </p>
                       <p className="text-sm text-gray-500 mb-4">
@@ -380,17 +384,17 @@ const FeaturedGigsSection = ({ userId }) => {
                       </p>
 
                       {isClosed ? (
-                        <span className="block w-full px-6 py-3 bg-gray-200 text-gray-600 font-semibold rounded-lg text-center">
+                        <span className="block w-full px-6 py-3 bg-gray-800 text-gray-400 font-semibold rounded-lg text-center">
                           Applications Closed
                         </span>
                       ) : hasApplied ? (
-                        <span className="block w-full px-6 py-3 bg-gray-200 text-gray-600 font-semibold rounded-lg text-center">
+                        <span className="block w-full px-6 py-3 bg-gray-800 text-gray-400 font-semibold rounded-lg text-center">
                           Application Submitted
                         </span>
                       ) : (
                         <Link
                           to={`/gigs/${gig._id}`}
-                          className="group/btn relative block w-full px-6 py-3 bg-[#1A2A4F] text-white font-semibold rounded-lg overflow-hidden text-center"
+                          className="group/btn relative block w-full px-6 py-3 bg-cyan-500 text-black font-bold rounded-lg overflow-hidden text-center transition-all duration-300 shadow-lg hover:shadow-cyan-500/50"
                         >
                           <span className="relative z-10 flex items-center justify-center gap-2">
                             View Details
@@ -399,7 +403,7 @@ const FeaturedGigsSection = ({ userId }) => {
                               className="group-hover/btn:translate-x-1 transition-transform duration-300"
                             />
                           </span>
-                          <div className="absolute inset-0 bg-[#2A3A6F] translate-x-full group-hover/btn:translate-x-0 transition-transform duration-300" />
+                          <div className="absolute inset-0 bg-cyan-400 translate-x-full group-hover/btn:translate-x-0 transition-transform duration-300" />
                         </Link>
                       )}
                     </div>
@@ -410,7 +414,7 @@ const FeaturedGigsSection = ({ userId }) => {
           )}
         </div>
       </div>
-      {/* No divider here */}
+      <SectionDivider />
     </>
   );
 };
@@ -451,24 +455,24 @@ const RecentGigsSection = ({ userId }) => {
 
   return (
     <>
-      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
+      <div className="relative bg-gradient-to-b from-gray-900 via-black to-gray-900 py-16 sm:py-24 overflow-hidden">
         <BackgroundShapes />
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 rounded-full text-green-800 text-sm font-medium mb-4">
-              <TrendingUp size={16} />
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-teal-500/20 backdrop-blur-md rounded-full text-teal-300 text-sm font-medium mb-4 border border-teal-500/30">
+              <TrendingUp size={16} className="text-teal-400" />
               <span>Fresh Opportunities</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-[#1A2A4F] mb-4">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
               Recently Uploaded Gigs
             </h2>
-            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+            <p className="text-lg text-gray-400 max-w-3xl mx-auto">
               Check out the latest services posted by talented students.
             </p>
           </div>
 
           {error && (
-            <div className="text-center text-red-500 flex items-center justify-center gap-2 mb-6">
+            <div className="text-center text-red-400 flex items-center justify-center gap-2 mb-6">
               <AlertTriangle size={20} />
               {error}
             </div>
@@ -481,22 +485,22 @@ const RecentGigsSection = ({ userId }) => {
                   key={index}
                   className="flex items-start gap-4 animate-pulse"
                 >
-                  <div className="w-3 h-3 bg-gray-200 rounded-full mt-2" />
-                  <div className="flex-1 bg-white p-6 rounded-2xl shadow-md border border-gray-200">
-                    <div className="h-6 bg-gray-200 rounded mb-2" />
-                    <div className="h-4 bg-gray-200 rounded mb-2" />
-                    <div className="h-4 bg-gray-200 rounded" />
+                  <div className="w-3 h-3 bg-gray-700 rounded-full mt-2" />
+                  <div className="flex-1 bg-white/5 backdrop-blur-md p-6 rounded-2xl border border-cyan-500/20">
+                    <div className="h-6 bg-gray-700 rounded mb-2" />
+                    <div className="h-4 bg-gray-700 rounded mb-2" />
+                    <div className="h-4 bg-gray-700 rounded" />
                   </div>
                 </div>
               ))}
             </div>
           ) : gigs.length === 0 ? (
-            <div className="text-center text-gray-600">
+            <div className="text-center text-gray-500">
               No recent gigs available.
             </div>
           ) : (
             <div className="relative">
-              <div className="absolute left-1.5 top-0 bottom-0 w-0.5 bg-gradient-to-b from-[#1A2A4F]/20 via-[#1A2A4F]/40 to-[#1A2A4F]/20" />
+              <div className="absolute left-1.5 top-0 bottom-0 w-0.5 bg-gradient-to-b from-cyan-500/30 via-cyan-400/50 to-cyan-500/30" />
               <div className="space-y-6">
                 {gigs.map((gig, index) => {
                   const applicationStatus = getApplicationStatus(gig._id);
@@ -513,15 +517,15 @@ const RecentGigsSection = ({ userId }) => {
                       }}
                     >
                       <div className="relative z-10">
-                        <div className="w-3 h-3 bg-[#1A2A4F] rounded-full mt-8 ring-4 ring-white shadow-md" />
+                        <div className="w-3 h-3 bg-cyan-400 rounded-full mt-8 ring-4 ring-gray-900 shadow-lg shadow-cyan-500/50" />
                       </div>
 
-                      <div className="group flex-1 bg-white p-6 rounded-2xl shadow-md border border-gray-200 hover:shadow-xl transition-all duration-500">
-                        <div className="absolute inset-0 bg-[#1A2A4F]/5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      <div className="group flex-1 bg-white/5 backdrop-blur-md p-6 rounded-2xl border border-cyan-500/20 hover:border-cyan-400 transition-all duration-500 shadow-xl hover:shadow-cyan-500/20">
+                        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 to-teal-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl" />
 
                         <div className="relative flex items-start gap-4">
                           {gig.thumbnail ? (
-                            <div className="w-16 h-16 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-[#1A2A4F]/20 transition-all duration-300 flex-shrink-0">
+                            <div className="w-16 h-16 rounded-full overflow-hidden ring-2 ring-cyan-500/30 group-hover:ring-cyan-400 transition-all duration-300 flex-shrink-0">
                               <img
                                 src={gig.thumbnail}
                                 alt={gig.title}
@@ -529,53 +533,53 @@ const RecentGigsSection = ({ userId }) => {
                               />
                             </div>
                           ) : (
-                            <div className="w-16 h-16 rounded-full bg-[#1A2A4F] flex items-center justify-center text-white text-xl font-bold flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                            <div className="w-16 h-16 rounded-full bg-cyan-500 flex items-center justify-center text-black text-xl font-bold flex-shrink-0 group-hover:scale-110 transition-transform duration-300 shadow-lg">
                               {gig.title.charAt(0).toUpperCase()}
                             </div>
                           )}
 
                           <div className="flex-1 min-w-0">
-                            <h3 className="text-xl font-bold text-[#1A2A4F] mb-2 group-hover:text-[#2A3A6F] transition-colors">
+                            <h3 className="text-xl font-bold text-cyan-300 mb-2 group-hover:text-cyan-200 transition-colors">
                               {gig.title}
                             </h3>
 
-                            <p className="text-gray-600 mb-2 text-sm">
+                            <p className="text-gray-400 mb-2 text-sm">
                               By{" "}
                               <Link
                                 to={`/profile/${gig.sellerId}`}
-                                className="font-medium hover:underline hover:text-[#1A2A4F] transition-colors"
+                                className="font-medium hover:text-cyan-300 hover:underline transition-colors"
                               >
                                 {gig.sellerName}
                               </Link>
                             </p>
 
                             <div className="flex flex-wrap gap-3 mb-3">
-                              <span className="px-3 py-1 bg-[#1A2A4F]/10 text-[#1A2A4F] rounded-full text-sm font-semibold">
+                              <span className="px-3 py-1 bg-cyan-500/20 text-cyan-300 rounded-full text-sm font-semibold border border-cyan-500/30">
                                 {formatINR(gig.price)}
                               </span>
                               <span
-                                className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                                className={`px-3 py-1 rounded-full text-sm font-semibold border ${
                                   isClosed
-                                    ? "bg-red-100 text-red-800"
-                                    : "bg-green-100 text-green-800"
+                                    ? "bg-red-500/20 text-red-300 border-red-500/30"
+                                    : "bg-green-500/20 text-green-300 border-green-500/30"
                                 }`}
                               >
                                 {gig.status.charAt(0).toUpperCase() +
                                   gig.status.slice(1)}
                               </span>
-                              <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
+                              <span className="px-3 py-1 bg-gray-800 text-gray-400 rounded-full text-sm font-medium border border-gray-700">
                                 {gig.category}
                               </span>
                             </div>
 
                             {hasApplied && (
                               <span
-                                className={`inline-block px-3 py-1 rounded-full text-sm font-semibold mb-3 ${
+                                className={`inline-block px-3 py-1 rounded-full text-sm font-semibold mb-3 border ${
                                   applicationStatus === "accepted"
-                                    ? "bg-green-100 text-green-800"
+                                    ? "bg-green-500/20 text-green-300 border-green-500/30"
                                     : applicationStatus === "rejected"
-                                    ? "bg-red-100 text-red-800"
-                                    : "bg-yellow-100 text-yellow-800"
+                                    ? "bg-red-500/20 text-red-300 border-red-500/30"
+                                    : "bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
                                 }`}
                               >
                                 Application:{" "}
@@ -584,22 +588,22 @@ const RecentGigsSection = ({ userId }) => {
                               </span>
                             )}
 
-                            <p className="text-gray-600 mb-4 line-clamp-2">
+                            <p className="text-gray-400 mb-4 line-clamp-2">
                               {gig.description}
                             </p>
 
                             {isClosed ? (
-                              <span className="inline-block px-6 py-2 bg-gray-200 text-gray-600 font-semibold rounded-lg">
+                              <span className="inline-block px-6 py-2 bg-gray-800 text-gray-400 font-semibold rounded-lg">
                                 Applications Closed
                               </span>
                             ) : hasApplied ? (
-                              <span className="inline-block px-6 py-2 bg-gray-200 text-gray-600 font-semibold rounded-lg">
+                              <span className="inline-block px-6 py-2 bg-gray-800 text-gray-400 font-semibold rounded-lg">
                                 Application Submitted
                               </span>
                             ) : (
                               <Link
                                 to={`/gigs/${gig._id}`}
-                                className="group/btn relative inline-flex items-center gap-2 px-6 py-2 bg-[#1A2A4F] text-white font-semibold rounded-lg overflow-hidden"
+                                className="group/btn relative inline-flex items-center gap-2 px-6 py-2 bg-cyan-500 text-black font-bold rounded-lg overflow-hidden shadow-lg hover:shadow-cyan-500/50"
                               >
                                 <span className="relative z-10 flex items-center gap-2">
                                   View Details
@@ -608,7 +612,7 @@ const RecentGigsSection = ({ userId }) => {
                                     className="group-hover/btn:translate-x-1 transition-transform duration-300"
                                   />
                                 </span>
-                                <div className="absolute inset-0 bg-[#2A3A6F] translate-x-full group-hover/btn:translate-x-0 transition-transform duration-300" />
+                                <div className="absolute inset-0 bg-cyan-400 translate-x-full group-hover/btn:translate-x-0 transition-transform duration-300" />
                               </Link>
                             )}
                           </div>
@@ -622,7 +626,7 @@ const RecentGigsSection = ({ userId }) => {
           )}
         </div>
       </div>
-      {/* No divider */}
+      <SectionDivider />
     </>
   );
 };
@@ -655,25 +659,25 @@ const CategoriesSection = () => {
 
   return (
     <>
-      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
+      <div className="relative bg-gradient-to-b from-black via-gray-900 to-black py-16 sm:py-24 overflow-hidden">
         <BackgroundShapes />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#1A2A4F]/10 rounded-full text-[#1A2A4F] text-sm font-medium mb-4">
-              <Users size={16} />
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/20 backdrop-blur-md rounded-full text-cyan-300 text-sm font-medium mb-4 border border-cyan-500/30">
+              <Users size={16} className="text-cyan-400" />
               <span>Browse by Category</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-[#1A2A4F] mb-4">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
               Explore Categories
             </h2>
-            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+            <p className="text-lg text-gray-400 max-w-3xl mx-auto">
               Find the perfect service for your needs from a variety of student
               talent categories.
             </p>
           </div>
 
           {error && (
-            <div className="text-center text-red-500 flex items-center justify-center gap-2 mb-6">
+            <div className="text-center text-red-400 flex items-center justify-center gap-2 mb-6">
               <AlertTriangle size={20} />
               {error}
             </div>
@@ -684,15 +688,15 @@ const CategoriesSection = () => {
               {[...Array(4)].map((_, index) => (
                 <div
                   key={index}
-                  className="w-40 h-40 bg-white rounded-2xl shadow-lg border border-gray-200 flex flex-col items-center justify-center animate-pulse"
+                  className="w-40 h-40 bg-white/5 backdrop-blur-md rounded-2xl border border-cyan-500/20 flex flex-col items-center justify-center animate-pulse"
                 >
-                  <div className="w-8 h-8 bg-gray-200 rounded-full mb-2" />
-                  <div className="w-24 h-4 bg-gray-200 rounded" />
+                  <div className="w-8 h-8 bg-gray-700 rounded-full mb-2" />
+                  <div className="w-24 h-4 bg-gray-700 rounded" />
                 </div>
               ))}
             </div>
           ) : categories.length === 0 ? (
-            <div className="text-center text-gray-600">
+            <div className="text-center text-gray-500">
               No categories available.
             </div>
           ) : (
@@ -703,18 +707,21 @@ const CategoriesSection = () => {
                   <Link
                     key={index}
                     to={`/gigs?category=${encodeURIComponent(category)}`}
-                    className="group relative w-40 h-40 bg-white rounded-2xl shadow-md border border-gray-200 flex flex-col items-center justify-center hover:shadow-xl transition-all duration-500 overflow-hidden"
+                    className="group relative w-40 h-40 bg-white/5 backdrop-blur-md rounded-2xl border border-cyan-500/20 flex flex-col items-center justify-center hover:border-cyan-400 transition-all duration-500 overflow-hidden shadow-xl hover:shadow-cyan-500/30"
                   >
-                    <div className="absolute inset-0 bg-[#1A2A4F]/10 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+                    <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 to-teal-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl" />
                     <div className="relative z-10 transform group-hover:-translate-y-2 transition-transform duration-300">
-                      <div className="w-16 h-16 rounded-full bg-[#1A2A4F]/10 flex items-center justify-center mb-3 group-hover:bg-[#1A2A4F]/20 group-hover:scale-110 transition-all duration-300">
-                        <Icon size={28} className="text-[#1A2A4F]" />
+                      <div className="w-16 h-16 rounded-full bg-cyan-500/20 flex items-center justify-center mb-3 group-hover:bg-cyan-500/40 group-hover:scale-110 transition-all duration-300 border border-cyan-500/30">
+                        <Icon
+                          size={28}
+                          className="text-cyan-300 group-hover:text-cyan-200"
+                        />
                       </div>
-                      <span className="text-sm font-semibold text-center text-[#1A2A4F] group-hover:text-[#2A3A6F] transition-colors px-2">
+                      <span className="text-sm font-semibold text-center text-cyan-300 group-hover:text-cyan-200 transition-colors px-2">
                         {category}
                       </span>
                     </div>
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#1A2A4F] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-cyan-400 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
                   </Link>
                 );
               })}
@@ -722,7 +729,7 @@ const CategoriesSection = () => {
           )}
         </div>
       </div>
-      {/* No divider */}
+      <SectionDivider />
     </>
   );
 };
@@ -751,24 +758,24 @@ const HowItWorksSection = () => {
 
   return (
     <>
-      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
+      <div className="relative bg-gradient-to-b from-gray-900 via-black to-gray-900 py-16 sm:py-24 overflow-hidden">
         <BackgroundShapes />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 rounded-full text-green-800 text-sm font-medium mb-4">
-              <CheckCircle size={16} />
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-teal-500/20 backdrop-blur-md rounded-full text-teal-300 text-sm font-medium mb-4 border border-teal-500/30">
+              <CheckCircle size={16} className="text-teal-400" />
               <span>Simple Process</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-[#1A2A4F] mb-4">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
               How It Works
             </h2>
-            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+            <p className="text-lg text-gray-400 max-w-3xl mx-auto">
               Getting started with Gig Connect is easy and seamless.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-            <div className="hidden md:block absolute top-24 left-1/4 right-1/4 h-0.5 bg-gradient-to-r from-[#1A2A4F]/20 via-[#1A2A4F]/40 to-[#1A2A4F]/20" />
+            <div className="hidden md:block absolute top-24 left-1/4 right-1/4 h-0.5 bg-gradient-to-r from-cyan-500/30 via-cyan-400/50 to-cyan-500/30" />
 
             {steps.map((step, index) => {
               const Icon = step.icon;
@@ -778,23 +785,26 @@ const HowItWorksSection = () => {
                   className="group relative"
                   style={{ animationDelay: `${index * 150}ms` }}
                 >
-                  <div className="relative bg-white p-8 rounded-2xl shadow-md border border-gray-200 hover:shadow-2xl transition-all duration-500">
-                    <div className="absolute inset-0 bg-[#1A2A4F]/5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <div className="relative bg-white/5 backdrop-blur-md p-8 rounded-2xl border border-cyan-500/20 hover:border-cyan-400 transition-all duration-500 shadow-xl hover:shadow-cyan-500/30">
+                    <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-teal-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl" />
 
                     <div className="relative">
-                      <div className="absolute -top-4 -right-4 w-10 h-10 bg-[#1A2A4F] rounded-full flex items-center justify-center text-white font-bold shadow-lg">
+                      <div className="absolute -top-4 -right-4 w-10 h-10 bg-cyan-500 rounded-full flex items-center justify-center text-black font-bold shadow-lg shadow-cyan-500/50">
                         {index + 1}
                       </div>
 
-                      <div className="w-20 h-20 rounded-full bg-[#1A2A4F]/10 flex items-center justify-center mx-auto mb-6 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300">
-                        <Icon size={36} className="text-[#1A2A4F]" />
+                      <div className="w-20 h-20 rounded-full bg-cyan-500/20 flex items-center justify-center mx-auto mb-6 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 border border-cyan-500/30">
+                        <Icon
+                          size={36}
+                          className="text-cyan-300 group-hover:text-cyan-200"
+                        />
                       </div>
 
-                      <h3 className="text-xl font-bold text-[#1A2A4F] mb-3 text-center group-hover:text-[#2A3A6F] transition-colors">
+                      <h3 className="text-xl font-bold text-cyan-300 mb-3 text-center group-hover:text-cyan-200 transition-colors">
                         {step.title}
                       </h3>
 
-                      <p className="text-gray-600 text-center leading-relaxed">
+                      <p className="text-gray-400 text-center leading-relaxed">
                         {step.description}
                       </p>
                     </div>
@@ -805,7 +815,7 @@ const HowItWorksSection = () => {
           </div>
         </div>
       </div>
-      {/* No divider */}
+      <SectionDivider />
     </>
   );
 };
@@ -852,18 +862,18 @@ const TestimonialsSection = () => {
 
   return (
     <>
-      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
+      <div className="relative bg-gradient-to-b from-black via-gray-900 to-black py-16 sm:py-24 overflow-hidden">
         <BackgroundShapes />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-100 rounded-full text-yellow-800 text-sm font-medium mb-4">
-              <Quote size={16} />
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500/20 backdrop-blur-md rounded-full text-yellow-300 text-sm font-medium mb-4 border border-yellow-500/30">
+              <Quote size={16} className="text-yellow-400" />
               <span>Success Stories</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-[#1A2A4F] mb-4">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
               What Our Users Say
             </h2>
-            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+            <p className="text-lg text-gray-400 max-w-3xl mx-auto">
               Hear from students and clients who have transformed their projects
               through Gig Connect.
             </p>
@@ -877,23 +887,23 @@ const TestimonialsSection = () => {
               >
                 {testimonials.map((testimonial, index) => (
                   <div key={index} className="w-full flex-shrink-0 px-4">
-                    <div className="group relative bg-white p-10 rounded-3xl shadow-xl border border-gray-200 hover:shadow-2xl transition-all duration-500">
-                      <div className="absolute inset-0 bg-[#1A2A4F]/5 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    <div className="group relative bg-white/5 backdrop-blur-md p-10 rounded-3xl border border-cyan-500/20 hover:border-cyan-400 transition-all duration-500 shadow-2xl hover:shadow-cyan-500/30">
+                      <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-teal-500/10 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl" />
 
                       <div className="relative">
-                        <div className="w-16 h-16 rounded-full bg-[#1A2A4F] flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform duration-300">
-                          <Quote className="text-white" size={32} />
+                        <div className="w-16 h-16 rounded-full bg-cyan-500 flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                          <Quote className="text-black" size={32} />
                         </div>
 
-                        <p className="text-xl text-gray-700 mb-8 italic leading-relaxed text-center">
+                        <p className="text-xl text-gray-300 mb-8 italic leading-relaxed text-center">
                           "{testimonial.quote}"
                         </p>
 
                         <div className="text-center">
-                          <p className="text-[#1A2A4F] font-bold text-lg mb-1">
+                          <p className="text-cyan-300 font-bold text-lg mb-1">
                             {testimonial.author}
                           </p>
-                          <p className="text-gray-600">{testimonial.role}</p>
+                          <p className="text-gray-500">{testimonial.role}</p>
                         </div>
                       </div>
                     </div>
@@ -902,23 +912,21 @@ const TestimonialsSection = () => {
               </div>
             </div>
 
-            {/* Navigation Arrows */}
             <button
               onClick={goToPrev}
-              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-12 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-[#1A2A4F] hover:text-white transition-all duration-300"
+              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-12 w-12 h-12 bg-white/10 backdrop-blur-md rounded-full border border-cyan-500/30 flex items-center justify-center hover:bg-cyan-500 hover:text-black transition-all duration-300 shadow-lg"
               aria-label="Previous testimonial"
             >
               <ChevronLeft size={24} />
             </button>
             <button
               onClick={goToNext}
-              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-12 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-[#1A2A4F] hover:text-white transition-all duration-300"
+              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-12 w-12 h-12 bg-white/10 backdrop-blur-md rounded-full border border-cyan-500/30 flex items-center justify-center hover:bg-cyan-500 hover:text-black transition-all duration-300 shadow-lg"
               aria-label="Next testimonial"
             >
               <ChevronRight size={24} />
             </button>
 
-            {/* Dots Indicator */}
             <div className="flex justify-center mt-8 space-x-3">
               {testimonials.map((_, index) => (
                 <button
@@ -926,8 +934,8 @@ const TestimonialsSection = () => {
                   onClick={() => goToSlide(index)}
                   className={`h-2 rounded-full transition-all duration-300 ${
                     index === currentIndex
-                      ? "w-8 bg-[#1A2A4F]"
-                      : "w-2 bg-gray-300 hover:bg-[#1A2A4F]/50"
+                      ? "w-8 bg-cyan-400"
+                      : "w-2 bg-gray-600 hover:bg-cyan-500"
                   }`}
                   aria-label={`Go to testimonial ${index + 1}`}
                 />
@@ -951,11 +959,11 @@ const CTABanner = ({ userRole }) => {
 
   return (
     <>
-      <div className="relative bg-[#1A2A4F] py-20 sm:py-28 overflow-hidden">
+      <div className="relative bg-gradient-to-r from-cyan-900 via-teal-900 to-cyan-900 py-20 sm:py-28 overflow-hidden">
         <BackgroundShapes />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-white text-sm font-medium mb-6">
-            <Sparkles size={16} />
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full text-white text-sm font-medium mb-6 border border-white/20">
+            <Sparkles size={16} className="text-cyan-300" />
             <span>Start Your Journey</span>
           </div>
 
@@ -963,14 +971,14 @@ const CTABanner = ({ userRole }) => {
             Ready to Start?
           </h2>
 
-          <p className="text-xl text-white/90 max-w-3xl mx-auto mb-10">
+          <p className="text-xl text-white/80 max-w-3xl mx-auto mb-10">
             {ctaMessage}
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               to="/gigs"
-              className="group relative px-10 py-4 bg-white text-[#1A2A4F] font-bold rounded-xl overflow-hidden hover:shadow-2xl transition-all duration-300"
+              className="group relative px-10 py-4 bg-cyan-400 text-black font-bold rounded-xl overflow-hidden hover:shadow-2xl hover:shadow-cyan-400/50 transition-all duration-300"
             >
               <span className="relative z-10 flex items-center justify-center gap-2">
                 Find a Gig
@@ -979,13 +987,13 @@ const CTABanner = ({ userRole }) => {
                   className="group-hover:translate-x-1 group-hover:rotate-12 transition-transform duration-300"
                 />
               </span>
-              <div className="absolute inset-0 bg-[#1A2A4F]/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+              <div className="absolute inset-0 bg-cyan-300 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
             </Link>
 
             {userRole !== "Buyer" && (
               <Link
                 to="/create-gig"
-                className="group relative px-10 py-4 bg-transparent text-white font-bold rounded-xl border-2 border-white overflow-hidden hover:shadow-2xl transition-all duration-300"
+                className="group relative px-10 py-4 bg-transparent text-white font-bold rounded-xl border-2 border-cyan-400 overflow-hidden hover:shadow-2xl hover:shadow-cyan-400/50 transition-all duration-300"
               >
                 <span className="relative z-10 flex items-center justify-center gap-2">
                   Post a Gig
@@ -994,8 +1002,8 @@ const CTABanner = ({ userRole }) => {
                     className="group-hover:translate-x-1 transition-transform duration-300"
                   />
                 </span>
-                <div className="absolute inset-0 bg-white translate-x-full group-hover:translate-x-0 transition-transform duration-300" />
-                <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#1A2A4F] font-bold">
+                <div className="absolute inset-0 bg-cyan-400 translate-x-full group-hover:translate-x-0 transition-transform duration-300" />
+                <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-black font-bold">
                   Post a Gig
                   <ArrowRight size={20} className="ml-2" />
                 </span>
@@ -1045,14 +1053,14 @@ const Home = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex items-center justify-center bg-black">
         <div className="text-center">
           <Loader2
             className="animate-spin mx-auto mb-4"
             size={48}
-            style={{ color: "#1A2A4F" }}
+            style={{ color: "#06b6d4" }}
           />
-          <p className="text-[#1A2A4F] font-medium">Loading...</p>
+          <p className="text-cyan-400 font-medium">Loading...</p>
         </div>
       </div>
     );
@@ -1060,17 +1068,17 @@ const Home = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex items-center justify-center bg-black">
         <div className="text-center">
-          <AlertTriangle size={48} className="mx-auto mb-4 text-red-600" />
-          <p className="text-red-600 font-medium">{error}</p>
+          <AlertTriangle size={48} className="mx-auto mb-4 text-red-500" />
+          <p className="text-red-400 font-medium">{error}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="font-sans antialiased bg-white">
+    <div className="font-sans antialiased bg-black">
       <style>
         {`
           @keyframes blob {
