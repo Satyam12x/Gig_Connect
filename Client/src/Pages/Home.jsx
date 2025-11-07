@@ -33,27 +33,44 @@ const formatINR = (amount) => {
 
 const BackgroundShapes = () => (
   <div className="absolute inset-0 overflow-hidden pointer-events-none">
-    <div
-      className="absolute top-[-5%] right-[-5%] w-1/3 h-1/3 bg-gradient-to-br from-[#1A2A4F] to-[#3A4A7F] opacity-15 blur-3xl transform rotate-12"
-      style={{
-        clipPath:
-          "polygon(30% 0%, 70% 20%, 100% 60%, 70% 100%, 30% 80%, 0% 40%)",
-      }}
-    />
-    <div
-      className="absolute bottom-[-10%] right-[-5%] w-1/4 h-1/4 bg-gradient-to-tr from-purple-600 to-[#1A2A4F] opacity-10 blur-3xl transform -rotate-6"
-      style={{
-        clipPath:
-          "polygon(20% 0%, 80% 0%, 100% 50%, 80% 100%, 20% 100%, 0% 50%)",
-      }}
-    />
-    <div
-      className="absolute top-1/2 right-1/4 w-1/4 h-1/4 bg-gradient-to-bl from-[#3A4A7F] to-purple-600 opacity-10 blur-3xl transform rotate-45"
-      style={{
-        clipPath:
-          "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)",
-      }}
-    />
+    {/* Irregular circular blob 1 - top right */}
+    <div className="absolute top-[-10%] right-[-10%] w-96 h-96 opacity-20">
+      <div
+        className="w-full h-full bg-gradient-to-br from-[#1A2A4F] via-[#3A4A7F] to-purple-600 blur-3xl animate-pulse"
+        style={{
+          borderRadius: "50%",
+          clipPath:
+            "path('M 0.5 0.3 Q 0.7 0.1, 0.9 0.3 T 1 0.7 Q 0.8 0.9, 0.5 0.8 T 0 0.7 Q 0.2 0.5, 0.3 0.3 Z')",
+          transform: "scale(1.2) rotate(12deg)",
+        }}
+      />
+    </div>
+
+    {/* Irregular circular blob 2 - bottom left */}
+    <div className="absolute bottom-[-15%] left-[-8%] w-80 h-80 opacity-15">
+      <div
+        className="w-full h-full bg-gradient-to-tr from-purple-600 via-[#1A2A4F] to-[#2A3A6F] blur-3xl animate-pulse animation-delay-2000"
+        style={{
+          borderRadius: "50%",
+          clipPath:
+            "path('M 0.4 0.2 Q 0.6 0.05, 0.8 0.25 T 0.95 0.6 Q 0.85 0.85, 0.6 0.9 T 0.3 0.8 Q 0.15 0.6, 0.2 0.4 Z')",
+          transform: "scale(1.3) rotate(-6deg)",
+        }}
+      />
+    </div>
+
+    {/* Irregular circular blob 3 - middle left */}
+    <div className="absolute top-1/3 left-1/4 w-72 h-72 opacity-10">
+      <div
+        className="w-full h-full bg-gradient-to-bl from-[#3A4A7F] via-purple-500 to-[#1A2A4F] blur-3xl animate-pulse animation-delay-4000"
+        style={{
+          borderRadius: "50%",
+          clipPath:
+            "path('M 0.5 0.1 Q 0.7 0.05, 0.9 0.2 T 0.95 0.5 Q 0.85 0.75, 0.7 0.85 T 0.4 0.9 Q 0.2 0.75, 0.15 0.5 T 0.3 0.2 Z')",
+          transform: "scale(1.1) rotate(45deg)",
+        }}
+      />
+    </div>
   </div>
 );
 
@@ -1048,6 +1065,7 @@ const Home = () => {
           }
           .animate-blob { animation: blob 7s infinite; }
           .animation-delay-2000 { animation-delay: 2s; }
+          .animation-delay-4000 { animation-delay: 4s; }
           .animate-slideInLeft { animation: slideInLeft 0.6s ease-out; }
         `}
       </style>
