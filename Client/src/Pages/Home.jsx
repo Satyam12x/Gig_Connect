@@ -34,39 +34,27 @@ const formatINR = (amount) => {
 };
 
 const BackgroundShapes = () => (
-  <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-50">
-    {/* Glowing Cyan Blob 1 */}
-    <div className="absolute top-[-10%] right-[-10%] w-96 h-96">
+  <div className="absolute inset-0 overflow-hidden pointer-events-none">
+    {/* Light-blob – subtle cyan accent */}
+    <div className="absolute top-[-10%] right-[-10%] w-96 h-96 opacity-15">
       <div
-        className="w-full h-full bg-gradient-to-br from-cyan-500 via-cyan-400 to-teal-600 blur-3xl animate-pulse"
+        className="w-full h-full bg-gradient-to-br from-cyan-300 via-cyan-200 to-cyan-400 blur-3xl animate-pulse"
         style={{
-          borderRadius: "60% 40% 30% 70% / 60% 30% 70% 40%",
-          filter: "blur(80px)",
-          animation: "blob 8s infinite",
+          borderRadius: "50%",
+          clipPath:
+            "path('M 0.5 0.3 Q 0.7 0.1, 0.9 0.3 T 1 0.7 Q 0.8 0.9, 0.5 0.8 T 0 0.7 Q 0.2 0.5, 0.3 0.3 Z')",
+          transform: "scale(1.2) rotate(12deg)",
         }}
       />
     </div>
-
-    {/* Glowing Cyan Blob 2 */}
-    <div className="absolute bottom-[-15%] left-[-8%] w-80 h-80">
+    <div className="absolute bottom-[-15%] left-[-8%] w-80 h-80 opacity-10">
       <div
-        className="w-full h-full bg-gradient-to-tr from-teal-500 via-cyan-400 to-cyan-600 blur-3xl animate-pulse animation-delay-2000"
+        className="w-full h-full bg-gradient-to-tr from-cyan-200 via-cyan-300 to-cyan-500 blur-3xl animate-pulse animation-delay-2000"
         style={{
-          borderRadius: "30% 70% 70% 30% / 30% 30% 70% 70%",
-          filter: "blur(80px)",
-          animation: "blob 10s infinite",
-        }}
-      />
-    </div>
-
-    {/* Glowing Cyan Blob 3 */}
-    <div className="absolute top-1/3 left-1/4 w-72 h-72">
-      <div
-        className="w-full h-full bg-gradient-to-bl from-cyan-400 via-teal-500 to-cyan-700 blur-3xl animate-pulse animation-delay-4000"
-        style={{
-          borderRadius: "70% 30% 50% 50% / 40% 60% 30% 70%",
-          filter: "blur(80px)",
-          animation: "blob 12s infinite",
+          borderRadius: "50%",
+          clipPath:
+            "path('M 0.4 0.2 Q 0.6 0.05, 0.8 0.25 T 0.95 0.6 Q 0.85 0.85, 0.6 0.9 T 0.3 0.8 Q 0.15 0.6, 0.2 0.4 Z')",
+          transform: "scale(1.3) rotate(-6deg)",
         }}
       />
     </div>
@@ -84,22 +72,21 @@ const SectionDivider = ({ variant = "default" }) => {
         >
           <path
             d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z"
-            fill="currentColor"
-            className="text-cyan-900/20"
+            fill="#f0f9ff"
+            fillOpacity="0.6"
           />
         </svg>
       </div>
     );
   }
-
   return (
-    <div className="relative h-px my-12 mx-auto max-w-4xl">
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-50 blur-sm" />
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-30" />
+    <div className="relative h-1 my-12 mx-auto max-w-4xl">
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-40" />
     </div>
   );
 };
 
+/* ---------- HERO ---------- */
 const HeroSection = ({ userRole }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
@@ -120,24 +107,17 @@ const HeroSection = ({ userRole }) => {
 
   return (
     <>
-      <div className="relative min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 overflow-hidden pt-16">
+      <div className="relative min-h-screen bg-white overflow-hidden pt-16">
         <BackgroundShapes />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-28">
           <div className="flex flex-col lg:flex-row gap-12 items-center justify-between">
             <div className="w-full lg:w-1/2 space-y-8 text-center lg:text-left">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/20 backdrop-blur-md rounded-full text-cyan-300 text-sm font-medium mb-4 border border-cyan-500/30">
-                <Sparkles size={16} className="text-cyan-400" />
-                <span>Welcome to Gig Connect</span>
-              </div>
-
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-tight">
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-gray-900 leading-tight">
                 Connect with
-                <span className="block text-cyan-400 mt-2 drop-shadow-lg">
-                  Student Talent
-                </span>
+                <span className="block text-cyan-600 mt-2">Student Talent</span>
               </h1>
 
-              <p className="text-lg text-gray-300 max-w-2xl mx-auto lg:mx-0">
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto lg:mx-0">
                 {message}
               </p>
 
@@ -145,18 +125,18 @@ const HeroSection = ({ userRole }) => {
                 onSubmit={handleSearch}
                 className="relative max-w-md mx-auto lg:mx-0 group"
               >
-                <div className="absolute -inset-1 bg-cyan-500 rounded-lg blur-xl opacity-30 group-hover:opacity-60 transition duration-500" />
-                <div className="relative flex backdrop-blur-md bg-white/5 border border-cyan-500/30 rounded-lg overflow-hidden">
+                <div className="absolute -inset-0.5 bg-cyan-500 rounded-lg blur opacity-0 group-hover:opacity-30 transition duration-300" />
+                <div className="relative flex">
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search for gigs..."
-                    className="flex-grow p-4 bg-transparent text-white placeholder-gray-400 focus:outline-none"
+                    className="flex-grow p-4 rounded-l-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white shadow-sm"
                   />
                   <button
                     type="submit"
-                    className="px-6 py-4 bg-cyan-500 text-black font-bold hover:bg-cyan-400 transition-all duration-300 flex items-center gap-2"
+                    className="px-6 py-4 bg-cyan-500 text-white rounded-r-lg hover:bg-cyan-600 transition-all duration-300"
                   >
                     <Search size={20} />
                   </button>
@@ -166,20 +146,14 @@ const HeroSection = ({ userRole }) => {
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                 <Link
                   to="/signup"
-                  className="group relative px-8 py-4 bg-cyan-500 text-black font-bold rounded-lg overflow-hidden transition-all duration-300 shadow-lg hover:shadow-cyan-500/50"
+                  className="px-8 py-4 bg-cyan-500 text-white font-semibold rounded-lg hover:bg-cyan-600 transition-all duration-300 flex items-center justify-center gap-2"
                 >
-                  <span className="relative z-10 flex items-center justify-center gap-2">
-                    Get Started Free
-                    <ArrowRight
-                      size={18}
-                      className="group-hover:translate-x-1 transition"
-                    />
-                  </span>
-                  <div className="absolute inset-0 bg-cyan-400 -translate-x-full group-hover:translate-x-0 transition-transform duration-300" />
+                  Get Started Free
+                  <ArrowRight size={18} />
                 </Link>
                 <Link
                   to="/gigs"
-                  className="px-8 py-4 bg-transparent text-cyan-400 font-bold rounded-lg border-2 border-cyan-500 hover:bg-cyan-500/10 transition-all duration-300 flex items-center justify-center gap-2 backdrop-blur-sm"
+                  className="px-8 py-4 bg-white text-cyan-600 font-semibold rounded-lg border-2 border-cyan-500 hover:bg-cyan-50 transition-all duration-300 flex items-center justify-center gap-2"
                 >
                   Browse Gigs
                   <TrendingUp size={18} />
@@ -193,10 +167,10 @@ const HeroSection = ({ userRole }) => {
                   { number: "4.9/5", label: "Average Rating" },
                 ].map((stat, idx) => (
                   <div key={idx} className="text-center lg:text-left">
-                    <p className="text-3xl font-bold text-cyan-400 drop-shadow">
+                    <p className="text-3xl font-bold text-cyan-600">
                       {stat.number}
                     </p>
-                    <p className="text-gray-400">{stat.label}</p>
+                    <p className="text-gray-600">{stat.label}</p>
                   </div>
                 ))}
               </div>
@@ -204,8 +178,7 @@ const HeroSection = ({ userRole }) => {
 
             <div className="w-full lg:w-1/2 flex justify-center">
               <div className="relative group">
-                <div className="absolute -inset-1 bg-cyan-500 rounded-full blur-2xl opacity-50 group-hover:opacity-80 transition duration-700" />
-                <div className="relative w-64 h-64 sm:w-80 sm:h-80 lg:w-96 lg:h-96 rounded-full overflow-hidden shadow-2xl border-8 border-gray-800">
+                <div className="relative w-64 h-64 sm:w-80 sm:h-80 lg:w-96 lg:h-96 rounded-full overflow-hidden shadow-2xl border-8 border-white">
                   <img
                     src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=800&fit=crop"
                     alt="Students collaborating"
@@ -222,6 +195,7 @@ const HeroSection = ({ userRole }) => {
   );
 };
 
+/* ---------- FEATURED GIGS ---------- */
 const FeaturedGigsSection = ({ userId }) => {
   const [gigs, setGigs] = useState([]);
   const [applications, setApplications] = useState([]);
@@ -232,7 +206,7 @@ const FeaturedGigsSection = ({ userId }) => {
     const fetchData = async () => {
       try {
         const token = localStorage.getItem("token");
-        const [gigsResponse, applicationsResponse] = await Promise.all([
+        const [gigsRes, appsRes] = await Promise.all([
           axios.get(`${API_BASE}/gigs/recent`),
           token
             ? axios.get(`${API_BASE}/users/${userId}/applications`, {
@@ -240,8 +214,8 @@ const FeaturedGigsSection = ({ userId }) => {
               })
             : { data: [] },
         ]);
-        setGigs(gigsResponse.data.slice(0, 4));
-        setApplications(applicationsResponse.data);
+        setGigs(gigsRes.data.slice(0, 4));
+        setApplications(appsRes.data);
         setLoading(false);
       } catch (err) {
         setError(err.response?.data?.error || "Failed to fetch gigs");
@@ -251,32 +225,24 @@ const FeaturedGigsSection = ({ userId }) => {
     fetchData();
   }, [userId]);
 
-  const getApplicationStatus = (gigId) => {
-    const application = applications.find((app) => app.gigId._id === gigId);
-    return application ? application.status : null;
-  };
+  const getApplicationStatus = (gigId) =>
+    applications.find((a) => a.gigId._id === gigId)?.status || null;
 
   return (
     <>
-      <div className="relative bg-gradient-to-b from-black via-gray-900 to-black py-16 sm:py-24 overflow-hidden">
+      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
         <BackgroundShapes />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/20 backdrop-blur-md rounded-full text-cyan-300 text-sm font-medium mb-4 border border-cyan-500/30">
-              <Sparkles size={16} className="text-cyan-400" />
-              <span>Top Services</span>
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+          {/* Clean centered title */}
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 relative inline-block">
               Featured Gigs
+              <span className="absolute -bottom-2 left-0 right-0 h-1 bg-cyan-500 rounded-full"></span>
             </h2>
-            <p className="text-lg text-gray-400 max-w-3xl mx-auto">
-              Discover top services offered by talented students in your campus
-              community.
-            </p>
           </div>
 
           {error && (
-            <div className="text-center text-red-400 flex items-center justify-center gap-2 mb-6">
+            <div className="text-center text-red-600 flex items-center justify-center gap-2 mb-6">
               <AlertTriangle size={20} />
               {error}
             </div>
@@ -284,129 +250,120 @@ const FeaturedGigsSection = ({ userId }) => {
 
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[...Array(4)].map((_, index) => (
+              {[...Array(4)].map((_, i) => (
                 <div
-                  key={index}
-                  className="bg-white/5 backdrop-blur-md p-6 rounded-2xl border border-cyan-500/20 animate-pulse"
+                  key={i}
+                  className="bg-gray-50 p-6 rounded-2xl shadow animate-pulse"
                 >
-                  <div className="w-16 h-16 rounded-full bg-gray-700 mx-auto mb-4" />
-                  <div className="h-6 bg-gray-700 rounded mb-2" />
-                  <div className="h-4 bg-gray-700 rounded mb-2" />
-                  <div className="h-4 bg-gray-700 rounded mb-2" />
-                  <div className="h-4 bg-gray-700 rounded mb-4" />
-                  <div className="h-10 bg-gray-700 rounded-lg" />
+                  <div className="w-16 h-16 rounded-full bg-gray-200 mx-auto mb-4" />
+                  <div className="h-6 bg-gray-200 rounded mb-2" />
+                  <div className="h-4 bg-gray-200 rounded mb-2" />
+                  <div className="h-10 bg-gray-200 rounded-lg" />
                 </div>
               ))}
             </div>
           ) : gigs.length === 0 ? (
-            <div className="text-center text-gray-500">
+            <p className="text-center text-gray-600">
               No gigs available at the moment.
-            </div>
+            </p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {gigs.map((gig, idx) => {
-                const applicationStatus = getApplicationStatus(gig._id);
-                const isClosed = gig.status === "closed";
-                const hasApplied = !!applicationStatus;
+                const appStatus = getApplicationStatus(gig._id);
+                const closed = gig.status === "closed";
+                const applied = !!appStatus;
 
                 return (
                   <div
                     key={gig._id}
-                    className="group relative bg-white/5 backdrop-blur-md p-6 rounded-2xl border border-cyan-500/20 hover:border-cyan-400 transition-all duration-500 shadow-xl hover:shadow-cyan-500/20"
+                    className="group relative bg-white p-6 rounded-2xl shadow-md border border-gray-200 hover:shadow-xl hover:border-cyan-400 transition-all duration-300"
                     style={{ animationDelay: `${idx * 100}ms` }}
                   >
-                    <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-teal-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl" />
+                    <div className="absolute inset-0 bg-cyan-50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-                    <div className="relative">
-                      {gig.thumbnail ? (
-                        <div className="w-16 h-16 rounded-full mx-auto mb-4 overflow-hidden ring-4 ring-cyan-500/30 group-hover:ring-cyan-400 transition-all duration-300">
-                          <img
-                            src={gig.thumbnail}
-                            alt={gig.title}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                          />
-                        </div>
-                      ) : (
-                        <div className="w-16 h-16 rounded-full bg-cyan-500 mx-auto mb-4 flex items-center justify-center text-black text-xl font-bold group-hover:scale-110 transition-transform duration-300 shadow-lg">
-                          {gig.title.charAt(0).toUpperCase()}
-                        </div>
-                      )}
+                    {gig.thumbnail ? (
+                      <div className="w-16 h-16 rounded-full mx-auto mb-4 overflow-hidden ring-4 ring-transparent group-hover:ring-cyan-200 transition-all">
+                        <img
+                          src={gig.thumbnail}
+                          alt={gig.title}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-cyan-500 mx-auto mb-4 flex items-center justify-center text-white font-bold">
+                        {gig.title[0].toUpperCase()}
+                      </div>
+                    )}
 
-                      <h3 className="text-xl font-semibold text-cyan-300 mb-2 group-hover:text-cyan-200 transition-colors">
-                        {gig.title}
-                      </h3>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2 group-hover:text-cyan-700 transition-colors">
+                      {gig.title}
+                    </h3>
 
-                      <p className="text-gray-400 mb-2">
-                        By{" "}
-                        <Link
-                          to={`/profile/${gig.sellerId}`}
-                          className="hover:text-cyan-400 hover:underline transition-colors"
-                        >
-                          {gig.sellerName}
-                        </Link>
-                      </p>
+                    <p className="text-gray-600 mb-2">
+                      By{" "}
+                      <Link
+                        to={`/profile/${gig.sellerId}`}
+                        className="hover:text-cyan-600 hover:underline"
+                      >
+                        {gig.sellerName}
+                      </Link>
+                    </p>
 
-                      <p className="text-cyan-400 font-bold mb-2">
-                        From {formatINR(gig.price)}
-                      </p>
+                    <p className="text-cyan-600 font-bold mb-2">
+                      From {formatINR(gig.price)}
+                    </p>
 
+                    <p
+                      className={`mb-2 font-semibold ${
+                        closed ? "text-red-600" : "text-green-600"
+                      }`}
+                    >
+                      {gig.status.charAt(0).toUpperCase() + gig.status.slice(1)}
+                    </p>
+
+                    {applied && (
                       <p
-                        className={`mb-2 font-semibold ${
-                          isClosed ? "text-red-400" : "text-cyan-300"
+                        className={`text-sm font-semibold mb-2 ${
+                          appStatus === "accepted"
+                            ? "text-green-600"
+                            : appStatus === "rejected"
+                            ? "text-red-600"
+                            : "text-yellow-600"
                         }`}
                       >
-                        Status:{" "}
-                        {gig.status.charAt(0).toUpperCase() +
-                          gig.status.slice(1)}
+                        Application:{" "}
+                        {appStatus.charAt(0).toUpperCase() + appStatus.slice(1)}
                       </p>
+                    )}
 
-                      {hasApplied && (
-                        <p
-                          className={`text-sm font-semibold mb-2 ${
-                            applicationStatus === "accepted"
-                              ? "text-green-400"
-                              : applicationStatus === "rejected"
-                              ? "text-red-400"
-                              : "text-yellow-400"
-                          }`}
-                        >
-                          Application:{" "}
-                          {applicationStatus.charAt(0).toUpperCase() +
-                            applicationStatus.slice(1)}
-                        </p>
-                      )}
+                    <p className="text-gray-600 mb-4 line-clamp-2">
+                      {gig.description}
+                    </p>
+                    <p className="text-sm text-gray-500 mb-4">{gig.category}</p>
 
-                      <p className="text-gray-400 mb-4 line-clamp-2">
-                        {gig.description}
-                      </p>
-                      <p className="text-sm text-gray-500 mb-4">
-                        {gig.category}
-                      </p>
-
-                      {isClosed ? (
-                        <span className="block w-full px-6 py-3 bg-gray-800 text-gray-400 font-semibold rounded-lg text-center">
-                          Applications Closed
+                    {closed ? (
+                      <span className="block w-full px-6 py-3 bg-gray-200 text-gray-600 font-semibold rounded-lg text-center">
+                        Applications Closed
+                      </span>
+                    ) : applied ? (
+                      <span className="block w-full px-6 py-3 bg-gray-200 text-gray-600 font-semibold rounded-lg text-center">
+                        Application Submitted
+                      </span>
+                    ) : (
+                      <Link
+                        to={`/gigs/${gig._id}`}
+                        className="group/btn relative block w-full px-6 py-3 bg-cyan-500 text-white font-semibold rounded-lg overflow-hidden text-center"
+                      >
+                        <span className="relative z-10 flex items-center justify-center gap-2">
+                          View Details
+                          <ArrowRight
+                            size={16}
+                            className="group-hover/btn:translate-x-1 transition"
+                          />
                         </span>
-                      ) : hasApplied ? (
-                        <span className="block w-full px-6 py-3 bg-gray-800 text-gray-400 font-semibold rounded-lg text-center">
-                          Application Submitted
-                        </span>
-                      ) : (
-                        <Link
-                          to={`/gigs/${gig._id}`}
-                          className="group/btn relative block w-full px-6 py-3 bg-cyan-500 text-black font-bold rounded-lg overflow-hidden text-center transition-all duration-300 shadow-lg hover:shadow-cyan-500/50"
-                        >
-                          <span className="relative z-10 flex items-center justify-center gap-2">
-                            View Details
-                            <ArrowRight
-                              size={16}
-                              className="group-hover/btn:translate-x-1 transition-transform duration-300"
-                            />
-                          </span>
-                          <div className="absolute inset-0 bg-cyan-400 translate-x-full group-hover/btn:translate-x-0 transition-transform duration-300" />
-                        </Link>
-                      )}
-                    </div>
+                        <div className="absolute inset-0 bg-cyan-600 translate-x-full group-hover/btn:translate-x-0 transition-transform" />
+                      </Link>
+                    )}
                   </div>
                 );
               })}
@@ -419,6 +376,7 @@ const FeaturedGigsSection = ({ userId }) => {
   );
 };
 
+/* ---------- RECENT GIGS ---------- */
 const RecentGigsSection = ({ userId }) => {
   const [gigs, setGigs] = useState([]);
   const [applications, setApplications] = useState([]);
@@ -429,7 +387,7 @@ const RecentGigsSection = ({ userId }) => {
     const fetchData = async () => {
       try {
         const token = localStorage.getItem("token");
-        const [gigsResponse, applicationsResponse] = await Promise.all([
+        const [gigsRes, appsRes] = await Promise.all([
           axios.get(`${API_BASE}/gigs/recent`),
           token
             ? axios.get(`${API_BASE}/users/${userId}/applications`, {
@@ -437,8 +395,8 @@ const RecentGigsSection = ({ userId }) => {
               })
             : { data: [] },
         ]);
-        setGigs(gigsResponse.data.slice(0, 6));
-        setApplications(applicationsResponse.data);
+        setGigs(gigsRes.data.slice(0, 6));
+        setApplications(appsRes.data);
         setLoading(false);
       } catch (err) {
         setError(err.response?.data?.error || "Failed to fetch recent gigs");
@@ -448,31 +406,23 @@ const RecentGigsSection = ({ userId }) => {
     fetchData();
   }, [userId]);
 
-  const getApplicationStatus = (gigId) => {
-    const application = applications.find((app) => app.gigId._id === gigId);
-    return application ? application.status : null;
-  };
+  const getApplicationStatus = (gigId) =>
+    applications.find((a) => a.gigId._id === gigId)?.status || null;
 
   return (
     <>
-      <div className="relative bg-gradient-to-b from-gray-900 via-black to-gray-900 py-16 sm:py-24 overflow-hidden">
+      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
         <BackgroundShapes />
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-teal-500/20 backdrop-blur-md rounded-full text-teal-300 text-sm font-medium mb-4 border border-teal-500/30">
-              <TrendingUp size={16} className="text-teal-400" />
-              <span>Fresh Opportunities</span>
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 relative inline-block">
               Recently Uploaded Gigs
+              <span className="absolute -bottom-2 left-0 right-0 h-1 bg-cyan-500 rounded-full"></span>
             </h2>
-            <p className="text-lg text-gray-400 max-w-3xl mx-auto">
-              Check out the latest services posted by talented students.
-            </p>
           </div>
 
           {error && (
-            <div className="text-center text-red-400 flex items-center justify-center gap-2 mb-6">
+            <div className="text-center text-red-600 flex items-center justify-center gap-2 mb-6">
               <AlertTriangle size={20} />
               {error}
             </div>
@@ -480,139 +430,137 @@ const RecentGigsSection = ({ userId }) => {
 
           {loading ? (
             <div className="space-y-6">
-              {[...Array(6)].map((_, index) => (
-                <div
-                  key={index}
-                  className="flex items-start gap-4 animate-pulse"
-                >
-                  <div className="w-3 h-3 bg-gray-700 rounded-full mt-2" />
-                  <div className="flex-1 bg-white/5 backdrop-blur-md p-6 rounded-2xl border border-cyan-500/20">
-                    <div className="h-6 bg-gray-700 rounded mb-2" />
-                    <div className="h-4 bg-gray-700 rounded mb-2" />
-                    <div className="h-4 bg-gray-700 rounded" />
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="flex items-start gap-4 animate-pulse">
+                  <div className="w-3 h-3 bg-gray-200 rounded-full mt-2" />
+                  <div className="flex-1 bg-gray-50 p-6 rounded-2xl shadow">
+                    <div className="h-6 bg-gray-200 rounded mb-2" />
+                    <div className="h-4 bg-gray-200 rounded mb-2" />
+                    <div className="h-4 bg-gray-200 rounded" />
                   </div>
                 </div>
               ))}
             </div>
           ) : gigs.length === 0 ? (
-            <div className="text-center text-gray-500">
+            <p className="text-center text-gray-600">
               No recent gigs available.
-            </div>
+            </p>
           ) : (
             <div className="relative">
-              <div className="absolute left-1.5 top-0 bottom-0 w-0.5 bg-gradient-to-b from-cyan-500/30 via-cyan-400/50 to-cyan-500/30" />
+              <div className="absolute left-1.5 top-0 bottom-0 w-0.5 bg-gradient-to-b from-cyan-400/30 via-cyan-400/60 to-cyan-400/30" />
               <div className="space-y-6">
-                {gigs.map((gig, index) => {
-                  const applicationStatus = getApplicationStatus(gig._id);
-                  const isClosed = gig.status === "closed";
-                  const hasApplied = !!applicationStatus;
+                {gigs.map((gig, idx) => {
+                  const appStatus = getApplicationStatus(gig._id);
+                  const closed = gig.status === "closed";
+                  const applied = !!appStatus;
 
                   return (
                     <div
                       key={gig._id}
                       className="flex items-start gap-6 opacity-0 animate-slideInLeft"
                       style={{
-                        animationDelay: `${index * 100}ms`,
+                        animationDelay: `${idx * 100}ms`,
                         animationFillMode: "forwards",
                       }}
                     >
                       <div className="relative z-10">
-                        <div className="w-3 h-3 bg-cyan-400 rounded-full mt-8 ring-4 ring-gray-900 shadow-lg shadow-cyan-500/50" />
+                        <div className="w-3 h-3 bg-cyan-500 rounded-full mt-8 ring-4 ring-white shadow-md" />
                       </div>
 
-                      <div className="group flex-1 bg-white/5 backdrop-blur-md p-6 rounded-2xl border border-cyan-500/20 hover:border-cyan-400 transition-all duration-500 shadow-xl hover:shadow-cyan-500/20">
-                        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 to-teal-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl" />
+                      <div className="group flex-1 bg-white p-6 rounded-2xl shadow-md border border-gray-200 hover:border-cyan-400 transition-all duration-300">
+                        <div className="absolute inset-0 bg-cyan-50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
 
                         <div className="relative flex items-start gap-4">
                           {gig.thumbnail ? (
-                            <div className="w-16 h-16 rounded-full overflow-hidden ring-2 ring-cyan-500/30 group-hover:ring-cyan-400 transition-all duration-300 flex-shrink-0">
+                            <div className="w-16 h-16 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-cyan-200 transition-all flex-shrink-0">
                               <img
                                 src={gig.thumbnail}
                                 alt={gig.title}
-                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                className="w-full h-full object-cover group-hover:scale-110 transition-transform"
                               />
                             </div>
                           ) : (
-                            <div className="w-16 h-16 rounded-full bg-cyan-500 flex items-center justify-center text-black text-xl font-bold flex-shrink-0 group-hover:scale-110 transition-transform duration-300 shadow-lg">
-                              {gig.title.charAt(0).toUpperCase()}
+                            <div className="w-16 h-16 rounded-full bg-cyan-500 flex items-center justify-center text-white text-xl font-bold flex-shrink-0">
+                              {gig.title[0].toUpperCase()}
                             </div>
                           )}
 
                           <div className="flex-1 min-w-0">
-                            <h3 className="text-xl font-bold text-cyan-300 mb-2 group-hover:text-cyan-200 transition-colors">
+                            <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-cyan-700 transition-colors">
                               {gig.title}
                             </h3>
 
-                            <p className="text-gray-400 mb-2 text-sm">
+                            <p className="text-gray-600 mb-2 text-sm">
                               By{" "}
                               <Link
                                 to={`/profile/${gig.sellerId}`}
-                                className="font-medium hover:text-cyan-300 hover:underline transition-colors"
+                                className="font-medium hover:text-cyan-600 hover:underline"
                               >
                                 {gig.sellerName}
                               </Link>
                             </p>
 
                             <div className="flex flex-wrap gap-3 mb-3">
-                              <span className="px-3 py-1 bg-cyan-500/20 text-cyan-300 rounded-full text-sm font-semibold border border-cyan-500/30">
+                              <span className="px-3 py-1 bg-cyan-100 text-cyan-800 rounded-full text-sm font-semibold">
                                 {formatINR(gig.price)}
                               </span>
                               <span
-                                className={`px-3 py-1 rounded-full text-sm font-semibold border ${
-                                  isClosed
-                                    ? "bg-red-500/20 text-red-300 border-red-500/30"
-                                    : "bg-green-500/20 text-green-300 border-green-500/30"
+                                className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                                  closed
+                                    ? "bg-red-100 text-red-800"
+                                    : "bg-green-100 text-green-800"
                                 }`}
                               >
+                                Status:{" "}
                                 {gig.status.charAt(0).toUpperCase() +
                                   gig.status.slice(1)}
                               </span>
-                              <span className="px-3 py-1 bg-gray-800 text-gray-400 rounded-full text-sm font-medium border border-gray-700">
+                              <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
                                 {gig.category}
                               </span>
                             </div>
 
-                            {hasApplied && (
+                            {applied && (
                               <span
-                                className={`inline-block px-3 py-1 rounded-full text-sm font-semibold mb-3 border ${
-                                  applicationStatus === "accepted"
-                                    ? "bg-green-500/20 text-green-300 border-green-500/30"
-                                    : applicationStatus === "rejected"
-                                    ? "bg-red-500/20 text-red-300 border-red-500/30"
-                                    : "bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
+                                className={`inline-block px-3 py-1 rounded-full text-sm font-semibold mb-3 ${
+                                  appStatus === "accepted"
+                                    ? "bg-green-100 text-green-800"
+                                    : appStatus === "rejected"
+                                    ? "bg-red-100 text-red-800"
+                                    : "bg-yellow-100 text-yellow-800"
                                 }`}
                               >
                                 Application:{" "}
-                                {applicationStatus.charAt(0).toUpperCase() +
-                                  applicationStatus.slice(1)}
+                                {appStatus.charAt(0).toUpperCase() +
+                                  appStatus.slice(1)}
                               </span>
                             )}
 
-                            <p className="text-gray-400 mb-4 line-clamp-2">
+                            <p className="text-gray-600 mb-4 line-clamp-2">
                               {gig.description}
                             </p>
 
-                            {isClosed ? (
-                              <span className="inline-block px-6 py-2 bg-gray-800 text-gray-400 font-semibold rounded-lg">
+                            {closed ? (
+                              <span className="inline-block px-6 py-2 bg-gray-200 text-gray-600 font-semibold rounded-lg">
                                 Applications Closed
                               </span>
-                            ) : hasApplied ? (
-                              <span className="inline-block px-6 py-2 bg-gray-800 text-gray-400 font-semibold rounded-lg">
+                            ) : applied ? (
+                              <span className="inline-block px-6 py-2 bg-gray-200 text-gray-600 font-semibold rounded-lg">
                                 Application Submitted
                               </span>
                             ) : (
                               <Link
                                 to={`/gigs/${gig._id}`}
-                                className="group/btn relative inline-flex items-center gap-2 px-6 py-2 bg-cyan-500 text-black font-bold rounded-lg overflow-hidden shadow-lg hover:shadow-cyan-500/50"
+                                className="group/btn relative inline-flex items-center gap-2 px-6 py-2 bg-cyan-500 text-white font-semibold rounded-lg overflow-hidden"
                               >
                                 <span className="relative z-10 flex items-center gap-2">
                                   View Details
                                   <ArrowRight
                                     size={16}
-                                    className="group-hover/btn:translate-x-1 transition-transform duration-300"
+                                    className="group-hover/btn:translate-x-1 transition"
                                   />
                                 </span>
-                                <div className="absolute inset-0 bg-cyan-400 translate-x-full group-hover/btn:translate-x-0 transition-transform duration-300" />
+                                <div className="absolute inset-0 bg-cyan-600 translate-x-full group-hover/btn:translate-x-0 transition-transform" />
                               </Link>
                             )}
                           </div>
@@ -631,6 +579,7 @@ const RecentGigsSection = ({ userId }) => {
   );
 };
 
+/* ---------- CATEGORIES ---------- */
 const CategoriesSection = () => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -646,8 +595,8 @@ const CategoriesSection = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await axios.get(`${API_BASE}/categories`);
-        setCategories(response.data.categories || []);
+        const res = await axios.get(`${API_BASE}/categories`);
+        setCategories(res.data.categories || []);
         setLoading(false);
       } catch (err) {
         setError(err.response?.data?.error || "Failed to fetch categories");
@@ -659,25 +608,18 @@ const CategoriesSection = () => {
 
   return (
     <>
-      <div className="relative bg-gradient-to-b from-black via-gray-900 to-black py-16 sm:py-24 overflow-hidden">
+      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
         <BackgroundShapes />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/20 backdrop-blur-md rounded-full text-cyan-300 text-sm font-medium mb-4 border border-cyan-500/30">
-              <Users size={16} className="text-cyan-400" />
-              <span>Browse by Category</span>
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 relative inline-block">
               Explore Categories
+              <span className="absolute -bottom-2 left-0 right-0 h-1 bg-cyan-500 rounded-full"></span>
             </h2>
-            <p className="text-lg text-gray-400 max-w-3xl mx-auto">
-              Find the perfect service for your needs from a variety of student
-              talent categories.
-            </p>
           </div>
 
           {error && (
-            <div className="text-center text-red-400 flex items-center justify-center gap-2 mb-6">
+            <div className="text-center text-red-600 flex items-center justify-center gap-2 mb-6">
               <AlertTriangle size={20} />
               {error}
             </div>
@@ -685,43 +627,43 @@ const CategoriesSection = () => {
 
           {loading ? (
             <div className="flex flex-wrap justify-center gap-6">
-              {[...Array(4)].map((_, index) => (
+              {[...Array(4)].map((_, i) => (
                 <div
-                  key={index}
-                  className="w-40 h-40 bg-white/5 backdrop-blur-md rounded-2xl border border-cyan-500/20 flex flex-col items-center justify-center animate-pulse"
+                  key={i}
+                  className="w-40 h-40 bg-gray-50 rounded-2xl shadow animate-pulse flex flex-col items-center justify-center"
                 >
-                  <div className="w-8 h-8 bg-gray-700 rounded-full mb-2" />
-                  <div className="w-24 h-4 bg-gray-700 rounded" />
+                  <div className="w-8 h-8 bg-gray-200 rounded-full mb-2" />
+                  <div className="w-24 h-4 bg-gray-200 rounded" />
                 </div>
               ))}
             </div>
           ) : categories.length === 0 ? (
-            <div className="text-center text-gray-500">
+            <p className="text-center text-gray-600">
               No categories available.
-            </div>
+            </p>
           ) : (
             <div className="flex flex-wrap justify-center gap-6">
-              {categories.map((category, index) => {
-                const Icon = categoryIcons[category] || Users;
+              {categories.map((cat, i) => {
+                const Icon = categoryIcons[cat] || Users;
                 return (
                   <Link
-                    key={index}
-                    to={`/gigs?category=${encodeURIComponent(category)}`}
-                    className="group relative w-40 h-40 bg-white/5 backdrop-blur-md rounded-2xl border border-cyan-500/20 flex flex-col items-center justify-center hover:border-cyan-400 transition-all duration-500 overflow-hidden shadow-xl hover:shadow-cyan-500/30"
+                    key={i}
+                    to={`/gigs?category=${encodeURIComponent(cat)}`}
+                    className="group relative w-40 h-40 bg-white rounded-2xl shadow-md border border-gray-200 flex flex-col items-center justify-center hover:border-cyan-400 hover:shadow-xl transition-all duration-300"
                   >
-                    <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 to-teal-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl" />
-                    <div className="relative z-10 transform group-hover:-translate-y-2 transition-transform duration-300">
-                      <div className="w-16 h-16 rounded-full bg-cyan-500/20 flex items-center justify-center mb-3 group-hover:bg-cyan-500/40 group-hover:scale-110 transition-all duration-300 border border-cyan-500/30">
+                    <div className="absolute inset-0 bg-cyan-50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="relative z-10 transform group-hover:-translate-y-1 transition-transform">
+                      <div className="w-16 h-16 rounded-full bg-cyan-100 flex items-center justify-center mb-3 group-hover:bg-cyan-200 group-hover:scale-110 transition-all">
                         <Icon
                           size={28}
-                          className="text-cyan-300 group-hover:text-cyan-200"
+                          className="text-cyan-600 group-hover:text-cyan-800"
                         />
                       </div>
-                      <span className="text-sm font-semibold text-center text-cyan-300 group-hover:text-cyan-200 transition-colors px-2">
-                        {category}
+                      <span className="text-sm font-semibold text-gray-800 group-hover:text-cyan-700 transition-colors px-2">
+                        {cat}
                       </span>
                     </div>
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-cyan-400 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-cyan-500 transform scale-x-0 group-hover:scale-x-100 transition-transform" />
                   </Link>
                 );
               })}
@@ -734,6 +676,7 @@ const CategoriesSection = () => {
   );
 };
 
+/* ---------- HOW IT WORKS ---------- */
 const HowItWorksSection = () => {
   const steps = [
     {
@@ -758,53 +701,46 @@ const HowItWorksSection = () => {
 
   return (
     <>
-      <div className="relative bg-gradient-to-b from-gray-900 via-black to-gray-900 py-16 sm:py-24 overflow-hidden">
+      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
         <BackgroundShapes />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-teal-500/20 backdrop-blur-md rounded-full text-teal-300 text-sm font-medium mb-4 border border-teal-500/30">
-              <CheckCircle size={16} className="text-teal-400" />
-              <span>Simple Process</span>
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 relative inline-block">
               How It Works
+              <span className="absolute -bottom-2 left-0 right-0 h-1 bg-cyan-500 rounded-full"></span>
             </h2>
-            <p className="text-lg text-gray-400 max-w-3xl mx-auto">
-              Getting started with Gig Connect is easy and seamless.
-            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-            <div className="hidden md:block absolute top-24 left-1/4 right-1/4 h-0.5 bg-gradient-to-r from-cyan-500/30 via-cyan-400/50 to-cyan-500/30" />
-
-            {steps.map((step, index) => {
+            <div className="hidden md:block absolute top-24 left-1/4 right-1/4 h-0.5 bg-gradient-to-r from-cyan-300/30 via-cyan-400/60 to-cyan-300/30" />
+            {steps.map((step, i) => {
               const Icon = step.icon;
               return (
                 <div
-                  key={index}
+                  key={i}
                   className="group relative"
-                  style={{ animationDelay: `${index * 150}ms` }}
+                  style={{ animationDelay: `${i * 150}ms` }}
                 >
-                  <div className="relative bg-white/5 backdrop-blur-md p-8 rounded-2xl border border-cyan-500/20 hover:border-cyan-400 transition-all duration-500 shadow-xl hover:shadow-cyan-500/30">
-                    <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-teal-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl" />
+                  <div className="relative bg-white p-8 rounded-2xl shadow-md border border-gray-200 hover:border-cyan-400 hover:shadow-xl transition-all duration-300">
+                    <div className="absolute inset-0 bg-cyan-50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
 
                     <div className="relative">
-                      <div className="absolute -top-4 -right-4 w-10 h-10 bg-cyan-500 rounded-full flex items-center justify-center text-black font-bold shadow-lg shadow-cyan-500/50">
-                        {index + 1}
+                      <div className="absolute -top-4 -right-4 w-10 h-10 bg-cyan-500 rounded-full flex items-center justify-center text-white font-bold shadow-md">
+                        {i + 1}
                       </div>
 
-                      <div className="w-20 h-20 rounded-full bg-cyan-500/20 flex items-center justify-center mx-auto mb-6 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 border border-cyan-500/30">
+                      <div className="w-20 h-20 rounded-full bg-cyan-100 flex items-center justify-center mx-auto mb-6 group-hover:scale-110 group-hover:rotate-6 transition-all">
                         <Icon
                           size={36}
-                          className="text-cyan-300 group-hover:text-cyan-200"
+                          className="text-cyan-600 group-hover:text-cyan-800"
                         />
                       </div>
 
-                      <h3 className="text-xl font-bold text-cyan-300 mb-3 text-center group-hover:text-cyan-200 transition-colors">
+                      <h3 className="text-xl font-bold text-gray-900 mb-3 text-center group-hover:text-cyan-700 transition-colors">
                         {step.title}
                       </h3>
 
-                      <p className="text-gray-400 text-center leading-relaxed">
+                      <p className="text-gray-600 text-center leading-relaxed">
                         {step.description}
                       </p>
                     </div>
@@ -820,6 +756,7 @@ const HowItWorksSection = () => {
   );
 };
 
+/* ---------- TESTIMONIALS ---------- */
 const TestimonialsSection = () => {
   const testimonials = [
     {
@@ -842,68 +779,50 @@ const TestimonialsSection = () => {
     },
   ];
 
-  const [currentIndex, setCurrentIndex] = useState(0);
-
-  const goToPrev = () => {
-    setCurrentIndex((prev) =>
-      prev === 0 ? testimonials.length - 1 : prev - 1
-    );
-  };
-
-  const goToNext = () => {
-    setCurrentIndex((prev) =>
-      prev === testimonials.length - 1 ? 0 : prev + 1
-    );
-  };
-
-  const goToSlide = (index) => {
-    setCurrentIndex(index);
-  };
+  const [idx, setIdx] = useState(0);
+  const goPrev = () =>
+    setIdx((p) => (p === 0 ? testimonials.length - 1 : p - 1));
+  const goNext = () =>
+    setIdx((p) => (p === testimonials.length - 1 ? 0 : p + 1));
+  const goTo = (i) => setIdx(i);
 
   return (
     <>
-      <div className="relative bg-gradient-to-b from-black via-gray-900 to-black py-16 sm:py-24 overflow-hidden">
+      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
         <BackgroundShapes />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500/20 backdrop-blur-md rounded-full text-yellow-300 text-sm font-medium mb-4 border border-yellow-500/30">
-              <Quote size={16} className="text-yellow-400" />
-              <span>Success Stories</span>
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 relative inline-block">
               What Our Users Say
+              <span className="absolute -bottom-2 left-0 right-0 h-1 bg-cyan-500 rounded-full"></span>
             </h2>
-            <p className="text-lg text-gray-400 max-w-3xl mx-auto">
-              Hear from students and clients who have transformed their projects
-              through Gig Connect.
-            </p>
           </div>
 
           <div className="relative max-w-4xl mx-auto">
             <div className="overflow-hidden rounded-3xl">
               <div
                 className="flex transition-transform duration-500 ease-in-out"
-                style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+                style={{ transform: `translateX(-${idx * 100}%)` }}
               >
-                {testimonials.map((testimonial, index) => (
-                  <div key={index} className="w-full flex-shrink-0 px-4">
-                    <div className="group relative bg-white/5 backdrop-blur-md p-10 rounded-3xl border border-cyan-500/20 hover:border-cyan-400 transition-all duration-500 shadow-2xl hover:shadow-cyan-500/30">
-                      <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-teal-500/10 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl" />
+                {testimonials.map((t, i) => (
+                  <div key={i} className="w-full flex-shrink-0 px-4">
+                    <div className="group relative bg-white p-10 rounded-3xl shadow-xl border border-gray-200 hover:border-cyan-400 transition-all duration-300">
+                      <div className="absolute inset-0 bg-cyan-50 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity" />
 
                       <div className="relative">
-                        <div className="w-16 h-16 rounded-full bg-cyan-500 flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform duration-300 shadow-lg">
-                          <Quote className="text-black" size={32} />
+                        <div className="w-16 h-16 rounded-full bg-cyan-500 flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
+                          <Quote className="text-white" size={32} />
                         </div>
 
-                        <p className="text-xl text-gray-300 mb-8 italic leading-relaxed text-center">
-                          "{testimonial.quote}"
+                        <p className="text-xl text-gray-700 mb-8 italic leading-relaxed text-center">
+                          "{t.quote}"
                         </p>
 
                         <div className="text-center">
-                          <p className="text-cyan-300 font-bold text-lg mb-1">
-                            {testimonial.author}
+                          <p className="text-cyan-600 font-bold text-lg mb-1">
+                            {t.author}
                           </p>
-                          <p className="text-gray-500">{testimonial.role}</p>
+                          <p className="text-gray-600">{t.role}</p>
                         </div>
                       </div>
                     </div>
@@ -913,31 +832,28 @@ const TestimonialsSection = () => {
             </div>
 
             <button
-              onClick={goToPrev}
-              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-12 w-12 h-12 bg-white/10 backdrop-blur-md rounded-full border border-cyan-500/30 flex items-center justify-center hover:bg-cyan-500 hover:text-black transition-all duration-300 shadow-lg"
-              aria-label="Previous testimonial"
+              onClick={goPrev}
+              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-12 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-cyan-500 hover:text-white transition-all"
             >
               <ChevronLeft size={24} />
             </button>
             <button
-              onClick={goToNext}
-              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-12 w-12 h-12 bg-white/10 backdrop-blur-md rounded-full border border-cyan-500/30 flex items-center justify-center hover:bg-cyan-500 hover:text-black transition-all duration-300 shadow-lg"
-              aria-label="Next testimonial"
+              onClick={goNext}
+              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-12 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-cyan-500 hover:text-white transition-all"
             >
               <ChevronRight size={24} />
             </button>
 
             <div className="flex justify-center mt-8 space-x-3">
-              {testimonials.map((_, index) => (
+              {testimonials.map((_, i) => (
                 <button
-                  key={index}
-                  onClick={() => goToSlide(index)}
-                  className={`h-2 rounded-full transition-all duration-300 ${
-                    index === currentIndex
-                      ? "w-8 bg-cyan-400"
-                      : "w-2 bg-gray-600 hover:bg-cyan-500"
+                  key={i}
+                  onClick={() => goTo(i)}
+                  className={`h-2 rounded-full transition-all ${
+                    i === idx
+                      ? "w-8 bg-cyan-500"
+                      : "w-2 bg-gray-300 hover:bg-cyan-400"
                   }`}
-                  aria-label={`Go to testimonial ${index + 1}`}
                 />
               ))}
             </div>
@@ -949,8 +865,9 @@ const TestimonialsSection = () => {
   );
 };
 
+/* ---------- CTA ---------- */
 const CTABanner = ({ userRole }) => {
-  const ctaMessage =
+  const cta =
     userRole === "Seller"
       ? "Post your first gig and reach clients today!"
       : userRole === "Buyer"
@@ -959,51 +876,44 @@ const CTABanner = ({ userRole }) => {
 
   return (
     <>
-      <div className="relative bg-gradient-to-r from-cyan-900 via-teal-900 to-cyan-900 py-20 sm:py-28 overflow-hidden">
+      <div className="relative bg-gradient-to-r from-cyan-500 to-cyan-600 py-20 sm:py-28 overflow-hidden">
         <BackgroundShapes />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full text-white text-sm font-medium mb-6 border border-white/20">
-            <Sparkles size={16} className="text-cyan-300" />
-            <span>Start Your Journey</span>
-          </div>
-
           <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
             Ready to Start?
           </h2>
 
-          <p className="text-xl text-white/80 max-w-3xl mx-auto mb-10">
-            {ctaMessage}
-          </p>
+          <p className="text-xl text-white/90 max-w-3xl mx-auto mb-10">{cta}</p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               to="/gigs"
-              className="group relative px-10 py-4 bg-cyan-400 text-black font-bold rounded-xl overflow-hidden hover:shadow-2xl hover:shadow-cyan-400/50 transition-all duration-300"
+              className="group relative px-10 py-4 bg-white text-cyan-600 font-bold rounded-xl overflow-hidden hover:shadow-2xl transition-all duration-300"
             >
               <span className="relative z-10 flex items-center justify-center gap-2">
                 Find a Gig
                 <Search
                   size={20}
-                  className="group-hover:translate-x-1 group-hover:rotate-12 transition-transform duration-300"
+                  className="group-hover:translate-x-1 group-hover:rotate-12 transition-transform"
                 />
               </span>
-              <div className="absolute inset-0 bg-cyan-300 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+              <div className="absolute inset-0 bg-cyan-100 translate-y-full group-hover:translate-y-0 transition-transform" />
             </Link>
 
             {userRole !== "Buyer" && (
               <Link
                 to="/create-gig"
-                className="group relative px-10 py-4 bg-transparent text-white font-bold rounded-xl border-2 border-cyan-400 overflow-hidden hover:shadow-2xl hover:shadow-cyan-400/50 transition-all duration-300"
+                className="group relative px-10 py-4 bg-transparent text-white font-bold rounded-xl border-2 border-white overflow-hidden hover:shadow-2xl transition-all duration-300"
               >
                 <span className="relative z-10 flex items-center justify-center gap-2">
                   Post a Gig
                   <ArrowRight
                     size={20}
-                    className="group-hover:translate-x-1 transition-transform duration-300"
+                    className="group-hover:translate-x-1 transition-transform"
                   />
                 </span>
-                <div className="absolute inset-0 bg-cyan-400 translate-x-full group-hover:translate-x-0 transition-transform duration-300" />
-                <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-black font-bold">
+                <div className="absolute inset-0 bg-white translate-x-full group-hover:translate-x-0 transition-transform" />
+                <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-cyan-600 font-bold">
                   Post a Gig
                   <ArrowRight size={20} className="ml-2" />
                 </span>
@@ -1017,6 +927,7 @@ const CTABanner = ({ userRole }) => {
   );
 };
 
+/* ---------- HOME PAGE ---------- */
 const Home = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1030,12 +941,11 @@ const Home = () => {
         setLoading(false);
         return;
       }
-
       try {
-        const response = await axios.get(`${API_BASE}/users/profile`, {
+        const res = await axios.get(`${API_BASE}/users/profile`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        setUser(response.data);
+        setUser(res.data);
         setLoading(false);
       } catch (err) {
         setError(err.response?.data?.error || "Failed to fetch user profile");
@@ -1053,14 +963,13 @@ const Home = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
+      <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
           <Loader2
-            className="animate-spin mx-auto mb-4"
+            className="animate-spin mx-auto mb-4 text-cyan-500"
             size={48}
-            style={{ color: "#06b6d4" }}
           />
-          <p className="text-cyan-400 font-medium">Loading...</p>
+          <p className="text-cyan-600 font-medium">Loading...</p>
         </div>
       </div>
     );
@@ -1068,32 +977,25 @@ const Home = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
+      <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
-          <AlertTriangle size={48} className="mx-auto mb-4 text-red-500" />
-          <p className="text-red-400 font-medium">{error}</p>
+          <AlertTriangle size={48} className="mx-auto mb-4 text-red-600" />
+          <p className="text-red-600 font-medium">{error}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="font-sans antialiased bg-black">
+    <div className="font-sans antialiased bg-white">
       <style>
         {`
-          @keyframes blob {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            33% { transform: translate(30px, -50px) scale(1.1); }
-            66% { transform: translate(-20px, 20px) scale(0.9); }
-          }
-          @keyframes slideInLeft {
-            0% { opacity: 0; transform: translateX(-30px); }
-            100% { opacity: 1; transform: translateX(0); }
-          }
+          @keyframes blob { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(30px,-50px) scale(1.1)} 66%{transform:translate(-20px,20px) scale(.9)} }
+          @keyframes slideInLeft { from{opacity:0;transform:translateX(-30px)} to{opacity:1;transform:translateX(0)} }
           .animate-blob { animation: blob 7s infinite; }
           .animation-delay-2000 { animation-delay: 2s; }
           .animation-delay-4000 { animation-delay: 4s; }
-          .animate-slideInLeft { animation: slideInLeft 0.6s ease-out; }
+          .animate-slideInLeft { animation: slideInLeft .6s ease-out; }
         `}
       </style>
 
