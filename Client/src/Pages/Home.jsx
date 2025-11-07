@@ -21,7 +21,42 @@ import Footer from "../components/Footer";
 
 const API_BASE = "http://localhost:5000/api";
 
-// === Section Divider ===
+const formatINR = (amount) => {
+  const num = typeof amount === "string" ? Number(amount) : amount;
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(num);
+};
+
+const BackgroundShapes = () => (
+  <div className="absolute inset-0 overflow-hidden pointer-events-none">
+    <div
+      className="absolute top-[-5%] right-[-5%] w-1/3 h-1/3 bg-gradient-to-br from-[#1A2A4F] to-[#3A4A7F] opacity-15 blur-3xl transform rotate-12"
+      style={{
+        clipPath:
+          "polygon(30% 0%, 70% 20%, 100% 60%, 70% 100%, 30% 80%, 0% 40%)",
+      }}
+    />
+    <div
+      className="absolute bottom-[-10%] right-[-5%] w-1/4 h-1/4 bg-gradient-to-tr from-purple-600 to-[#1A2A4F] opacity-10 blur-3xl transform -rotate-6"
+      style={{
+        clipPath:
+          "polygon(20% 0%, 80% 0%, 100% 50%, 80% 100%, 20% 100%, 0% 50%)",
+      }}
+    />
+    <div
+      className="absolute top-1/2 right-1/4 w-1/4 h-1/4 bg-gradient-to-bl from-[#3A4A7F] to-purple-600 opacity-10 blur-3xl transform rotate-45"
+      style={{
+        clipPath:
+          "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)",
+      }}
+    />
+  </div>
+);
+
 const SectionDivider = ({ variant = "default" }) => {
   if (variant === "wave") {
     return (
@@ -67,7 +102,6 @@ const SectionDivider = ({ variant = "default" }) => {
   );
 };
 
-// === Hero Section ===
 const HeroSection = ({ userRole }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
@@ -89,11 +123,7 @@ const HeroSection = ({ userRole }) => {
   return (
     <>
       <div className="relative min-h-screen bg-white overflow-hidden pt-16">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-[-5%] right-[-5%] w-96 h-96 bg-[#1A2A4F]/10 rounded-full blur-3xl animate-blob" />
-          <div className="absolute bottom-[-10%] left-[-5%] w-96 h-96 bg-[#1A2A4F]/10 rounded-full blur-3xl animate-blob animation-delay-2000" />
-        </div>
-
+        <BackgroundShapes />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-28">
           <div className="flex flex-col lg:flex-row gap-12 items-center justify-between">
             <div className="w-full lg:w-1/2 space-y-8 text-center lg:text-left">
@@ -187,7 +217,6 @@ const HeroSection = ({ userRole }) => {
   );
 };
 
-// === Featured Gigs Section ===
 const FeaturedGigsSection = ({ userId }) => {
   const [gigs, setGigs] = useState([]);
   const [applications, setApplications] = useState([]);
@@ -224,7 +253,8 @@ const FeaturedGigsSection = ({ userId }) => {
 
   return (
     <>
-      <div className="relative bg-white py-16 sm:py-24">
+      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
+        <BackgroundShapes />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#1A2A4F]/10 rounded-full text-[#1A2A4F] text-sm font-medium mb-4">
@@ -312,7 +342,7 @@ const FeaturedGigsSection = ({ userId }) => {
                       </p>
 
                       <p className="text-[#1A2A4F] font-bold mb-2">
-                        From ${gig.price}
+                        From {formatINR(gig.price)}
                       </p>
 
                       <p
@@ -384,7 +414,6 @@ const FeaturedGigsSection = ({ userId }) => {
   );
 };
 
-// === Recent Gigs Section ===
 const RecentGigsSection = ({ userId }) => {
   const [gigs, setGigs] = useState([]);
   const [applications, setApplications] = useState([]);
@@ -421,7 +450,8 @@ const RecentGigsSection = ({ userId }) => {
 
   return (
     <>
-      <div className="relative bg-white py-16 sm:py-24">
+      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
+        <BackgroundShapes />
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 rounded-full text-green-800 text-sm font-medium mb-4">
@@ -520,7 +550,7 @@ const RecentGigsSection = ({ userId }) => {
 
                             <div className="flex flex-wrap gap-3 mb-3">
                               <span className="px-3 py-1 bg-[#1A2A4F]/10 text-[#1A2A4F] rounded-full text-sm font-semibold">
-                                ${gig.price}
+                                {formatINR(gig.price)}
                               </span>
                               <span
                                 className={`px-3 py-1 rounded-full text-sm font-semibold ${
@@ -596,7 +626,6 @@ const RecentGigsSection = ({ userId }) => {
   );
 };
 
-// === Categories Section ===
 const CategoriesSection = () => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -625,7 +654,8 @@ const CategoriesSection = () => {
 
   return (
     <>
-      <div className="relative bg-white py-16 sm:py-24">
+      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
+        <BackgroundShapes />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#1A2A4F]/10 rounded-full text-[#1A2A4F] text-sm font-medium mb-4">
@@ -696,7 +726,6 @@ const CategoriesSection = () => {
   );
 };
 
-// === How It Works ===
 const HowItWorksSection = () => {
   const steps = [
     {
@@ -721,7 +750,8 @@ const HowItWorksSection = () => {
 
   return (
     <>
-      <div className="relative bg-white py-16 sm:py-24">
+      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
+        <BackgroundShapes />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 rounded-full text-green-800 text-sm font-medium mb-4">
@@ -779,7 +809,6 @@ const HowItWorksSection = () => {
   );
 };
 
-// === Testimonials (Clean Dots Only) ===
 const TestimonialsSection = () => {
   const testimonials = [
     {
@@ -808,7 +837,8 @@ const TestimonialsSection = () => {
 
   return (
     <>
-      <div className="relative bg-white py-16 sm:py-24">
+      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
+        <BackgroundShapes />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-100 rounded-full text-yellow-800 text-sm font-medium mb-4">
@@ -854,7 +884,6 @@ const TestimonialsSection = () => {
               </div>
             </div>
 
-            {/* Dot Indicators */}
             <div className="flex justify-center mt-10 space-x-3">
               {testimonials.map((_, index) => (
                 <button
@@ -876,7 +905,6 @@ const TestimonialsSection = () => {
   );
 };
 
-// === CTA Banner ===
 const CTABanner = ({ userRole }) => {
   const ctaMessage =
     userRole === "Seller"
@@ -888,11 +916,7 @@ const CTABanner = ({ userRole }) => {
   return (
     <>
       <div className="relative bg-[#1A2A4F] py-20 sm:py-28 overflow-hidden">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-[-10%] left-[-5%] w-96 h-96 bg-white/10 rounded-full blur-3xl animate-blob" />
-          <div className="absolute bottom-[-10%] right-[-5%] w-96 h-96 bg-white/10 rounded-full blur-3xl animate-blob animation-delay-2000" />
-        </div>
-
+        <BackgroundShapes />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-white text-sm font-medium mb-6">
             <Sparkles size={16} />
@@ -949,8 +973,6 @@ const CTABanner = ({ userRole }) => {
   );
 };
 
-
-// === Main Home Component ===
 const Home = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1031,16 +1053,14 @@ const Home = () => {
       </style>
 
       <Navbar user={user} onLogout={handleLogout} />
-      {/* <div className="pt-16"> */}
-        <HeroSection userRole={user?.role} />
-        <FeaturedGigsSection userId={user?._id} />
-        <RecentGigsSection userId={user?._id} />
-        <CategoriesSection />
-        <HowItWorksSection />
-        <TestimonialsSection />
-        <CTABanner userRole={user?.role} />
-        <Footer />
-      {/* </div> */}
+      <HeroSection userRole={user?.role} />
+      <FeaturedGigsSection userId={user?._id} />
+      <RecentGigsSection userId={user?._id} />
+      <CategoriesSection />
+      <HowItWorksSection />
+      <TestimonialsSection />
+      <CTABanner userRole={user?.role} />
+      <Footer />
     </div>
   );
 };

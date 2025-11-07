@@ -22,7 +22,7 @@ const Login = () => {
     try {
       const res = await axios.post(`${API_BASE}/auth/login`, formData);
       localStorage.setItem("token", res.data.token);
-      navigate("/");
+      navigate("/home");
     } catch (err) {
       setError(err.response?.data?.error || "Login failed");
     } finally {
