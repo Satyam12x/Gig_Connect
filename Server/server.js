@@ -921,13 +921,42 @@ app.delete(
 );
 
 // Get User Profile
+// Get User Profile with stats
 app.get("/api/users/profile", authMiddleware, async (req, res) => {
   try {
     const user = await User.findOne({ _id: req.user._id })
       .select("-password -emailOtp -emailOtpExpire")
       .lean();
+
     if (!user) return res.status(400).json({ error: "User not found" });
-    res.json(user);
+
+    const ratings = user.ratings || [];
+    const averageRating =
+      ratings.length > 0
+        ? (
+            ratings.reduce((sum, r) => sum + r.value, 0) / ratings.length
+          ).toFixed(1)
+        : 0;
+
+    const totalEarnings =
+      user.orderHistory
+        ?.filter((o) => o.status === "completed")
+        .reduce((sum, o) => sum + (o.earnings || 0), 0) || 0;
+
+    let badge = "New";
+    if (user.gigsCompleted >= 10) badge = "Pro";
+    else if (user.gigsCompleted >= 5) badge = "Rising Star";
+    else if (user.gigsCompleted >= 1) badge = "Active";
+
+    res.json({
+      ...user,
+      name: user.fullName,
+      rating: parseFloat(averageRating),
+      completedGigs: user.gigsCompleted || 0,
+      earnings: totalEarnings,
+      badge,
+      reviews: ratings.length,
+    });
   } catch (err) {
     console.error("Profile fetch error:", err);
     res.status(500).json({ error: "Server error", details: err.message });
@@ -1156,23 +1185,30 @@ app.get("/api/gigs", async (req, res) => {
       .select(
         "title sellerName sellerId thumbnail description category price rating status createdAt"
       )
+      .populate({
+        path: "sellerId",
+        select: "ratings",
+      })
       .sort({ createdAt: -1 })
       .skip((parseInt(page) - 1) * parseInt(limit))
       .limit(parseInt(limit))
       .lean();
+
+    const gigsWithReviews = gigs.map((gig) => {
+      const ratings = gig.sellerId?.ratings || [];
+      return {
+        ...gig,
+        reviews: ratings.length,
+        sellerId: gig.sellerId?._id || gig.sellerId,
+      };
+    });
+
     const total = await Gig.countDocuments(query);
 
-    console.log("Fetching gigs:", {
-      query,
-      page,
-      limit,
-      total,
-      gigsCount: gigs.length,
-    });
     res.json({
       success: true,
-      gigs: gigs || [],
-      total: total || 0,
+      gigs: gigsWithReviews,
+      total,
       page: parseInt(page),
       pages: Math.ceil(total / parseInt(limit)) || 1,
     });
