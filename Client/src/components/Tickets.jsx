@@ -6,7 +6,6 @@ import { jwtDecode } from "jwt-decode";
 import {
   Ticket,
   Search,
-  Filter,
   ArrowUpDown,
   User,
   Star,
@@ -20,6 +19,9 @@ import {
   CheckCircle,
   Shield,
   AlertCircle,
+  Users,
+  CheckSquare,
+  XCircle,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -174,6 +176,18 @@ const Tickets = () => {
     return <Icon className="h-4 w-4" />;
   };
 
+  // Stats Calculations
+  const totalTickets = tickets.length;
+  const activeTickets = tickets.filter((t) =>
+    ["open", "negotiating", "accepted", "paid", "pending_completion"].includes(
+      t.status
+    )
+  ).length;
+  const completedTickets = tickets.filter(
+    (t) => t.status === "completed"
+  ).length;
+  const closedTickets = tickets.filter((t) => t.status === "closed").length;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-white flex flex-col">
@@ -301,6 +315,7 @@ const Tickets = () => {
               <option value="negotiating">Negotiating</option>
               <option value="accepted">Accepted</option>
               <option value="paid">Paid</option>
+              <option value="pending_completion">Pending Completion</option>
               <option value="completed">Completed</option>
               <option value="closed">Closed</option>
             </select>
@@ -460,43 +475,84 @@ const Tickets = () => {
           </div>
         )}
 
-        {/* Stats Bar */}
+        {/* === REDESIGNED STATS BAR - MOBILE FRIENDLY === */}
         {tickets.length > 0 && (
-          <div className="mt-12 bg-[#1A2A4F] rounded-2xl p-8 relative overflow-hidden">
-            <div className="absolute inset-0 opacity-10">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full blur-3xl"></div>
-              <div className="absolute bottom-0 left-0 w-64 h-64 bg-white rounded-full blur-3xl"></div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-center relative z-10">
-              <div>
-                <div className="text-4xl font-black text-white mb-2">
-                  {tickets.length}
-                </div>
-                <div className="text-white/80 font-semibold">Total Tickets</div>
+          <div className="mt-12">
+            <div className="bg-[#1A2A4F] rounded-2xl p-6 md:p-8 relative overflow-hidden">
+              {/* Background Blurs */}
+              <div className="absolute inset-0 opacity-10">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full blur-3xl"></div>
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-white rounded-full blur-3xl"></div>
               </div>
-              <div>
-                <div className="text-4xl font-black text-white mb-2">
-                  {
-                    tickets.filter((t) =>
-                      ["open", "negotiating", "accepted", "paid"].includes(
-                        t.status
-                      )
-                    ).length
-                  }
+
+              {/* Title */}
+              <h3 className="text-xl md:text-2xl font-black text-white mb-6 text-center md:text-left">
+                Ticket Overview
+              </h3>
+
+              {/* Scrollable Stats on Mobile */}
+              <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+                <div className="flex gap-4 md:grid md:grid-cols-4 min-w-max md:min-w-0">
+                  {/* Total */}
+                  <div className="flex-shrink-0 w-40 md:w-auto bg-white/10 backdrop-blur-sm rounded-2xl p-5 text-center border border-white/20">
+                    <div className="flex justify-center mb-2">
+                      <div className="p-3 bg-white/20 rounded-full">
+                        <Ticket className="h-6 w-6 text-white" />
+                      </div>
+                    </div>
+                    <div className="text-3xl md:text-4xl font-black text-white">
+                      {totalTickets}
+                    </div>
+                    <div className="text-white/80 text-sm font-semibold mt-1">
+                      Total Tickets
+                    </div>
+                  </div>
+
+                  {/* Active */}
+                  <div className="flex-shrink-0 w-40 md:w-auto bg-white/10 backdrop-blur-sm rounded-2xl p-5 text-center border border-white/20">
+                    <div className="flex justify-center mb-2">
+                      <div className="p-3 bg-emerald-400/30 rounded-full">
+                        <Users className="h-6 w-6 text-emerald-300" />
+                      </div>
+                    </div>
+                    <div className="text-3xl md:text-4xl font-black text-white">
+                      {activeTickets}
+                    </div>
+                    <div className="text-white/80 text-sm font-semibold mt-1">
+                      Active
+                    </div>
+                  </div>
+
+                  {/* Completed */}
+                  <div className="flex-shrink-0 w-40 md:w-auto bg-white/10 backdrop-blur-sm rounded-2xl p-5 text-center border border-white/20">
+                    <div className="flex justify-center mb-2">
+                      <div className="p-3 bg-green-400/30 rounded-full">
+                        <CheckSquare className="h-6 w-6 text-green-300" />
+                      </div>
+                    </div>
+                    <div className="text-3xl md:text-4xl font-black text-white">
+                      {completedTickets}
+                    </div>
+                    <div className="text-white/80 text-sm font-semibold mt-1">
+                      Completed
+                    </div>
+                  </div>
+
+                  {/* Closed */}
+                  <div className="flex-shrink-0 w-40 md:w-auto bg-white/10 backdrop-blur-sm rounded-2xl p-5 text-center border border-white/20">
+                    <div className="flex justify-center mb-2">
+                      <div className="p-3 bg-red-400/30 rounded-full">
+                        <XCircle className="h-6 w-6 text-red-300" />
+                      </div>
+                    </div>
+                    <div className="text-3xl md:text-4xl font-black text-white">
+                      {closedTickets}
+                    </div>
+                    <div className="text-white/80 text-sm font-semibold mt-1">
+                      Closed
+                    </div>
+                  </div>
                 </div>
-                <div className="text-white/80 font-semibold">Active</div>
-              </div>
-              <div>
-                <div className="text-4xl font-black text-white mb-2">
-                  {tickets.filter((t) => t.status === "completed").length}
-                </div>
-                <div className="text-white/80 font-semibold">Completed</div>
-              </div>
-              <div>
-                <div className="text-4xl font-black text-white mb-2">
-                  {tickets.filter((t) => t.status === "closed").length}
-                </div>
-                <div className="text-white/80 font-semibold">Closed</div>
               </div>
             </div>
           </div>
