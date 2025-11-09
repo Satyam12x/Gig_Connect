@@ -37,8 +37,6 @@ const COLORS = {
   navy: "#1A2A4F",
   navyLight: "#2A3A6F",
   navyDark: "#0F1729",
-  cyan: "#06B6D4",
-  cyanLight: "#22D3EE",
   white: "#FFFFFF",
   gray50: "#F9FAFB",
   gray100: "#F3F4F6",
