@@ -247,15 +247,7 @@ const Gigs = () => {
   const categoryColors = useMemo(
     () =>
       categories.reduce((acc, category, index) => {
-        const colors = [
-          "bg-blue-600",
-          "bg-purple-600",
-          "bg-indigo-600",
-          "bg-violet-600",
-          "bg-pink-600",
-          "bg-rose-600",
-        ];
-        acc[category] = colors[index % colors.length];
+        acc[category] = "bg-[#1A2A4F]";
         return acc;
       }, {}),
     [categories]
@@ -270,7 +262,7 @@ const Gigs = () => {
 
     if (viewMode === "list") {
       return (
-        <div className="bg-white border-2 border-gray-200 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-blue-900 flex">
+        <div className="bg-white border-2 border-gray-200 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-[#1A2A4F] flex">
           <div className="relative w-72 flex-shrink-0">
             <img
               src={gig.thumbnail || PLACEHOLDER_IMG}
@@ -279,14 +271,12 @@ const Gigs = () => {
               className="w-full h-full object-cover"
             />
             {isFeatured && (
-              <div className="absolute top-3 right-3 flex items-center gap-2 px-3 py-2 bg-yellow-400 text-yellow-900 rounded-lg text-xs font-bold">
+              <div className="absolute top-3 right-3 flex items-center gap-2 px-3 py-2 bg-[#1A2A4F] text-white rounded-lg text-xs font-bold">
                 <Sparkles className="h-3 w-3" /> Featured
               </div>
             )}
             <div
-              className={`absolute top-3 left-3 px-3 py-2 text-white rounded-lg text-xs font-bold ${
-                categoryColors[gig.category] || "bg-blue-900"
-              }`}
+              className={`absolute top-3 left-3 px-3 py-2 text-white rounded-lg text-xs font-bold bg-[#1A2A4F]`}
             >
               {gig.category}
             </div>
@@ -295,7 +285,7 @@ const Gigs = () => {
           <div className="p-6 flex flex-col gap-4 flex-1">
             <div className="flex justify-between items-start">
               <div className="flex-1">
-                <h3 className="text-2xl font-bold text-blue-900 mb-2 line-clamp-2">
+                <h3 className="text-2xl font-bold text-[#1A2A4F] mb-2 line-clamp-2">
                   {gig.title}
                 </h3>
                 <p className="text-sm text-gray-600 font-medium flex items-center gap-2">
@@ -328,7 +318,7 @@ const Gigs = () => {
                   <span className="text-xs text-gray-500 font-semibold uppercase mb-1">
                     Budget
                   </span>
-                  <span className="text-2xl font-bold text-blue-900">
+                  <span className="text-2xl font-bold text-[#1A2A4F]">
                     ₹{gig.price.toLocaleString("en-IN")}
                   </span>
                 </div>
@@ -342,7 +332,7 @@ const Gigs = () => {
                 {isOwner ? (
                   <Link
                     to={`/gigs/${gig._id}`}
-                    className="flex items-center gap-2 px-6 py-3 bg-blue-900 text-white rounded-xl font-semibold hover:bg-blue-800 transition-all"
+                    className="flex items-center gap-2 px-6 py-3 bg-[#1A2A4F] text-white rounded-xl font-semibold hover:opacity-90 transition-all"
                   >
                     <Users className="h-4 w-4" />
                     View Applicants ({applicants[gig._id]?.length || 0})
@@ -386,7 +376,7 @@ const Gigs = () => {
                           handleApply(gig._id);
                         }}
                         disabled={isApplying[gig._id]}
-                        className="flex items-center gap-2 px-6 py-3 bg-blue-900 text-white rounded-xl font-semibold hover:bg-blue-800 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-6 py-3 bg-[#1A2A4F] text-white rounded-xl font-semibold hover:opacity-90 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed"
                       >
                         {isApplying[gig._id] ? (
                           <>
@@ -412,7 +402,7 @@ const Gigs = () => {
     }
 
     return (
-      <div className="bg-white border-2 border-gray-200 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-blue-900 flex flex-col h-full">
+      <div className="bg-white border-2 border-gray-200 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-[#1A2A4F] flex flex-col h-full">
         <div className="relative h-56 overflow-hidden group">
           <img
             src={gig.thumbnail || PLACEHOLDER_IMG}
@@ -423,15 +413,13 @@ const Gigs = () => {
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
 
           {isFeatured && (
-            <div className="absolute top-3 right-3 flex items-center gap-2 px-3 py-2 bg-yellow-400 text-yellow-900 rounded-lg text-xs font-bold shadow-lg">
+            <div className="absolute top-3 right-3 flex items-center gap-2 px-3 py-2 bg-[#1A2A4F] text-white rounded-lg text-xs font-bold shadow-lg">
               <Sparkles className="h-3 w-3" /> Featured
             </div>
           )}
 
           <div
-            className={`absolute top-3 left-3 px-3 py-2 text-white rounded-lg text-xs font-bold shadow-lg ${
-              categoryColors[gig.category] || "bg-blue-900"
-            }`}
+            className={`absolute top-3 left-3 px-3 py-2 text-white rounded-lg text-xs font-bold shadow-lg bg-[#1A2A4F]`}
           >
             {gig.category}
           </div>
@@ -452,7 +440,7 @@ const Gigs = () => {
         </div>
 
         <div className="p-6 flex flex-col gap-3 flex-1">
-          <h3 className="text-xl font-bold text-blue-900 line-clamp-2 leading-tight">
+          <h3 className="text-xl font-bold text-[#1A2A4F] line-clamp-2 leading-tight">
             {gig.title}
           </h3>
           <p className="text-sm text-gray-600 font-medium flex items-center gap-2">
@@ -468,7 +456,7 @@ const Gigs = () => {
               <span className="text-xs text-gray-500 font-semibold uppercase">
                 Budget
               </span>
-              <span className="text-2xl font-bold text-blue-900">
+              <span className="text-2xl font-bold text-[#1A2A4F]">
                 ₹{gig.price.toLocaleString("en-IN")}
               </span>
             </div>
@@ -482,7 +470,7 @@ const Gigs = () => {
             {isOwner ? (
               <Link
                 to={`/gigs/${gig._id}`}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-900 text-white rounded-xl font-semibold hover:bg-blue-800 transition-all"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[#1A2A4F] text-white rounded-xl font-semibold hover:opacity-90 transition-all"
               >
                 <Users className="h-4 w-4" />
                 Applicants ({applicants[gig._id]?.length || 0})
@@ -526,7 +514,7 @@ const Gigs = () => {
                       handleApply(gig._id);
                     }}
                     disabled={isApplying[gig._id]}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-900 text-white rounded-xl font-semibold hover:bg-blue-800 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[#1A2A4F] text-white rounded-xl font-semibold hover:opacity-90 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed"
                   >
                     {isApplying[gig._id] ? (
                       <>
@@ -551,15 +539,23 @@ const Gigs = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white relative overflow-hidden">
+      {/* Decorative Background Shapes */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-[#1A2A4F] opacity-5 rounded-full blur-3xl -z-10"></div>
+      <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#1A2A4F] opacity-5 rounded-full blur-3xl -z-10"></div>
+      <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-[#1A2A4F] opacity-5 rounded-full blur-3xl -z-10"></div>
+
       {/* Hero Section */}
-      <div className="bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 pt-32 pb-20 px-6">
-        <div className="max-w-7xl mx-auto text-center">
+      <div className="relative bg-[#1A2A4F] pt-32 pb-20 px-6 overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-10 right-10 w-72 h-72 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute bottom-10 left-10 w-96 h-96 bg-white rounded-full blur-3xl"></div>
+        </div>
+        <div className="max-w-7xl mx-auto text-center relative z-10">
           <h1 className="text-5xl md:text-6xl font-black text-white mb-6 leading-tight">
-            Discover Your Next{" "}
-            <span className="text-yellow-400">Opportunity</span>
+            Discover Your Next Opportunity
           </h1>
-          <p className="text-xl text-blue-100 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-xl text-white/90 max-w-2xl mx-auto leading-relaxed">
             Connect with top gigs, filter by category, and find the perfect
             match for your skills
           </p>
@@ -580,7 +576,7 @@ const Gigs = () => {
               placeholder="Search gigs by title, category, or skills..."
               value={searchTerm}
               onChange={handleSearchChange}
-              className="w-full pl-14 pr-6 py-4 text-base border-2 border-gray-300 rounded-2xl bg-white focus:outline-none focus:border-blue-900 focus:ring-4 focus:ring-blue-900/10 transition-all"
+              className="w-full pl-14 pr-6 py-4 text-base border-2 border-gray-300 rounded-2xl bg-white focus:outline-none focus:border-[#1A2A4F] focus:ring-4 focus:ring-[#1A2A4F]/10 transition-all"
             />
           </div>
 
@@ -588,7 +584,7 @@ const Gigs = () => {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="px-5 py-3 border-2 border-gray-300 rounded-xl bg-white font-semibold text-sm cursor-pointer hover:border-blue-900 focus:outline-none focus:border-blue-900 focus:ring-4 focus:ring-blue-900/10 transition-all"
+              className="px-5 py-3 border-2 border-gray-300 rounded-xl bg-white font-semibold text-sm cursor-pointer hover:border-[#1A2A4F] focus:outline-none focus:border-[#1A2A4F] focus:ring-4 focus:ring-[#1A2A4F]/10 transition-all"
             >
               <option value="newest">Newest First</option>
               <option value="price-asc">Price: Low to High</option>
@@ -598,7 +594,7 @@ const Gigs = () => {
             <select
               value={priceFilter}
               onChange={(e) => setPriceFilter(e.target.value)}
-              className="px-5 py-3 border-2 border-gray-300 rounded-xl bg-white font-semibold text-sm cursor-pointer hover:border-blue-900 focus:outline-none focus:border-blue-900 focus:ring-4 focus:ring-blue-900/10 transition-all"
+              className="px-5 py-3 border-2 border-gray-300 rounded-xl bg-white font-semibold text-sm cursor-pointer hover:border-[#1A2A4F] focus:outline-none focus:border-[#1A2A4F] focus:ring-4 focus:ring-[#1A2A4F]/10 transition-all"
             >
               <option value="all">All Prices</option>
               <option value="low">Under ₹10,000</option>
@@ -610,8 +606,8 @@ const Gigs = () => {
               onClick={() => setShowFilters(!showFilters)}
               className={`flex items-center gap-2 px-5 py-3 border-2 rounded-xl font-semibold text-sm transition-all ${
                 showFilters
-                  ? "bg-blue-900 text-white border-blue-900"
-                  : "bg-white text-gray-700 border-gray-300 hover:border-blue-900"
+                  ? "bg-[#1A2A4F] text-white border-[#1A2A4F]"
+                  : "bg-white text-gray-700 border-gray-300 hover:border-[#1A2A4F]"
               }`}
             >
               <SlidersHorizontal size={18} />
@@ -623,8 +619,8 @@ const Gigs = () => {
                 onClick={() => setShowSavedOnly(!showSavedOnly)}
                 className={`flex items-center gap-2 px-5 py-3 border-2 rounded-xl font-semibold text-sm transition-all ${
                   showSavedOnly
-                    ? "bg-red-500 text-white border-red-500"
-                    : "bg-white text-gray-700 border-gray-300 hover:border-red-500"
+                    ? "bg-[#1A2A4F] text-white border-[#1A2A4F]"
+                    : "bg-white text-gray-700 border-gray-300 hover:border-[#1A2A4F]"
                 }`}
               >
                 <Bookmark
@@ -640,8 +636,8 @@ const Gigs = () => {
                 onClick={() => setViewMode("grid")}
                 className={`p-3 border-2 rounded-xl transition-all ${
                   viewMode === "grid"
-                    ? "bg-blue-900 text-white border-blue-900"
-                    : "bg-white text-gray-700 border-gray-300 hover:border-blue-900"
+                    ? "bg-[#1A2A4F] text-white border-[#1A2A4F]"
+                    : "bg-white text-gray-700 border-gray-300 hover:border-[#1A2A4F]"
                 }`}
               >
                 <Grid size={18} />
@@ -650,8 +646,8 @@ const Gigs = () => {
                 onClick={() => setViewMode("list")}
                 className={`p-3 border-2 rounded-xl transition-all ${
                   viewMode === "list"
-                    ? "bg-blue-900 text-white border-blue-900"
-                    : "bg-white text-gray-700 border-gray-300 hover:border-blue-900"
+                    ? "bg-[#1A2A4F] text-white border-[#1A2A4F]"
+                    : "bg-white text-gray-700 border-gray-300 hover:border-[#1A2A4F]"
                 }`}
               >
                 <List size={18} />
@@ -662,7 +658,7 @@ const Gigs = () => {
           {showFilters && (
             <div className="bg-white border-2 border-gray-300 rounded-2xl p-6">
               <div className="flex justify-between items-center mb-5">
-                <h3 className="text-lg font-bold text-blue-900">
+                <h3 className="text-lg font-bold text-[#1A2A4F]">
                   Price Range (₹)
                 </h3>
                 <button
@@ -680,7 +676,7 @@ const Gigs = () => {
                   onChange={(e) =>
                     setPriceRange([Math.max(0, +e.target.value), priceRange[1]])
                   }
-                  className="px-4 py-3 border-2 border-gray-300 rounded-xl text-sm focus:outline-none focus:border-blue-900 focus:ring-4 focus:ring-blue-900/10"
+                  className="px-4 py-3 border-2 border-gray-300 rounded-xl text-sm focus:outline-none focus:border-[#1A2A4F] focus:ring-4 focus:ring-[#1A2A4F]/10"
                 />
                 <input
                   type="number"
@@ -689,7 +685,7 @@ const Gigs = () => {
                   onChange={(e) =>
                     setPriceRange([priceRange[0], +e.target.value])
                   }
-                  className="px-4 py-3 border-2 border-gray-300 rounded-xl text-sm focus:outline-none focus:border-blue-900 focus:ring-4 focus:ring-blue-900/10"
+                  className="px-4 py-3 border-2 border-gray-300 rounded-xl text-sm focus:outline-none focus:border-[#1A2A4F] focus:ring-4 focus:ring-[#1A2A4F]/10"
                 />
               </div>
             </div>
@@ -698,13 +694,13 @@ const Gigs = () => {
 
         {/* Categories */}
         <div className="mb-10">
-          <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-blue-900 scrollbar-track-gray-200">
+          <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-[#1A2A4F] scrollbar-track-gray-200">
             <button
               onClick={() => handleCategoryChange("")}
               className={`px-6 py-3 border-2 rounded-xl font-semibold text-sm whitespace-nowrap transition-all ${
                 selectedCategory === ""
-                  ? "bg-blue-900 text-white border-blue-900"
-                  : "bg-white text-gray-700 border-gray-300 hover:border-blue-900"
+                  ? "bg-[#1A2A4F] text-white border-[#1A2A4F]"
+                  : "bg-white text-gray-700 border-gray-300 hover:border-[#1A2A4F]"
               }`}
             >
               All Categories
@@ -715,8 +711,8 @@ const Gigs = () => {
                 onClick={() => handleCategoryChange(category)}
                 className={`px-6 py-3 border-2 rounded-xl font-semibold text-sm whitespace-nowrap transition-all ${
                   selectedCategory === category
-                    ? "bg-blue-900 text-white border-blue-900"
-                    : "bg-white text-gray-700 border-gray-300 hover:border-blue-900"
+                    ? "bg-[#1A2A4F] text-white border-[#1A2A4F]"
+                    : "bg-white text-gray-700 border-gray-300 hover:border-[#1A2A4F]"
                 }`}
               >
                 {category}
@@ -732,8 +728,8 @@ const Gigs = () => {
           !showSavedOnly && (
             <div className="mb-12">
               <div className="flex items-center gap-3 mb-6">
-                <TrendingUp size={32} className="text-yellow-500" />
-                <h2 className="text-4xl font-black text-blue-900">
+                <TrendingUp size={32} className="text-[#1A2A4F]" />
+                <h2 className="text-4xl font-black text-[#1A2A4F]">
                   Featured Gigs
                 </h2>
               </div>
@@ -753,7 +749,7 @@ const Gigs = () => {
 
         {/* All Gigs */}
         <div>
-          <h2 className="text-4xl font-black text-blue-900 mb-6">
+          <h2 className="text-4xl font-black text-[#1A2A4F] mb-6">
             {selectedCategory
               ? `${selectedCategory} Gigs`
               : showSavedOnly
@@ -804,7 +800,7 @@ const Gigs = () => {
                   setShowSavedOnly(false);
                   setPriceFilter("all");
                 }}
-                className="flex items-center gap-2 px-8 py-3 bg-blue-900 text-white rounded-xl font-semibold hover:bg-blue-800 transition-all"
+                className="flex items-center gap-2 px-8 py-3 bg-[#1A2A4F] text-white rounded-xl font-semibold hover:opacity-90 transition-all"
               >
                 Clear All Filters
                 <ArrowRight className="h-4 w-4" />
@@ -831,7 +827,7 @@ const Gigs = () => {
             <button
               onClick={() => handlePageChange(page - 1)}
               disabled={page === 1}
-              className="p-3 border-2 border-gray-300 rounded-xl bg-white text-gray-700 hover:border-blue-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className="p-3 border-2 border-gray-300 rounded-xl bg-white text-gray-700 hover:border-[#1A2A4F] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               <ChevronLeft size={20} />
             </button>
@@ -845,8 +841,8 @@ const Gigs = () => {
                   onClick={() => handlePageChange(pageNum)}
                   className={`min-w-[48px] h-12 flex items-center justify-center border-2 rounded-xl font-semibold transition-all ${
                     page === pageNum
-                      ? "bg-blue-900 text-white border-blue-900"
-                      : "bg-white text-gray-700 border-gray-300 hover:border-blue-900"
+                      ? "bg-[#1A2A4F] text-white border-[#1A2A4F]"
+                      : "bg-white text-gray-700 border-gray-300 hover:border-[#1A2A4F]"
                   }`}
                 >
                   {pageNum}
@@ -861,7 +857,7 @@ const Gigs = () => {
             <button
               onClick={() => handlePageChange(page + 1)}
               disabled={page === totalPages}
-              className="p-3 border-2 border-gray-300 rounded-xl bg-white text-gray-700 hover:border-blue-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className="p-3 border-2 border-gray-300 rounded-xl bg-white text-gray-700 hover:border-[#1A2A4F] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               <ChevronRight size={20} />
             </button>
@@ -870,33 +866,37 @@ const Gigs = () => {
 
         {/* Stats Bar */}
         {!isLoading && filteredGigs.length > 0 && (
-          <div className="mt-12 bg-gradient-to-r from-blue-900 to-indigo-900 rounded-2xl p-8">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-center">
+          <div className="mt-12 bg-[#1A2A4F] rounded-2xl p-8 relative overflow-hidden">
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full blur-3xl"></div>
+              <div className="absolute bottom-0 left-0 w-64 h-64 bg-white rounded-full blur-3xl"></div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-center relative z-10">
               <div>
-                <div className="text-4xl font-black text-yellow-400 mb-2">
+                <div className="text-4xl font-black text-white mb-2">
                   {filteredGigs.length}
                 </div>
-                <div className="text-blue-100 font-semibold">
+                <div className="text-white/80 font-semibold">
                   Available Gigs
                 </div>
               </div>
               <div>
-                <div className="text-4xl font-black text-yellow-400 mb-2">
+                <div className="text-4xl font-black text-white mb-2">
                   {categories.length}
                 </div>
-                <div className="text-blue-100 font-semibold">Categories</div>
+                <div className="text-white/80 font-semibold">Categories</div>
               </div>
               <div>
-                <div className="text-4xl font-black text-yellow-400 mb-2">
+                <div className="text-4xl font-black text-white mb-2">
                   {favorites.length}
                 </div>
-                <div className="text-blue-100 font-semibold">Saved Gigs</div>
+                <div className="text-white/80 font-semibold">Saved Gigs</div>
               </div>
               <div>
-                <div className="text-4xl font-black text-yellow-400 mb-2">
+                <div className="text-4xl font-black text-white mb-2">
                   {userApplications.length}
                 </div>
-                <div className="text-blue-100 font-semibold">Applications</div>
+                <div className="text-white/80 font-semibold">Applications</div>
               </div>
             </div>
           </div>
