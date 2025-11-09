@@ -1,747 +1,327 @@
-import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import axios from "axios";
+"use client";
+
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Search,
   Code,
   PenTool,
   BookOpen,
   Users,
-  Briefcase,
   CheckCircle,
-  Quote,
-  Loader2,
-  AlertTriangle,
+  Award,
+  Briefcase,
+  Menu,
+  X,
+  LogOut,
+  Plus,
+  Heart,
+  Star,
   ArrowRight,
-  Sparkles,
   TrendingUp,
-  ChevronLeft,
-  ChevronRight,
+  Laptop,
+  Lightbulb,
+  Smile,
+  Rocket,
 } from "lucide-react";
-import Navbar from "../components/Navbar";
-import Footer from "../components/Footer";
 
-const API_BASE = "http://localhost:5000/api";
-
-const formatINR = (amount) => {
-  const num = typeof amount === "string" ? Number(amount) : amount;
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(num);
-};
-
-const BackgroundShapes = () => (
-  <div className="absolute inset-0 overflow-hidden pointer-events-none">
-    {/* Light-blob – subtle cyan accent */}
-    <div className="absolute top-[-10%] right-[-10%] w-96 h-96 opacity-15">
-      <div
-        className="w-full h-full bg-gradient-to-br from-cyan-300 via-cyan-200 to-cyan-400 blur-3xl animate-pulse"
-        style={{
-          borderRadius: "50%",
-          clipPath:
-            "path('M 0.5 0.3 Q 0.7 0.1, 0.9 0.3 T 1 0.7 Q 0.8 0.9, 0.5 0.8 T 0 0.7 Q 0.2 0.5, 0.3 0.3 Z')",
-          transform: "scale(1.2) rotate(12deg)",
-        }}
-      />
-    </div>
-    <div className="absolute bottom-[-15%] left-[-8%] w-80 h-80 opacity-10">
-      <div
-        className="w-full h-full bg-gradient-to-tr from-cyan-200 via-cyan-300 to-cyan-500 blur-3xl animate-pulse animation-delay-2000"
-        style={{
-          borderRadius: "50%",
-          clipPath:
-            "path('M 0.4 0.2 Q 0.6 0.05, 0.8 0.25 T 0.95 0.6 Q 0.85 0.85, 0.6 0.9 T 0.3 0.8 Q 0.15 0.6, 0.2 0.4 Z')",
-          transform: "scale(1.3) rotate(-6deg)",
-        }}
-      />
-    </div>
-  </div>
-);
-
-const SectionDivider = ({ variant = "default" }) => {
-  if (variant === "wave") {
-    return (
-      <div className="relative h-16 overflow-hidden">
-        <svg
-          className="absolute bottom-0 w-full h-16"
-          viewBox="0 0 1200 120"
-          preserveAspectRatio="none"
-        >
-          <path
-            d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z"
-            fill="#f0f9ff"
-            fillOpacity="0.6"
-          />
-        </svg>
-      </div>
-    );
-  }
-  return (
-    <div className="relative h-1 my-12 mx-auto max-w-4xl">
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-40" />
-    </div>
-  );
-};
-
-/* ---------- HERO ---------- */
-const HeroSection = ({ userRole }) => {
-  const [searchQuery, setSearchQuery] = useState("");
+const Home = () => {
   const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState("all");
+  const [visibleSections, setVisibleSections] = useState({});
+  const [favorites, setFavorites] = useState(new Set());
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/gigs?search=${encodeURIComponent(searchQuery.trim())}`);
-    }
+  // Mock data for authenticated user
+  const mockUser = {
+    name: "John Doe",
+    role: "Seller",
+    avatar: "👨‍💻",
+    rating: 4.9,
+    earnings: "₹15,000",
+    completedGigs: 24,
   };
 
-  const message =
-    userRole === "Seller"
-      ? "Showcase your skills and start earning with gigs!"
-      : userRole === "Buyer"
-      ? "Hire talented students for your projects!"
-      : "Discover or offer services in your campus community!";
-
-  return (
-    <>
-      <div className="relative min-h-screen bg-white overflow-hidden pt-16">
-        <BackgroundShapes />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-28">
-          <div className="flex flex-col lg:flex-row gap-12 items-center justify-between">
-            <div className="w-full lg:w-1/2 space-y-8 text-center lg:text-left">
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-gray-900 leading-tight">
-                Connect with
-                <span className="block text-cyan-600 mt-2">Student Talent</span>
-              </h1>
-
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto lg:mx-0">
-                {message}
-              </p>
-
-              <form
-                onSubmit={handleSearch}
-                className="relative max-w-md mx-auto lg:mx-0 group"
-              >
-                <div className="absolute -inset-0.5 bg-cyan-500 rounded-lg blur opacity-0 group-hover:opacity-30 transition duration-300" />
-                <div className="relative flex">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search for gigs..."
-                    className="flex-grow p-4 rounded-l-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white shadow-sm"
-                  />
-                  <button
-                    type="submit"
-                    className="px-6 py-4 bg-cyan-500 text-white rounded-r-lg hover:bg-cyan-600 transition-all duration-300"
-                  >
-                    <Search size={20} />
-                  </button>
-                </div>
-              </form>
-
-              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                <Link
-                  to="/signup"
-                  className="px-8 py-4 bg-cyan-500 text-white font-semibold rounded-lg hover:bg-cyan-600 transition-all duration-300 flex items-center justify-center gap-2"
-                >
-                  Get Started Free
-                  <ArrowRight size={18} />
-                </Link>
-                <Link
-                  to="/gigs"
-                  className="px-8 py-4 bg-white text-cyan-600 font-semibold rounded-lg border-2 border-cyan-500 hover:bg-cyan-50 transition-all duration-300 flex items-center justify-center gap-2"
-                >
-                  Browse Gigs
-                  <TrendingUp size={18} />
-                </Link>
-              </div>
-
-              <div className="flex flex-wrap gap-8 justify-center lg:justify-start pt-8">
-                {[
-                  { number: "5,000+", label: "Active Students" },
-                  { number: "10,000+", label: "Projects Completed" },
-                  { number: "4.9/5", label: "Average Rating" },
-                ].map((stat, idx) => (
-                  <div key={idx} className="text-center lg:text-left">
-                    <p className="text-3xl font-bold text-cyan-600">
-                      {stat.number}
-                    </p>
-                    <p className="text-gray-600">{stat.label}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="w-full lg:w-1/2 flex justify-center">
-              <div className="relative group">
-                <div className="relative w-64 h-64 sm:w-80 sm:h-80 lg:w-96 lg:h-96 rounded-full overflow-hidden shadow-2xl border-8 border-white">
-                  <img
-                    src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=800&fit=crop"
-                    alt="Students collaborating"
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <SectionDivider variant="wave" />
-    </>
-  );
-};
-
-/* ---------- FEATURED GIGS ---------- */
-const FeaturedGigsSection = ({ userId }) => {
-  const [gigs, setGigs] = useState([]);
-  const [applications, setApplications] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const [gigsRes, appsRes] = await Promise.all([
-          axios.get(`${API_BASE}/gigs/recent`),
-          token
-            ? axios.get(`${API_BASE}/users/${userId}/applications`, {
-                headers: { Authorization: `Bearer ${token}` },
-              })
-            : { data: [] },
-        ]);
-        setGigs(gigsRes.data.slice(0, 4));
-        setApplications(appsRes.data);
-        setLoading(false);
-      } catch (err) {
-        setError(err.response?.data?.error || "Failed to fetch gigs");
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [userId]);
-
-  const getApplicationStatus = (gigId) =>
-    applications.find((a) => a.gigId._id === gigId)?.status || null;
-
-  return (
-    <>
-      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
-        <BackgroundShapes />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Clean centered title */}
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 relative inline-block">
-              Featured Gigs
-              <span className="absolute -bottom-2 left-0 right-0 h-1 bg-cyan-500 rounded-full"></span>
-            </h2>
-          </div>
-
-          {error && (
-            <div className="text-center text-red-600 flex items-center justify-center gap-2 mb-6">
-              <AlertTriangle size={20} />
-              {error}
-            </div>
-          )}
-
-          {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[...Array(4)].map((_, i) => (
-                <div
-                  key={i}
-                  className="bg-gray-50 p-6 rounded-2xl shadow animate-pulse"
-                >
-                  <div className="w-16 h-16 rounded-full bg-gray-200 mx-auto mb-4" />
-                  <div className="h-6 bg-gray-200 rounded mb-2" />
-                  <div className="h-4 bg-gray-200 rounded mb-2" />
-                  <div className="h-10 bg-gray-200 rounded-lg" />
-                </div>
-              ))}
-            </div>
-          ) : gigs.length === 0 ? (
-            <p className="text-center text-gray-600">
-              No gigs available at the moment.
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {gigs.map((gig, idx) => {
-                const appStatus = getApplicationStatus(gig._id);
-                const closed = gig.status === "closed";
-                const applied = !!appStatus;
-
-                return (
-                  <div
-                    key={gig._id}
-                    className="group relative bg-white p-6 rounded-2xl shadow-md border border-gray-200 hover:shadow-xl hover:border-cyan-400 transition-all duration-300"
-                    style={{ animationDelay: `${idx * 100}ms` }}
-                  >
-                    <div className="absolute inset-0 bg-cyan-50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-
-                    {gig.thumbnail ? (
-                      <div className="w-16 h-16 rounded-full mx-auto mb-4 overflow-hidden ring-4 ring-transparent group-hover:ring-cyan-200 transition-all">
-                        <img
-                          src={gig.thumbnail}
-                          alt={gig.title}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform"
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-16 h-16 rounded-full bg-cyan-500 mx-auto mb-4 flex items-center justify-center text-white font-bold">
-                        {gig.title[0].toUpperCase()}
-                      </div>
-                    )}
-
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2 group-hover:text-cyan-700 transition-colors">
-                      {gig.title}
-                    </h3>
-
-                    <p className="text-gray-600 mb-2">
-                      By{" "}
-                      <Link
-                        to={`/profile/${gig.sellerId}`}
-                        className="hover:text-cyan-600 hover:underline"
-                      >
-                        {gig.sellerName}
-                      </Link>
-                    </p>
-
-                    <p className="text-cyan-600 font-bold mb-2">
-                      From {formatINR(gig.price)}
-                    </p>
-
-                    <p
-                      className={`mb-2 font-semibold ${
-                        closed ? "text-red-600" : "text-green-600"
-                      }`}
-                    >
-                      {gig.status.charAt(0).toUpperCase() + gig.status.slice(1)}
-                    </p>
-
-                    {applied && (
-                      <p
-                        className={`text-sm font-semibold mb-2 ${
-                          appStatus === "accepted"
-                            ? "text-green-600"
-                            : appStatus === "rejected"
-                            ? "text-red-600"
-                            : "text-yellow-600"
-                        }`}
-                      >
-                        Application:{" "}
-                        {appStatus.charAt(0).toUpperCase() + appStatus.slice(1)}
-                      </p>
-                    )}
-
-                    <p className="text-gray-600 mb-4 line-clamp-2">
-                      {gig.description}
-                    </p>
-                    <p className="text-sm text-gray-500 mb-4">{gig.category}</p>
-
-                    {closed ? (
-                      <span className="block w-full px-6 py-3 bg-gray-200 text-gray-600 font-semibold rounded-lg text-center">
-                        Applications Closed
-                      </span>
-                    ) : applied ? (
-                      <span className="block w-full px-6 py-3 bg-gray-200 text-gray-600 font-semibold rounded-lg text-center">
-                        Application Submitted
-                      </span>
-                    ) : (
-                      <Link
-                        to={`/gigs/${gig._id}`}
-                        className="group/btn relative block w-full px-6 py-3 bg-cyan-500 text-white font-semibold rounded-lg overflow-hidden text-center"
-                      >
-                        <span className="relative z-10 flex items-center justify-center gap-2">
-                          View Details
-                          <ArrowRight
-                            size={16}
-                            className="group-hover/btn:translate-x-1 transition"
-                          />
-                        </span>
-                        <div className="absolute inset-0 bg-cyan-600 translate-x-full group-hover/btn:translate-x-0 transition-transform" />
-                      </Link>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-      <SectionDivider />
-    </>
-  );
-};
-
-/* ---------- RECENT GIGS ---------- */
-const RecentGigsSection = ({ userId }) => {
-  const [gigs, setGigs] = useState([]);
-  const [applications, setApplications] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const [gigsRes, appsRes] = await Promise.all([
-          axios.get(`${API_BASE}/gigs/recent`),
-          token
-            ? axios.get(`${API_BASE}/users/${userId}/applications`, {
-                headers: { Authorization: `Bearer ${token}` },
-              })
-            : { data: [] },
-        ]);
-        setGigs(gigsRes.data.slice(0, 6));
-        setApplications(appsRes.data);
-        setLoading(false);
-      } catch (err) {
-        setError(err.response?.data?.error || "Failed to fetch recent gigs");
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [userId]);
-
-  const getApplicationStatus = (gigId) =>
-    applications.find((a) => a.gigId._id === gigId)?.status || null;
-
-  return (
-    <>
-      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
-        <BackgroundShapes />
-        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 relative inline-block">
-              Recently Uploaded Gigs
-              <span className="absolute -bottom-2 left-0 right-0 h-1 bg-cyan-500 rounded-full"></span>
-            </h2>
-          </div>
-
-          {error && (
-            <div className="text-center text-red-600 flex items-center justify-center gap-2 mb-6">
-              <AlertTriangle size={20} />
-              {error}
-            </div>
-          )}
-
-          {loading ? (
-            <div className="space-y-6">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="flex items-start gap-4 animate-pulse">
-                  <div className="w-3 h-3 bg-gray-200 rounded-full mt-2" />
-                  <div className="flex-1 bg-gray-50 p-6 rounded-2xl shadow">
-                    <div className="h-6 bg-gray-200 rounded mb-2" />
-                    <div className="h-4 bg-gray-200 rounded mb-2" />
-                    <div className="h-4 bg-gray-200 rounded" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : gigs.length === 0 ? (
-            <p className="text-center text-gray-600">
-              No recent gigs available.
-            </p>
-          ) : (
-            <div className="relative">
-              <div className="absolute left-1.5 top-0 bottom-0 w-0.5 bg-gradient-to-b from-cyan-400/30 via-cyan-400/60 to-cyan-400/30" />
-              <div className="space-y-6">
-                {gigs.map((gig, idx) => {
-                  const appStatus = getApplicationStatus(gig._id);
-                  const closed = gig.status === "closed";
-                  const applied = !!appStatus;
-
-                  return (
-                    <div
-                      key={gig._id}
-                      className="flex items-start gap-6 opacity-0 animate-slideInLeft"
-                      style={{
-                        animationDelay: `${idx * 100}ms`,
-                        animationFillMode: "forwards",
-                      }}
-                    >
-                      <div className="relative z-10">
-                        <div className="w-3 h-3 bg-cyan-500 rounded-full mt-8 ring-4 ring-white shadow-md" />
-                      </div>
-
-                      <div className="group flex-1 bg-white p-6 rounded-2xl shadow-md border border-gray-200 hover:border-cyan-400 transition-all duration-300">
-                        <div className="absolute inset-0 bg-cyan-50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
-
-                        <div className="relative flex items-start gap-4">
-                          {gig.thumbnail ? (
-                            <div className="w-16 h-16 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-cyan-200 transition-all flex-shrink-0">
-                              <img
-                                src={gig.thumbnail}
-                                alt={gig.title}
-                                className="w-full h-full object-cover group-hover:scale-110 transition-transform"
-                              />
-                            </div>
-                          ) : (
-                            <div className="w-16 h-16 rounded-full bg-cyan-500 flex items-center justify-center text-white text-xl font-bold flex-shrink-0">
-                              {gig.title[0].toUpperCase()}
-                            </div>
-                          )}
-
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-cyan-700 transition-colors">
-                              {gig.title}
-                            </h3>
-
-                            <p className="text-gray-600 mb-2 text-sm">
-                              By{" "}
-                              <Link
-                                to={`/profile/${gig.sellerId}`}
-                                className="font-medium hover:text-cyan-600 hover:underline"
-                              >
-                                {gig.sellerName}
-                              </Link>
-                            </p>
-
-                            <div className="flex flex-wrap gap-3 mb-3">
-                              <span className="px-3 py-1 bg-cyan-100 text-cyan-800 rounded-full text-sm font-semibold">
-                                {formatINR(gig.price)}
-                              </span>
-                              <span
-                                className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                                  closed
-                                    ? "bg-red-100 text-red-800"
-                                    : "bg-green-100 text-green-800"
-                                }`}
-                              >
-                                Status:{" "}
-                                {gig.status.charAt(0).toUpperCase() +
-                                  gig.status.slice(1)}
-                              </span>
-                              <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
-                                {gig.category}
-                              </span>
-                            </div>
-
-                            {applied && (
-                              <span
-                                className={`inline-block px-3 py-1 rounded-full text-sm font-semibold mb-3 ${
-                                  appStatus === "accepted"
-                                    ? "bg-green-100 text-green-800"
-                                    : appStatus === "rejected"
-                                    ? "bg-red-100 text-red-800"
-                                    : "bg-yellow-100 text-yellow-800"
-                                }`}
-                              >
-                                Application:{" "}
-                                {appStatus.charAt(0).toUpperCase() +
-                                  appStatus.slice(1)}
-                              </span>
-                            )}
-
-                            <p className="text-gray-600 mb-4 line-clamp-2">
-                              {gig.description}
-                            </p>
-
-                            {closed ? (
-                              <span className="inline-block px-6 py-2 bg-gray-200 text-gray-600 font-semibold rounded-lg">
-                                Applications Closed
-                              </span>
-                            ) : applied ? (
-                              <span className="inline-block px-6 py-2 bg-gray-200 text-gray-600 font-semibold rounded-lg">
-                                Application Submitted
-                              </span>
-                            ) : (
-                              <Link
-                                to={`/gigs/${gig._id}`}
-                                className="group/btn relative inline-flex items-center gap-2 px-6 py-2 bg-cyan-500 text-white font-semibold rounded-lg overflow-hidden"
-                              >
-                                <span className="relative z-10 flex items-center gap-2">
-                                  View Details
-                                  <ArrowRight
-                                    size={16}
-                                    className="group-hover/btn:translate-x-1 transition"
-                                  />
-                                </span>
-                                <div className="absolute inset-0 bg-cyan-600 translate-x-full group-hover/btn:translate-x-0 transition-transform" />
-                              </Link>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-      <SectionDivider />
-    </>
-  );
-};
-
-/* ---------- CATEGORIES ---------- */
-const CategoriesSection = () => {
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const categoryIcons = {
-    "Web Development": Code,
-    "Graphic Design": PenTool,
-    Tutoring: BookOpen,
-    "Digital Marketing": Search,
-  };
-
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const res = await axios.get(`${API_BASE}/categories`);
-        setCategories(res.data.categories || []);
-        setLoading(false);
-      } catch (err) {
-        setError(err.response?.data?.error || "Failed to fetch categories");
-        setLoading(false);
-      }
-    };
-    fetchCategories();
-  }, []);
-
-  return (
-    <>
-      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
-        <BackgroundShapes />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 relative inline-block">
-              Explore Categories
-              <span className="absolute -bottom-2 left-0 right-0 h-1 bg-cyan-500 rounded-full"></span>
-            </h2>
-          </div>
-
-          {error && (
-            <div className="text-center text-red-600 flex items-center justify-center gap-2 mb-6">
-              <AlertTriangle size={20} />
-              {error}
-            </div>
-          )}
-
-          {loading ? (
-            <div className="flex flex-wrap justify-center gap-6">
-              {[...Array(4)].map((_, i) => (
-                <div
-                  key={i}
-                  className="w-40 h-40 bg-gray-50 rounded-2xl shadow animate-pulse flex flex-col items-center justify-center"
-                >
-                  <div className="w-8 h-8 bg-gray-200 rounded-full mb-2" />
-                  <div className="w-24 h-4 bg-gray-200 rounded" />
-                </div>
-              ))}
-            </div>
-          ) : categories.length === 0 ? (
-            <p className="text-center text-gray-600">
-              No categories available.
-            </p>
-          ) : (
-            <div className="flex flex-wrap justify-center gap-6">
-              {categories.map((cat, i) => {
-                const Icon = categoryIcons[cat] || Users;
-                return (
-                  <Link
-                    key={i}
-                    to={`/gigs?category=${encodeURIComponent(cat)}`}
-                    className="group relative w-40 h-40 bg-white rounded-2xl shadow-md border border-gray-200 flex flex-col items-center justify-center hover:border-cyan-400 hover:shadow-xl transition-all duration-300"
-                  >
-                    <div className="absolute inset-0 bg-cyan-50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="relative z-10 transform group-hover:-translate-y-1 transition-transform">
-                      <div className="w-16 h-16 rounded-full bg-cyan-100 flex items-center justify-center mb-3 group-hover:bg-cyan-200 group-hover:scale-110 transition-all">
-                        <Icon
-                          size={28}
-                          className="text-cyan-600 group-hover:text-cyan-800"
-                        />
-                      </div>
-                      <span className="text-sm font-semibold text-gray-800 group-hover:text-cyan-700 transition-colors px-2">
-                        {cat}
-                      </span>
-                    </div>
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-cyan-500 transform scale-x-0 group-hover:scale-x-100 transition-transform" />
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-      <SectionDivider />
-    </>
-  );
-};
-
-/* ---------- HOW IT WORKS ---------- */
-const HowItWorksSection = () => {
-  const steps = [
+  const featuredGigs = [
     {
-      icon: Search,
-      title: "Browse Gigs",
-      description:
-        "Explore a variety of services offered by talented students in your campus community.",
+      id: 1,
+      title: "React Website Development",
+      category: "Web Development",
+      price: "₹5,000",
+      provider: "Sarah Tech",
+      avatar: "👩‍💻",
+      rating: 4.8,
+      reviews: 156,
+      icon: Laptop,
     },
     {
-      icon: Briefcase,
-      title: "Hire or Apply",
-      description:
-        "Hire skilled students or apply to gigs that match your expertise.",
+      id: 2,
+      title: "Logo Design & Branding",
+      category: "Graphic Design",
+      price: "₹3,000",
+      provider: "Alex Design",
+      avatar: "🎨",
+      rating: 4.9,
+      reviews: 234,
+      icon: PenTool,
     },
     {
-      icon: CheckCircle,
-      title: "Complete Project",
-      description:
-        "Get your project delivered or complete gigs through our secure platform.",
+      id: 3,
+      title: "Physics Tutoring Session",
+      category: "Tutoring",
+      price: "₹500/hr",
+      provider: "Priya Edutech",
+      avatar: "👩‍🏫",
+      rating: 5.0,
+      reviews: 89,
+      icon: BookOpen,
+    },
+    {
+      id: 4,
+      title: "Mobile App Development",
+      category: "Web Development",
+      price: "₹8,000",
+      provider: "Dev Masters",
+      avatar: "👨‍💼",
+      rating: 4.7,
+      reviews: 198,
+      icon: Code,
     },
   ];
 
+  const categories = [
+    { name: "Web Development", icon: Code, count: 1240 },
+    { name: "Graphic Design", icon: PenTool, count: 856 },
+    { name: "Tutoring", icon: BookOpen, count: 2341 },
+    { name: "Content Writing", icon: Lightbulb, count: 567 },
+    { name: "Digital Marketing", icon: TrendingUp, count: 432 },
+    { name: "Video Editing", icon: Smile, count: 234 },
+  ];
+
+  const stats = [
+    { icon: TrendingUp, label: "Active Gigs", value: "2,450+" },
+    { icon: Users, label: "Talented Students", value: "5,000+" },
+    { icon: CheckCircle, label: "Projects Done", value: "10,000+" },
+    { icon: Star, label: "Avg Rating", value: "4.9/5" },
+  ];
+
+  // Intersection Observer for scroll animations
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setVisibleSections((prev) => ({
+              ...prev,
+              [entry.target.id]: true,
+            }));
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    document.querySelectorAll("[data-animate]").forEach((el) => {
+      observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  const toggleFavorite = (id) => {
+    const newFavorites = new Set(favorites);
+    if (newFavorites.has(id)) {
+      newFavorites.delete(id);
+    } else {
+      newFavorites.add(id);
+    }
+    setFavorites(newFavorites);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    navigate("/");
+    window.location.reload();
+  };
+
+  const handleLogin = () => {
+    // Check for token
+    const token = localStorage.getItem("token");
+    if (token) {
+      setUser(mockUser);
+    }
+  };
+
+  useEffect(() => {
+    handleLogin();
+  }, []);
+
   return (
-    <>
-      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
-        <BackgroundShapes />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 relative inline-block">
-              How It Works
-              <span className="absolute -bottom-2 left-0 right-0 h-1 bg-cyan-500 rounded-full"></span>
-            </h2>
+    <div className="w-full bg-white">
+      {/* NAVBAR */}
+      <nav className="fixed top-0 w-full bg-white shadow-md z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center gap-2">
+              <Rocket className="text-blue-600" size={28} />
+              <span className="text-2xl font-bold text-blue-600">
+                GigConnect
+              </span>
+            </div>
+
+            {/* Desktop Menu */}
+            <div className="hidden md:flex items-center gap-8">
+              <a
+                href="#categories"
+                className="text-gray-700 hover:text-blue-600 transition"
+              >
+                Categories
+              </a>
+              <a
+                href="#gigs"
+                className="text-gray-700 hover:text-blue-600 transition"
+              >
+                Browse Gigs
+              </a>
+              <a
+                href="#stats"
+                className="text-gray-700 hover:text-blue-600 transition"
+              >
+                Stats
+              </a>
+            </div>
+
+            <div className="hidden md:flex items-center gap-4">
+              <button className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition flex items-center gap-2">
+                <Plus size={18} />
+                Post a Gig
+              </button>
+              <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
+                <span className="text-2xl">{mockUser.avatar}</span>
+                <button
+                  onClick={handleLogout}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-600"
+                >
+                  <LogOut size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Mobile Menu Button */}
+            <button
+              className="md:hidden"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-            <div className="hidden md:block absolute top-24 left-1/4 right-1/4 h-0.5 bg-gradient-to-r from-cyan-300/30 via-cyan-400/60 to-cyan-300/30" />
-            {steps.map((step, i) => {
-              const Icon = step.icon;
+          {/* Mobile Menu */}
+          {mobileMenuOpen && (
+            <div className="md:hidden pb-4 space-y-2">
+              <a
+                href="#categories"
+                className="block px-4 py-2 text-gray-700 hover:bg-blue-50"
+              >
+                Categories
+              </a>
+              <a
+                href="#gigs"
+                className="block px-4 py-2 text-gray-700 hover:bg-blue-50"
+              >
+                Browse Gigs
+              </a>
+              <button className="w-full text-left px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg flex items-center gap-2">
+                <Plus size={18} />
+                Post a Gig
+              </button>
+              <button
+                onClick={handleLogout}
+                className="w-full text-left px-4 py-2 text-red-600 font-semibold flex items-center gap-2"
+              >
+                <LogOut size={18} />
+                Logout
+              </button>
+            </div>
+          )}
+        </div>
+      </nav>
+
+      {/* HERO SECTION */}
+      <section className="pt-24 pb-16 px-4 bg-gradient-to-br from-blue-50 via-white to-cyan-50">
+        <div className="max-w-6xl mx-auto">
+          <div
+            data-animate
+            className={`text-center mb-12 transition-all duration-1000 ${
+              visibleSections["hero"]
+                ? "opacity-100 translate-y-0"
+                : "opacity-0 translate-y-10"
+            }`}
+            id="hero"
+          >
+            <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-4">
+              Welcome Back,{" "}
+              <span className="text-blue-600">
+                {mockUser.name.split(" ")[0]}
+              </span>
+            </h1>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
+              Discover amazing gigs or manage your services. Let's grow
+              together!
+            </p>
+
+            {/* Search Bar */}
+            <div className="max-w-2xl mx-auto flex gap-3">
+              <div className="flex-1 relative">
+                <Search
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                  size={20}
+                />
+                <input
+                  type="text"
+                  placeholder="Search for gigs, skills, or services..."
+                  className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-600 transition"
+                />
+              </div>
+              <button className="px-8 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition">
+                Search
+              </button>
+            </div>
+          </div>
+
+          {/* User Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { icon: Star, label: "Rating", value: mockUser.rating },
+              {
+                icon: Briefcase,
+                label: "Completed",
+                value: mockUser.completedGigs,
+              },
+              { icon: TrendingUp, label: "Earnings", value: mockUser.earnings },
+              { icon: Award, label: "Badge", value: "Top Rated" },
+            ].map((stat, idx) => {
+              const Icon = stat.icon;
               return (
                 <div
-                  key={i}
-                  className="group relative"
-                  style={{ animationDelay: `${i * 150}ms` }}
+                  key={idx}
+                  data-animate
+                  className={`p-4 bg-white border-2 border-gray-100 rounded-xl transition-all duration-1000 ${
+                    visibleSections["hero"]
+                      ? "opacity-100 translate-y-0"
+                      : "opacity-0 translate-y-10"
+                  }`}
+                  style={{ transitionDelay: `${idx * 100}ms` }}
                 >
-                  <div className="relative bg-white p-8 rounded-2xl shadow-md border border-gray-200 hover:border-cyan-400 hover:shadow-xl transition-all duration-300">
-                    <div className="absolute inset-0 bg-cyan-50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
-
-                    <div className="relative">
-                      <div className="absolute -top-4 -right-4 w-10 h-10 bg-cyan-500 rounded-full flex items-center justify-center text-white font-bold shadow-md">
-                        {i + 1}
-                      </div>
-
-                      <div className="w-20 h-20 rounded-full bg-cyan-100 flex items-center justify-center mx-auto mb-6 group-hover:scale-110 group-hover:rotate-6 transition-all">
-                        <Icon
-                          size={36}
-                          className="text-cyan-600 group-hover:text-cyan-800"
-                        />
-                      </div>
-
-                      <h3 className="text-xl font-bold text-gray-900 mb-3 text-center group-hover:text-cyan-700 transition-colors">
-                        {step.title}
-                      </h3>
-
-                      <p className="text-gray-600 text-center leading-relaxed">
-                        {step.description}
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <Icon className="text-blue-600" size={24} />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-xs text-gray-500">{stat.label}</p>
+                      <p className="text-xl font-bold text-gray-900">
+                        {stat.value}
                       </p>
                     </div>
                   </div>
@@ -750,264 +330,281 @@ const HowItWorksSection = () => {
             })}
           </div>
         </div>
-      </div>
-      <SectionDivider />
-    </>
-  );
-};
+      </section>
 
-/* ---------- TESTIMONIALS ---------- */
-const TestimonialsSection = () => {
-  const testimonials = [
-    {
-      quote:
-        "Gig Connect connected me with a talented student developer who built my website in record time!",
-      author: "Satyam Pandey",
-      role: "Small Business Owner",
-    },
-    {
-      quote:
-        "As a student, I showcased my graphic design portfolio and landed my first freelance gig within a week.",
-      author: "Apoorva Sharma",
-      role: "Computer Science Student",
-    },
-    {
-      quote:
-        "The platform's focus on local campus talent made collaboration seamless and trustworthy.",
-      author: "Priya Gupta",
-      role: "Marketing Coordinator",
-    },
-  ];
-
-  const [idx, setIdx] = useState(0);
-  const goPrev = () =>
-    setIdx((p) => (p === 0 ? testimonials.length - 1 : p - 1));
-  const goNext = () =>
-    setIdx((p) => (p === testimonials.length - 1 ? 0 : p + 1));
-  const goTo = (i) => setIdx(i);
-
-  return (
-    <>
-      <div className="relative bg-white py-16 sm:py-24 overflow-hidden">
-        <BackgroundShapes />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 relative inline-block">
-              What Our Users Say
-              <span className="absolute -bottom-2 left-0 right-0 h-1 bg-cyan-500 rounded-full"></span>
+      {/* CATEGORIES SECTION */}
+      <section id="categories" data-animate className="py-20 px-4 bg-white">
+        <div className="max-w-6xl mx-auto">
+          <div
+            className={`mb-16 transition-all duration-1000 ${
+              visibleSections["categories"]
+                ? "opacity-100 translate-y-0"
+                : "opacity-0 translate-y-10"
+            }`}
+          >
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+              Explore Categories
             </h2>
+            <p className="text-lg text-gray-600">
+              Browse thousands of gigs across different categories
+            </p>
           </div>
 
-          <div className="relative max-w-4xl mx-auto">
-            <div className="overflow-hidden rounded-3xl">
-              <div
-                className="flex transition-transform duration-500 ease-in-out"
-                style={{ transform: `translateX(-${idx * 100}%)` }}
-              >
-                {testimonials.map((t, i) => (
-                  <div key={i} className="w-full flex-shrink-0 px-4">
-                    <div className="group relative bg-white p-10 rounded-3xl shadow-xl border border-gray-200 hover:border-cyan-400 transition-all duration-300">
-                      <div className="absolute inset-0 bg-cyan-50 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {categories.map((cat, idx) => {
+              const Icon = cat.icon;
+              return (
+                <div
+                  key={idx}
+                  data-animate
+                  className={`group p-6 bg-gradient-to-br from-blue-50 to-white border-2 border-blue-100 rounded-2xl hover:border-blue-400 hover:shadow-lg transition-all duration-500 cursor-pointer transform hover:scale-105 ${
+                    visibleSections["categories"]
+                      ? "opacity-100 translate-y-0"
+                      : "opacity-0 translate-y-10"
+                  }`}
+                  style={{ transitionDelay: `${idx * 80}ms` }}
+                >
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-cyan-400 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                    <Icon className="text-white" size={32} />
+                  </div>
+                  <h3 className="font-bold text-gray-900 text-center mb-1 group-hover:text-blue-600">
+                    {cat.name}
+                  </h3>
+                  <p className="text-sm text-gray-500 text-center">
+                    {cat.count} gigs
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
-                      <div className="relative">
-                        <div className="w-16 h-16 rounded-full bg-cyan-500 flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
-                          <Quote className="text-white" size={32} />
-                        </div>
+      {/* FEATURED GIGS SECTION */}
+      <section
+        id="gigs"
+        data-animate
+        className="py-20 px-4 bg-gradient-to-br from-blue-50 to-cyan-50"
+      >
+        <div className="max-w-6xl mx-auto">
+          <div
+            className={`flex justify-between items-start mb-16 transition-all duration-1000 ${
+              visibleSections["gigs"]
+                ? "opacity-100 translate-y-0"
+                : "opacity-0 translate-y-10"
+            }`}
+          >
+            <div>
+              <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                Featured Gigs
+              </h2>
+              <p className="text-lg text-gray-600">
+                Top opportunities tailored for you
+              </p>
+            </div>
+            <button className="hidden md:flex items-center gap-2 px-6 py-3 bg-white border-2 border-blue-600 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition">
+              View All
+              <ArrowRight size={20} />
+            </button>
+          </div>
 
-                        <p className="text-xl text-gray-700 mb-8 italic leading-relaxed text-center">
-                          "{t.quote}"
+          <div className="grid md:grid-cols-2 gap-6">
+            {featuredGigs.map((gig, idx) => {
+              const Icon = gig.icon;
+              const isFavorited = favorites.has(gig.id);
+              return (
+                <div
+                  key={gig.id}
+                  data-animate
+                  className={`group p-8 bg-white border-2 border-gray-100 rounded-2xl hover:border-blue-400 hover:shadow-xl transition-all duration-300 transform hover:scale-105 ${
+                    visibleSections["gigs"]
+                      ? "opacity-100 translate-y-0"
+                      : "opacity-0 translate-y-10"
+                  }`}
+                  style={{ transitionDelay: `${idx * 100}ms` }}
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-14 h-14 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-full flex items-center justify-center">
+                        <Icon className="text-blue-600" size={28} />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900">
+                          {gig.title}
+                        </h3>
+                        <p className="text-sm text-gray-500">{gig.category}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => toggleFavorite(gig.id)}
+                      className="p-2 hover:bg-blue-50 rounded-lg transition"
+                    >
+                      <Heart
+                        size={24}
+                        className={`transition ${
+                          isFavorited
+                            ? "fill-red-500 text-red-500"
+                            : "text-gray-300"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <p className="text-3xl font-bold text-blue-600 mb-4">
+                    {gig.price}
+                  </p>
+
+                  <div className="flex items-center gap-4 mb-6 pb-6 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">{gig.avatar}</span>
+                      <div>
+                        <p className="font-semibold text-gray-900 text-sm">
+                          {gig.provider}
                         </p>
-
-                        <div className="text-center">
-                          <p className="text-cyan-600 font-bold text-lg mb-1">
-                            {t.author}
-                          </p>
-                          <p className="text-gray-600">{t.role}</p>
+                        <div className="flex items-center gap-1">
+                          <Star
+                            className="text-yellow-400 fill-yellow-400"
+                            size={14}
+                          />
+                          <span className="text-sm text-gray-600">
+                            {gig.rating} ({gig.reviews} reviews)
+                          </span>
                         </div>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
 
-            <button
-              onClick={goPrev}
-              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-12 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-cyan-500 hover:text-white transition-all"
-            >
-              <ChevronLeft size={24} />
-            </button>
-            <button
-              onClick={goNext}
-              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-12 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-cyan-500 hover:text-white transition-all"
-            >
-              <ChevronRight size={24} />
-            </button>
+                  <button className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold rounded-xl hover:from-blue-700 hover:to-cyan-600 transition-all transform hover:scale-105">
+                    View Details
+                  </button>
+                </div>
+              );
+            })}
+          </div>
 
-            <div className="flex justify-center mt-8 space-x-3">
-              {testimonials.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => goTo(i)}
-                  className={`h-2 rounded-full transition-all ${
-                    i === idx
-                      ? "w-8 bg-cyan-500"
-                      : "w-2 bg-gray-300 hover:bg-cyan-400"
+          <div className="text-center mt-12 md:hidden">
+            <button className="px-8 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition">
+              View All Gigs
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* STATS SECTION */}
+      <section id="stats" data-animate className="py-20 px-4 bg-white">
+        <div className="max-w-6xl mx-auto">
+          <div
+            className={`text-center mb-16 transition-all duration-1000 ${
+              visibleSections["stats"]
+                ? "opacity-100 translate-y-0"
+                : "opacity-0 translate-y-10"
+            }`}
+          >
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+              Platform Statistics
+            </h2>
+            <p className="text-lg text-gray-600">
+              Trusted by thousands of students and clients
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-4 gap-6">
+            {stats.map((stat, idx) => {
+              const Icon = stat.icon;
+              return (
+                <div
+                  key={idx}
+                  data-animate
+                  className={`p-8 bg-gradient-to-br from-blue-50 to-white border-2 border-blue-100 rounded-2xl hover:border-blue-400 hover:shadow-lg transition-all duration-500 text-center transform hover:scale-105 ${
+                    visibleSections["stats"]
+                      ? "opacity-100 translate-y-0"
+                      : "opacity-0 translate-y-10"
                   }`}
-                />
-              ))}
+                  style={{ transitionDelay: `${idx * 100}ms` }}
+                >
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-cyan-400 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <Icon className="text-white" size={32} />
+                  </div>
+                  <p className="text-4xl font-bold text-blue-600 mb-2">
+                    {stat.value}
+                  </p>
+                  <p className="text-lg text-gray-600">{stat.label}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA SECTION */}
+      <section className="py-20 px-4 bg-gradient-to-r from-blue-600 to-cyan-500">
+        <div className="max-w-4xl mx-auto text-center">
+          <div
+            data-animate
+            className={`transition-all duration-1000 ${
+              visibleSections["cta"]
+                ? "opacity-100 translate-y-0"
+                : "opacity-0 translate-y-10"
+            }`}
+            id="cta"
+          >
+            <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
+              Ready to Post Your First Gig?
+            </h2>
+            <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
+              Share your skills and start earning with GigConnect today. It
+              takes just 5 minutes to get started.
+            </p>
+            <button className="px-10 py-4 bg-white text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-all transform hover:scale-105 shadow-lg">
+              Post Your First Gig
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer className="bg-gray-900 text-white py-12 px-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-4 gap-8 mb-8">
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <Rocket className="text-blue-400" size={24} />
+                <span className="text-xl font-bold">GigConnect</span>
+              </div>
+              <p className="text-gray-400">
+                Connecting student talent with opportunities.
+              </p>
+            </div>
+            <div>
+              <h4 className="font-bold mb-4">For Sellers</h4>
+              <ul className="space-y-2 text-gray-400 text-sm">
+                <li className="hover:text-white cursor-pointer">Post a Gig</li>
+                <li className="hover:text-white cursor-pointer">My Gigs</li>
+                <li className="hover:text-white cursor-pointer">Earnings</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-bold mb-4">For Buyers</h4>
+              <ul className="space-y-2 text-gray-400 text-sm">
+                <li className="hover:text-white cursor-pointer">Browse Gigs</li>
+                <li className="hover:text-white cursor-pointer">My Orders</li>
+                <li className="hover:text-white cursor-pointer">Messages</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-bold mb-4">Company</h4>
+              <ul className="space-y-2 text-gray-400 text-sm">
+                <li className="hover:text-white cursor-pointer">About Us</li>
+                <li className="hover:text-white cursor-pointer">Contact</li>
+                <li className="hover:text-white cursor-pointer">Blog</li>
+              </ul>
             </div>
           </div>
-        </div>
-      </div>
-      <SectionDivider />
-    </>
-  );
-};
-
-/* ---------- CTA ---------- */
-const CTABanner = ({ userRole }) => {
-  const cta =
-    userRole === "Seller"
-      ? "Post your first gig and reach clients today!"
-      : userRole === "Buyer"
-      ? "Find the perfect student talent for your project!"
-      : "Join Gig Connect to find or post gigs in your campus!";
-
-  return (
-    <>
-      <div className="relative bg-gradient-to-r from-cyan-500 to-cyan-600 py-20 sm:py-28 overflow-hidden">
-        <BackgroundShapes />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
-            Ready to Start?
-          </h2>
-
-          <p className="text-xl text-white/90 max-w-3xl mx-auto mb-10">{cta}</p>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              to="/gigs"
-              className="group relative px-10 py-4 bg-white text-cyan-600 font-bold rounded-xl overflow-hidden hover:shadow-2xl transition-all duration-300"
-            >
-              <span className="relative z-10 flex items-center justify-center gap-2">
-                Find a Gig
-                <Search
-                  size={20}
-                  className="group-hover:translate-x-1 group-hover:rotate-12 transition-transform"
-                />
-              </span>
-              <div className="absolute inset-0 bg-cyan-100 translate-y-full group-hover:translate-y-0 transition-transform" />
-            </Link>
-
-            {userRole !== "Buyer" && (
-              <Link
-                to="/create-gig"
-                className="group relative px-10 py-4 bg-transparent text-white font-bold rounded-xl border-2 border-white overflow-hidden hover:shadow-2xl transition-all duration-300"
-              >
-                <span className="relative z-10 flex items-center justify-center gap-2">
-                  Post a Gig
-                  <ArrowRight
-                    size={20}
-                    className="group-hover:translate-x-1 transition-transform"
-                  />
-                </span>
-                <div className="absolute inset-0 bg-white translate-x-full group-hover:translate-x-0 transition-transform" />
-                <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-cyan-600 font-bold">
-                  Post a Gig
-                  <ArrowRight size={20} className="ml-2" />
-                </span>
-              </Link>
-            )}
+          <div className="border-t border-gray-700 pt-8 text-center text-gray-400">
+            <p>&copy; 2025 GigConnect. All rights reserved.</p>
           </div>
         </div>
-      </div>
-      <SectionDivider variant="wave" />
-    </>
-  );
-};
-
-/* ---------- HOME PAGE ---------- */
-const Home = () => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-      try {
-        const res = await axios.get(`${API_BASE}/users/profile`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setUser(res.data);
-        setLoading(false);
-      } catch (err) {
-        setError(err.response?.data?.error || "Failed to fetch user profile");
-        setLoading(false);
-      }
-    };
-    fetchUser();
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    setUser(null);
-    window.location.href = "/";
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center">
-          <Loader2
-            className="animate-spin mx-auto mb-4 text-cyan-500"
-            size={48}
-          />
-          <p className="text-cyan-600 font-medium">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center">
-          <AlertTriangle size={48} className="mx-auto mb-4 text-red-600" />
-          <p className="text-red-600 font-medium">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="font-sans antialiased bg-white">
-      <style>
-        {`
-          @keyframes blob { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(30px,-50px) scale(1.1)} 66%{transform:translate(-20px,20px) scale(.9)} }
-          @keyframes slideInLeft { from{opacity:0;transform:translateX(-30px)} to{opacity:1;transform:translateX(0)} }
-          .animate-blob { animation: blob 7s infinite; }
-          .animation-delay-2000 { animation-delay: 2s; }
-          .animation-delay-4000 { animation-delay: 4s; }
-          .animate-slideInLeft { animation: slideInLeft .6s ease-out; }
-        `}
-      </style>
-
-      <Navbar user={user} onLogout={handleLogout} />
-      <HeroSection userRole={user?.role} />
-      <FeaturedGigsSection userId={user?._id} />
-      <RecentGigsSection userId={user?._id} />
-      <CategoriesSection />
-      <HowItWorksSection />
-      <TestimonialsSection />
-      <CTABanner userRole={user?.role} />
-      <Footer />
+      </footer>
     </div>
   );
 };
