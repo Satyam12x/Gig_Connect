@@ -1,5 +1,3 @@
-// src/pages/Home.jsx
-"use client";
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -8,23 +6,15 @@ import {
   Code,
   PenTool,
   BookOpen,
-  Users,
-  CheckCircle,
-  Award,
-  Briefcase,
+  Laptop,
   Heart,
   Star,
-  ArrowRight,
+  Briefcase,
   TrendingUp,
-  Laptop,
-  Lightbulb,
-  Smile,
-  Rocket,
+  Award,
   Loader2,
   AlertTriangle,
-  Quote,
-  ChevronLeft,
-  ChevronRight,
+  ArrowRight,
 } from "lucide-react";
 
 import Navbar from "../components/Navbar";
@@ -33,23 +23,17 @@ import Footer from "../components/Footer";
 const API_BASE = "http://localhost:5000/api";
 
 const COLORS = {
-  blue: "#1E40AF",
-  blueLight: "#3B82F6",
   cyan: "#06B6D4",
-  cyanLight: "#67E8F9",
-  white: "#FFFFFF",
-  gray50: "#F9FAFB",
-  gray100: "#F3F4F6",
+  blue: "#1E40AF",
   gray200: "#E5E7EB",
-  gray300: "#D1D5DB",
-  gray700: "#374151",
-  gray900: "#111827",
+  gray600: "#4B5563",
   red500: "#EF4444",
 };
 
-/* ---------- UTILS ---------- */
+/* ---------- HELPERS ---------- */
 const formatINR = (amount) => {
   const n = typeof amount === "string" ? Number(amount) : amount;
+  if (isNaN(n)) return "₹0";
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
@@ -58,55 +42,21 @@ const formatINR = (amount) => {
   }).format(n);
 };
 
-/* ---------- SCROLL ANIMATION (FIXED) ---------- */
-const useScrollAnimation = () => {
-  const [visible, setVisible] = useState({});
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          const sectionId = entry.target.getAttribute("data-section");
-          if (entry.isIntersecting && sectionId) {
-            setVisible((prev) => ({ ...prev, [sectionId]: true }));
-          }
-        });
-      },
-      { threshold: 0.1, rootMargin: "0px 0px -50px 0px" }
-    );
-
-    document.querySelectorAll("[data-section]").forEach((el) => {
-      observer.observe(el);
-    });
-
-    return () => observer.disconnect();
-  }, []);
-  return visible;
-};
-
-/* ---------- SECTION DIVIDER ---------- */
-const SectionDivider = () => (
-  <div className="my-12 mx-auto max-w-6xl">
-    <div className="h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-40" />
-  </div>
-);
-
-/* ---------- MAIN HOME ---------- */
+/* ---------- MAIN COMPONENT ---------- */
 const Home = () => {
   const navigate = useNavigate();
-  const visible = useScrollAnimation();
 
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [favorites, setFavorites] = useState(new Set());
-
   const [gigs, setGigs] = useState([]);
   const [applications, setApplications] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [favorites, setFavorites] = useState(new Set());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   /* ---------- FETCH DATA ---------- */
   useEffect(() => {
-    const fetchAll = async () => {
+    const fetchData = async () => {
       const token = localStorage.getItem("token");
       const userId = localStorage.getItem("userId");
 
@@ -129,16 +79,18 @@ const Home = () => {
         setUser(userRes.data);
         setGigs(gigsRes.data.slice(0, 4));
         setApplications(appsRes.data);
-        setLoading(false);
       } catch (e) {
         console.error(e);
         setError(e.response?.data?.error || "Failed to load data");
+      } finally {
         setLoading(false);
       }
     };
-    fetchAll();
+
+    fetchData();
   }, []);
 
+  /* ---------- HANDLERS ---------- */
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("userId");
@@ -163,6 +115,7 @@ const Home = () => {
   const getApplicationStatus = (gigId) =>
     applications.find((a) => a.gigId._id === gigId)?.status || null;
 
+  /* ---------- RENDER ---------- */
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -183,15 +136,22 @@ const Home = () => {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center">
+        <div className="text-center max-w-md">
           <AlertTriangle
             size={48}
             className="mx-auto mb-4"
             style={{ color: COLORS.red500 }}
           />
-          <p className="font-medium" style={{ color: COLORS.red500 }}>
+          <p className="font-medium text-lg" style={{ color: COLORS.red500 }}>
             {error}
           </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-6 py-2 rounded-lg text-white"
+            style={{ backgroundColor: COLORS.cyan }}
+          >
+            Retry
+          </button>
         </div>
       </div>
     );
@@ -199,85 +159,60 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-white">
-      <style>
-        {`
-          @keyframes blob { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(30px,-50px/gpu) scale(1.1)} 66%{transform:translate(-20px,20px) scale(.9)} }
-          .animate-blob { animation: blob 7s infinite; }
-          .animation-delay-2000 { animation-delay: 2s; }
-        `}
-      </style>
-
       {/* NAVBAR */}
       <Navbar user={user} onLogout={handleLogout} />
 
-      {/* HERO SECTION */}
-      <section
-        data-section="hero"
-        className="pt-24 pb-16 px-4 bg-gradient-to-br from-blue-50 via-white to-cyan-50 relative overflow-hidden"
-      >
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-[-10%] right-[-10%] w-96 h-96 opacity-15">
-            <div className="w-full h-full bg-gradient-to-br from-cyan-300 via-cyan-200 to-cyan-400 blur-3xl animate-blob" />
-          </div>
-          <div className="absolute bottom-[-15%] left-[-8%] w-80 h-80 opacity-10">
-            <div className="w-full h-full bg-gradient-to-tr from-cyan-200 via-cyan-300 to-cyan-500 blur-3xl animate-blob animation-delay-2000" />
-          </div>
-        </div>
+      {/* HERO */}
+      <section className="pt-20 pb-12 px-4 bg-gradient-to-b from-gray-50 to-white">
+        <div className="max-w-6xl mx-auto text-center">
+          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-3">
+            Welcome back,{" "}
+            <span style={{ color: COLORS.cyan }}>
+              {user?.fullName?.split(" ")[0] || "Guest"}
+            </span>
+          </h1>
+          <p className="text-lg text-gray-600 mb-8">
+            {user?.role === "Seller"
+              ? "Showcase your skills and start earning!"
+              : user?.role === "Buyer"
+              ? "Hire talented students for your projects!"
+              : "Explore campus services"}
+          </p>
 
-        <div className="relative max-w-6xl mx-auto">
-          <div
-            className={`text-center mb-12 transition-all duration-1000 ${
-              visible["hero"]
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 translate-y-10"
-            }`}
-          >
-            <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-4">
-              Welcome Back,{" "}
-              <span style={{ color: COLORS.cyan }}>
-                {user?.name?.split(" ")[0] || "Guest"}
-              </span>
-            </h1>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
-              {user?.role === "Seller"
-                ? "Showcase your skills and start earning!"
-                : user?.role === "Buyer"
-                ? "Hire talented students for your projects!"
-                : "Discover or offer services in your campus community!"}
-            </p>
-
-            <form
-              onSubmit={handleSearch}
-              className="max-w-2xl mx-auto flex gap-3"
+          {/* SEARCH */}
+          <form onSubmit={handleSearch} className="max-w-xl mx-auto flex gap-2">
+            <div className="flex-1 relative">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                size={20}
+              />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search gigs, skills, services..."
+                className="w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:border-cyan"
+                style={{ borderColor: COLORS.gray200 }}
+              />
+            </div>
+            <button
+              type="submit"
+              className="px-6 py-3 rounded-lg text-white font-medium"
+              style={{ backgroundColor: COLORS.cyan }}
             >
-              <div className="flex-1 relative">
-                <Search
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                  size={20}
-                />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search gigs, skills, services..."
-                  className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-cyan transition"
-                  style={{ borderColor: COLORS.gray200 }}
-                />
-              </div>
-              <button
-                type="submit"
-                className="px-8 py-4 bg-cyan text-white font-bold rounded-xl hover:bg-cyan-600 transition"
-                style={{ backgroundColor: COLORS.cyan }}
-              >
-                Search
-              </button>
-            </form>
-          </div>
+              Search
+            </button>
+          </form>
 
+          {/* USER STATS */}
           {user && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { icon: Star, label: "Rating", value: user.rating || "N/A" },
+                {
+                  icon: Star,
+                  label: "Rating",
+                  value: user.rating ? user.rating.toFixed(1) : "N/A",
+                },
                 {
                   icon: Briefcase,
                   label: "Completed",
@@ -286,7 +221,7 @@ const Home = () => {
                 {
                   icon: TrendingUp,
                   label: "Earnings",
-                  value: user.earnings ? formatINR(user.earnings) : "₹0",
+                  value: formatINR(user.earnings || 0),
                 },
                 { icon: Award, label: "Badge", value: user.badge || "New" },
               ].map((stat, i) => {
@@ -294,27 +229,17 @@ const Home = () => {
                 return (
                   <div
                     key={i}
-                    className={`p-4 bg-white border-2 border-gray-100 rounded-xl transition-all duration-1000 ${
-                      visible["hero"]
-                        ? "opacity-100 translate-y-0"
-                        : "opacity-0 translate-y-10"
-                    }`}
-                    style={{ transitionDelay: `${i * 100}ms` }}
+                    className="p-4 bg-white border rounded-lg flex items-center gap-3"
+                    style={{ borderColor: COLORS.gray200 }}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-cyan-100 rounded-lg flex items-center justify-center">
-                        <Icon
-                          className="text-cyan"
-                          size={24}
-                          style={{ color: COLORS.cyan }}
-                        />
-                      </div>
-                      <div className="text-left">
-                        <p className="text-xs text-gray-500">{stat.label}</p>
-                        <p className="text-xl font-bold text-gray-900">
-                          {stat.value}
-                        </p>
-                      </div>
+                    <div className="w-10 h-10 bg-cyan-50 rounded flex items-center justify-center">
+                      <Icon size={20} style={{ color: COLORS.cyan }} />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-xs text-gray-500">{stat.label}</p>
+                      <p className="font-semibold text-gray-900">
+                        {stat.value}
+                      </p>
                     </div>
                   </div>
                 );
@@ -324,31 +249,29 @@ const Home = () => {
         </div>
       </section>
 
-      <SectionDivider />
+      <hr className="my-8 border-gray-200" />
 
-      {/* FEATURED GIGS SECTION */}
-      <section data-section="gigs" className="py-20 px-4 bg-white">
+      {/* FEATURED GIGS */}
+      <section className="py-12 px-4">
         <div className="max-w-6xl mx-auto">
-          <div
-            className={`text-center mb-12 transition-all duration-1000 ${
-              visible["gigs"]
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 translate-y-10"
-            }`}
-          >
-            <h2 className="text-4xl font-bold text-gray-900 relative inline-block">
-              Featured Gigs
-              <span className="absolute -bottom-2 left-0 right-0 h-1 bg-cyan-500 rounded-full"></span>
-            </h2>
-          </div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">
+            Featured Gigs
+          </h2>
 
-          <div className="grid md:grid-cols-2 gap-6">
-            {gigs.length === 0 ? (
-              <p className="text-center text-gray-600 col-span-2">
-                No gigs available.
-              </p>
-            ) : (
-              gigs.map((gig, i) => {
+          {gigs.length === 0 ? (
+            <p className="text-center text-gray-600">
+              No gigs available.{" "}
+              <Link
+                to="/gigs"
+                className="underline"
+                style={{ color: COLORS.cyan }}
+              >
+                View all
+              </Link>
+            </p>
+          ) : (
+            <div className="grid md:grid-cols-2 gap-6">
+              {gigs.map((gig) => {
                 const Icon =
                   {
                     "Web Development": Code,
@@ -363,27 +286,16 @@ const Home = () => {
                 return (
                   <div
                     key={gig._id}
-                    className={`group p-8 bg-white border-2 border-gray-100 rounded-2xl hover:border-cyan hover:shadow-xl transition-all duration-300 transform hover:scale-105 ${
-                      visible["gigs"]
-                        ? "opacity-100 translate-y-0"
-                        : "opacity-0 translate-y-10"
-                    }`}
-                    style={{
-                      borderColor: COLORS.gray200,
-                      transitionDelay: `${i * 100}ms`,
-                    }}
+                    className="p-6 bg-white border rounded-xl hover:border-cyan transition"
+                    style={{ borderColor: COLORS.gray200 }}
                   >
-                    <div className="flex justify-between items-start mb-4">
+                    <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-14 h-14 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-full flex items-center justify-center">
-                          <Icon
-                            className="text-cyan"
-                            size={28}
-                            style={{ color: COLORS.cyan }}
-                          />
+                        <div className="w-12 h-12 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-full flex items-center justify-center">
+                          <Icon size={24} style={{ color: COLORS.cyan }} />
                         </div>
                         <div>
-                          <h3 className="text-lg font-bold text-gray-900">
+                          <h3 className="font-semibold text-gray-900">
                             {gig.title}
                           </h3>
                           <p className="text-sm text-gray-500">
@@ -393,53 +305,49 @@ const Home = () => {
                       </div>
                       <button
                         onClick={() => toggleFavorite(gig._id)}
-                        className="p-2 hover:bg-gray-50 rounded-lg transition"
+                        className="p-1 rounded hover:bg-gray-100 transition"
                       >
                         <Heart
-                          size={24}
-                          className={`transition ${
+                          size={22}
+                          className={
                             isFavorited
                               ? "fill-red-500 text-red-500"
-                              : "text-gray-300"
-                          }`}
+                              : "text-gray-400"
+                          }
                         />
                       </button>
                     </div>
 
                     <p
-                      className="text-3xl font-bold mb-4"
+                      className="text-2xl font-bold mb-3"
                       style={{ color: COLORS.cyan }}
                     >
                       {formatINR(gig.price)}
                     </p>
 
-                    <div className="flex items-center gap-4 mb-6 pb-6 border-b border-gray-100">
-                      <div className="flex items-center gap-2">
-                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-sm font-bold">
-                          {gig.sellerName?.[0] || "?"}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-900 text-sm">
-                            {gig.sellerName}
-                          </p>
-                          {gig.rating && (
-                            <div className="flex items-center gap-1">
-                              <Star
-                                className="text-yellow-400 fill-yellow-400"
-                                size={14}
-                              />
-                              <span className="text-sm text-gray-600">
-                                {gig.rating} ({gig.reviews || 0} reviews)
-                              </span>
-                            </div>
-                          )}
-                        </div>
+                    <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-200">
+                      <div className="w-9 h-9 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold">
+                        {gig.sellerName?.[0] || "?"}
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900 text-sm">
+                          {gig.sellerName}
+                        </p>
+                        {gig.rating > 0 && (
+                          <div className="flex items-center gap-1 text-sm text-gray-600">
+                            <Star
+                              className="fill-yellow-400 text-yellow-400"
+                              size={14}
+                            />
+                            {gig.rating} ({gig.reviews || 0} reviews)
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {status && (
                       <p
-                        className={`text-sm font-semibold mb-3 ${
+                        className={`text-sm font-medium mb-3 ${
                           status === "accepted"
                             ? "text-green-600"
                             : status === "rejected"
@@ -453,140 +361,41 @@ const Home = () => {
                     )}
 
                     {closed ? (
-                      <span className="block w-full px-6 py-3 bg-gray-200 text-gray-600 rounded-xl text-center font-medium">
+                      <span className="block w-full text-center py-2 bg-gray-200 text-gray-600 rounded-lg">
                         Applications Closed
                       </span>
                     ) : status ? (
-                      <span className="block w-full px-6 py-3 bg-gray-200 text-gray-600 rounded-xl text-center font-medium">
+                      <span className="block w-full text-center py-2 bg-gray-200 text-gray-600 rounded-lg">
                         Application Submitted
                       </span>
                     ) : (
                       <Link
                         to={`/gigs/${gig._id}`}
-                        className="block w-full px-6 py-3 bg-gradient-to-r from-cyan to-blue-600 text-white font-bold rounded-xl hover:from-cyan-600 hover:to-blue-700 transition-all transform hover:scale-105"
-                        style={{
-                          background: `linear-gradient(to right, ${COLORS.cyan}, ${COLORS.blue})`,
-                        }}
+                        className="block w-full text-center py-2 rounded-lg text-white font-medium"
+                        style={{ backgroundColor: COLORS.cyan }}
                       >
                         View Details
                       </Link>
                     )}
                   </div>
                 );
-              })
-            )}
-          </div>
+              })}
+            </div>
+          )}
 
-          <div className="text-center mt-12">
+          <div className="text-center mt-10">
             <Link
               to="/gigs"
-              className="px-8 py-3 bg-cyan text-white font-bold rounded-xl hover:bg-cyan-600 transition"
+              className="inline-flex items-center gap-2 px-6 py-2 rounded-lg text-white font-medium"
               style={{ backgroundColor: COLORS.cyan }}
             >
-              View All Gigs
+              View All Gigs <ArrowRight size={18} />
             </Link>
           </div>
         </div>
       </section>
 
-      <SectionDivider />
-
-      {/* TESTIMONIALS SECTION */}
-      <section
-        data-section="testimonials"
-        className="py-20 px-4 bg-gradient-to-br from-blue-50 to-cyan-50"
-      >
-        <div className="max-w-6xl mx-auto">
-          <div
-            className={`text-center mb-12 transition-all duration-1000 ${
-              visible["testimonials"]
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 translate-y-10"
-            }`}
-          >
-            <h2 className="text-4xl font-bold text-gray-900 relative inline-block">
-              What Our Users Say
-              <span className="absolute -bottom-2 left-0 right-0 h-1 bg-cyan-500 rounded-full"></span>
-            </h2>
-          </div>
-
-          <div className="relative max-w-4xl mx-auto">
-            <div className="overflow-hidden rounded-3xl">
-              <div
-                className="flex transition-transform duration-500"
-                style={{ transform: `translateX(0%)` }}
-              >
-                {[
-                  {
-                    quote:
-                      "Gig Connect connected me with a talented student developer who built my website in record time!",
-                    author: "Satyam Pandey",
-                    role: "Small Business Owner",
-                  },
-                  {
-                    quote:
-                      "As a student, I showcased my graphic design portfolio and landed my first freelance gig within a week.",
-                    author: "Apoorva Sharma",
-                    role: "Computer Science Student",
-                  },
-                  {
-                    quote:
-                      "The platform's focus on local campus talent made collaboration seamless and trustworthy.",
-                    author: "Priya Gupta",
-                    role: "Marketing Coordinator",
-                  },
-                ].map((t, i) => (
-                  <div key={i} className="w-full flex-shrink-0 px-4">
-                    <div className="group relative bg-white p-10 rounded-3xl shadow-xl border border-gray-200 hover:border-cyan transition-all duration-300">
-                      <div className="absolute inset-0 bg-cyan-50 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity" />
-                      <div className="relative">
-                        <div className="w-16 h-16 rounded-full bg-cyan flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
-                          <Quote className="text-white" size={32} />
-                        </div>
-                        <p className="text-xl text-gray-700 mb-8 italic leading-relaxed text-center">
-                          "{t.quote}"
-                        </p>
-                        <div className="text-center">
-                          <p
-                            className="text-cyan font-bold text-lg mb-1"
-                            style={{ color: COLORS.cyan }}
-                          >
-                            {t.author}
-                          </p>
-                          <p className="text-gray-600">{t.role}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <button className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-12 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-cyan hover:text-white transition-all">
-              <ChevronLeft size={24} />
-            </button>
-            <button className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-12 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-cyan hover:text-white transition-all">
-              <ChevronRight size={24} />
-            </button>
-
-            <div className="flex justify-center mt-8 space-x-3">
-              {[0, 1, 2].map((i) => (
-                <button
-                  key={i}
-                  className={`h-2 rounded-full transition-all ${
-                    i === 0
-                      ? "w-8 bg-cyan"
-                      : "w-2 bg-gray-300 hover:bg-cyan-400"
-                  }`}
-                  style={{ backgroundColor: i === 0 ? COLORS.cyan : undefined }}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <SectionDivider />
+      <hr className="my-8 border-gray-200" />
 
       {/* FOOTER */}
       <Footer />
