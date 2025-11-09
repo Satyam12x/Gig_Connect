@@ -12,10 +12,6 @@ import {
   CheckCircle,
   Award,
   Briefcase,
-  Menu,
-  X,
-  LogOut,
-  Plus,
   Heart,
   Star,
   ArrowRight,
@@ -26,14 +22,21 @@ import {
   Rocket,
   Loader2,
   AlertTriangle,
+  Quote,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
+
+import Navbar from "../components/Navbar";
+import Footer from "../components/Footer";
 
 const API_BASE = "http://localhost:5000/api";
 
 const COLORS = {
-  navy: "#1A2A4F",
-  navyLight: "#3A4A7F",
-  navyMedium: "#2A3A6F",
+  blue: "#1E40AF",
+  blueLight: "#3B82F6",
+  cyan: "#06B6D4",
+  cyanLight: "#67E8F9",
   white: "#FFFFFF",
   gray50: "#F9FAFB",
   gray100: "#F3F4F6",
@@ -80,18 +83,9 @@ const useScrollAnimation = () => {
 /* ---------- SECTION DIVIDER ---------- */
 const SectionDivider = () => (
   <div className="my-12 mx-auto max-w-6xl">
-    <div className="h-px bg-gray-300" />
+    <div className="h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-40" />
   </div>
 );
-
-/* ---------- SMOOTH SCROLL HANDLER ---------- */
-const handleScrollClick = (e, targetId) => {
-  e.preventDefault();
-  const el = document.getElementById(targetId);
-  if (el) {
-    el.scrollIntoView({ behavior: "smooth" });
-  }
-};
 
 /* ---------- MAIN HOME ---------- */
 const Home = () => {
@@ -101,28 +95,25 @@ const Home = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [favorites, setFavorites] = useState(new Set());
 
   const [gigs, setGigs] = useState([]);
   const [applications, setApplications] = useState([]);
-  const [categories, setCategories] = useState([]);
 
-  /* ---------- FETCH USER & DATA ---------- */
+  /* ---------- FETCH DATA ---------- */
   useEffect(() => {
     const fetchAll = async () => {
       const token = localStorage.getItem("token");
       const userId = localStorage.getItem("userId");
 
-      // If no token or no userId → skip loading
       if (!token || !userId) {
         setLoading(false);
         return;
       }
 
       try {
-        const [userRes, gigsRes, appsRes, catsRes] = await Promise.all([
+        const [userRes, gigsRes, appsRes] = await Promise.all([
           axios.get(`${API_BASE}/users/profile`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
@@ -130,16 +121,14 @@ const Home = () => {
           axios.get(`${API_BASE}/users/${userId}/applications`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          axios.get(`${API_BASE}/categories`),
         ]);
 
         setUser(userRes.data);
         setGigs(gigsRes.data.slice(0, 4));
         setApplications(appsRes.data);
-        setCategories(catsRes.data.categories || []);
         setLoading(false);
       } catch (e) {
-        console.error("Fetch error:", e);
+        console.error(e);
         setError(e.response?.data?.error || "Failed to load data");
         setLoading(false);
       }
@@ -164,14 +153,12 @@ const Home = () => {
 
   const toggleFavorite = (gigId) => {
     const newFavs = new Set(favorites);
-    if (newFavs.has(gigId)) newFavs.delete(gigId);
-    else newFavs.add(gigId);
+    newFavs.has(gigId) ? newFavs.delete(gigId) : newFavs.add(gigId);
     setFavorites(newFavs);
   };
 
-  const getApplicationStatus = (gigId) => {
-    return applications.find((a) => a.gigId._id === gigId)?.status || null;
-  };
+  const getApplicationStatus = (gigId) =>
+    applications.find((a) => a.gigId._id === gigId)?.status || null;
 
   if (loading) {
     return (
@@ -180,9 +167,9 @@ const Home = () => {
           <Loader2
             className="animate-spin mx-auto mb-4"
             size={48}
-            style={{ color: COLORS.navyLight }}
+            style={{ color: COLORS.cyan }}
           />
-          <p className="font-medium" style={{ color: COLORS.navy }}>
+          <p className="font-medium" style={{ color: COLORS.blue }}>
             Loading…
           </p>
         </div>
@@ -208,180 +195,30 @@ const Home = () => {
   }
 
   return (
-    <div className="w-full bg-white">
+    <div className="min-h-screen bg-white">
+      <style>
+        {`
+          @keyframes blob { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(30px,-50px) scale(1.1)} 66%{transform:translate(-20px,20px) scale(.9)} }
+          .animate-blob { animation: blob 7s infinite; }
+          .animation-delay-2000 { animation-delay: 2s; }
+        `}
+      </style>
+
       {/* NAVBAR */}
-      <nav className="fixed top-0 w-full bg-white shadow-md z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-2">
-              <Rocket
-                className="text-navyLight"
-                size={28}
-                style={{ color: COLORS.navyLight }}
-              />
-              <span
-                className="text-2xl font-bold"
-                style={{ color: COLORS.navyLight }}
-              >
-                GigConnect
-              </span>
-            </div>
-
-            {/* Desktop Menu */}
-            <div className="hidden md:flex items-center gap-8">
-              <Link
-                to="/"
-                onClick={(e) => handleScrollClick(e, "categories")}
-                className="text-gray-700 hover:text-navyLight transition"
-                style={{ color: COLORS.navyMedium }}
-              >
-                Categories
-              </Link>
-              <Link
-                to="/"
-                onClick={(e) => handleScrollClick(e, "gigs")}
-                className="text-gray-700 hover:text-navyLight transition"
-                style={{ color: COLORS.navyMedium }}
-              >
-                Browse Gigs
-              </Link>
-              <Link
-                to="/"
-                onClick={(e) => handleScrollClick(e, "stats")}
-                className="text-gray-700 hover:text-navyLight transition"
-                style={{ color: COLORS.navyMedium }}
-              >
-                Stats
-              </Link>
-            </div>
-
-            <div className="hidden md:flex items-center gap-4">
-              {user ? (
-                <>
-                  <Link
-                    to="/create-gig"
-                    className="px-6 py-2 bg-navyLight text-white font-semibold rounded-lg hover:bg-navy transition flex items-center gap-2"
-                    style={{ backgroundColor: COLORS.navyLight }}
-                  >
-                    <Plus size={18} />
-                    Post a Gig
-                  </Link>
-                  <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
-                    <span className="text-2xl">{user.avatar || "U"}</span>
-                    <button
-                      onClick={handleLogout}
-                      className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-600"
-                    >
-                      <LogOut size={20} />
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={() => navigate("/login")}
-                    className="px-6 py-2 text-navyLight font-semibold hover:bg-gray-50 rounded-lg transition"
-                    style={{ color: COLORS.navyLight }}
-                  >
-                    Log In
-                  </button>
-                  <button
-                    onClick={() => navigate("/signup")}
-                    className="px-6 py-2 bg-navyLight text-white font-semibold rounded-lg hover:bg-navy transition"
-                    style={{ backgroundColor: COLORS.navyLight }}
-                  >
-                    Sign Up
-                  </button>
-                </>
-              )}
-            </div>
-
-            {/* Mobile Menu Button */}
-            <button
-              className="md:hidden"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            >
-              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-          </div>
-
-          {/* Mobile Menu */}
-          {mobileMenuOpen && (
-            <div className="md:hidden pb-4 space-y-2">
-              <Link
-                to="/"
-                onClick={(e) => {
-                  handleScrollClick(e, "categories");
-                  setMobileMenuOpen(false);
-                }}
-                className="block px-4 py-2 text-gray-700 hover:bg-gray-50"
-              >
-                Categories
-              </Link>
-              <Link
-                to="/"
-                onClick={(e) => {
-                  handleScrollClick(e, "gigs");
-                  setMobileMenuOpen(false);
-                }}
-                className="block px-4 py-2 text-gray-700 hover:bg-gray-50"
-              >
-                Browse Gigs
-              </Link>
-              {user ? (
-                <>
-                  <Link
-                    to="/create-gig"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="block w-full text-left px-4 py-2 bg-navyLight text-white font-semibold rounded-lg flex items-center gap-2"
-                    style={{ backgroundColor: COLORS.navyLight }}
-                  >
-                    <Plus size={18} />
-                    Post a Gig
-                  </Link>
-                  <button
-                    onClick={() => {
-                      handleLogout();
-                      setMobileMenuOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-red-600 font-semibold flex items-center gap-2"
-                  >
-                    <LogOut size={18} />
-                    Logout
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={() => {
-                      navigate("/login");
-                      setMobileMenuOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-navyLight font-semibold"
-                    style={{ color: COLORS.navyLight }}
-                  >
-                    Log In
-                  </button>
-                  <button
-                    onClick={() => {
-                      navigate("/signup");
-                      setMobileMenuOpen(false);
-                    }}
-                    className="w-full bg-navyLight text-white font-semibold rounded-lg px-4 py-2"
-                    style={{ backgroundColor: COLORS.navyLight }}
-                  >
-                    Sign Up
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      </nav>
+      <Navbar user={user} onLogout={handleLogout} />
 
       {/* HERO SECTION */}
-      <section className="pt-24 pb-16 px-4 bg-gradient-to-br from-gray-50 via-white to-gray-100">
-        <div className="max-w-6xl mx-auto">
+      <section className="pt-24 pb-16 px-4 bg-gradient-to-br from-blue-50 via-white to-cyan-50 relative overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-[-10%] right-[-10%] w-96 h-96 opacity-15">
+            <div className="w-full h-full bg-gradient-to-br from-cyan-300 via-cyan-200 to-cyan-400 blur-3xl animate-blob" />
+          </div>
+          <div className="absolute bottom-[-15%] left-[-8%] w-80 h-80 opacity-10">
+            <div className="w-full h-full bg-gradient-to-tr from-cyan-200 via-cyan-300 to-cyan-500 blur-3xl animate-blob animation-delay-2000" />
+          </div>
+        </div>
+
+        <div className="relative max-w-6xl mx-auto">
           <div
             data-animate
             id="hero"
@@ -393,19 +230,18 @@ const Home = () => {
           >
             <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-4">
               Welcome Back,{" "}
-              <span style={{ color: COLORS.navyLight }}>
+              <span style={{ color: COLORS.cyan }}>
                 {user?.name?.split(" ")[0] || "Guest"}
               </span>
             </h1>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
               {user?.role === "Seller"
-                ? "Showcase your skills and start earning with gigs!"
+                ? "Showcase your skills and start earning!"
                 : user?.role === "Buyer"
                 ? "Hire talented students for your projects!"
                 : "Discover or offer services in your campus community!"}
             </p>
 
-            {/* Search Bar */}
             <form
               onSubmit={handleSearch}
               className="max-w-2xl mx-auto flex gap-3"
@@ -418,23 +254,22 @@ const Home = () => {
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search for gigs, skills, or services..."
-                  className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-navyLight transition"
+                  onChange={(e) => setSearchQuery(e.value)}
+                  placeholder="Search gigs, skills, services..."
+                  className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-cyan transition"
                   style={{ borderColor: COLORS.gray200 }}
                 />
               </div>
               <button
                 type="submit"
-                className="px-8 py-4 bg-navyLight text-white font-bold rounded-xl hover:bg-navy transition"
-                style={{ backgroundColor: COLORS.navyLight }}
+                className="px-8 py-4 bg-cyan text-white font-bold rounded-xl hover:bg-cyan-600 transition"
+                style={{ backgroundColor: COLORS.cyan }}
               >
                 Search
               </button>
             </form>
           </div>
 
-          {/* User Stats */}
           {user && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
@@ -450,25 +285,25 @@ const Home = () => {
                   value: user.earnings ? formatINR(user.earnings) : "₹0",
                 },
                 { icon: Award, label: "Badge", value: user.badge || "New" },
-              ].map((stat, idx) => {
+              ].map((stat, i) => {
                 const Icon = stat.icon;
                 return (
                   <div
-                    key={idx}
+                    key={i}
                     data-animate
                     className={`p-4 bg-white border-2 border-gray-100 rounded-xl transition-all duration-1000 ${
                       visible["hero"]
                         ? "opacity-100 translate-y-0"
                         : "opacity-0 translate-y-10"
                     }`}
-                    style={{ transitionDelay: `${idx * 100}ms` }}
+                    style={{ transitionDelay: `${i * 100}ms` }}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+                      <div className="w-12 h-12 bg-cyan-100 rounded-lg flex items-center justify-center">
                         <Icon
-                          className="text-navyLight"
+                          className="text-cyan"
                           size={24}
-                          style={{ color: COLORS.navyLight }}
+                          style={{ color: COLORS.cyan }}
                         />
                       </div>
                       <div className="text-left">
@@ -485,116 +320,27 @@ const Home = () => {
           )}
         </div>
       </section>
-      <SectionDivider />
 
-      {/* CATEGORIES SECTION */}
-      <section id="categories" data-animate className="py-20 px-4 bg-white">
-        <div className="max-w-6xl mx-auto">
-          <div
-            className={`mb-16 transition-all duration-1000 ${
-              visible["categories"]
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 translate-y-10"
-            }`}
-          >
-            <h2
-              className="text-4xl font-bold text-gray-900 mb-4"
-              style={{ color: COLORS.navy }}
-            >
-              Explore Categories
-            </h2>
-            <p className="text-lg text-gray-600">
-              Browse thousands of gigs across different categories
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {categories.map((cat, idx) => {
-              const Icon =
-                {
-                  "Web Development": Code,
-                  "Graphic Design": PenTool,
-                  Tutoring: BookOpen,
-                  "Content Writing": Lightbulb,
-                  "Digital Marketing": TrendingUp,
-                  "Video Editing": Smile,
-                }[cat] || Users;
-
-              return (
-                <Link
-                  key={cat}
-                  to={`/gigs?category=${encodeURIComponent(cat)}`}
-                  data-animate
-                  className={`group p-6 bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl hover:border-navyLight hover:shadow-lg transition-all duration-500 cursor-pointer transform hover:scale-105 ${
-                    visible["categories"]
-                      ? "opacity-100 translate-y-0"
-                      : "opacity-0 translate-y-10"
-                  }`}
-                  style={{
-                    borderColor: COLORS.gray200,
-                    transitionDelay: `${idx * 80}ms`,
-                  }}
-                >
-                  <div
-                    className="w-16 h-16 bg-gradient-to-br from-navyLight to-navy rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"
-                    style={{
-                      background: `linear-gradient(to bottom right, ${COLORS.navyLight}, ${COLORS.navy})`,
-                    }}
-                  >
-                    <Icon className="text-white" size={32} />
-                  </div>
-                  <h3
-                    className="font-bold text-gray-900 text-center mb-1 group-hover:text-navyLight"
-                    style={{ color: COLORS.navy }}
-                  >
-                    {cat}
-                  </h3>
-                  <p className="text-sm text-gray-500 text-center">gigs</p>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      </section>
       <SectionDivider />
 
       {/* FEATURED GIGS SECTION */}
-      <section
-        id="gigs"
-        data-animate
-        className="py-20 px-4 bg-gradient-to-br from-gray-50 to-gray-100"
-      >
+      <section id="gigs" data-animate className="py-20 px-4 bg-white">
         <div className="max-w-6xl mx-auto">
           <div
-            className={`flex justify-between items-start mb-16 transition-all duration-1000 ${
+            className={`text-center mb-12 transition-all duration-1000 ${
               visible["gigs"]
                 ? "opacity-100 translate-y-0"
                 : "opacity-0 translate-y-10"
             }`}
           >
-            <div>
-              <h2
-                className="text-4xl font-bold text-gray-900 mb-4"
-                style={{ color: COLORS.navy }}
-              >
-                Featured Gigs
-              </h2>
-              <p className="text-lg text-gray-600">
-                Top opportunities tailored for you
-              </p>
-            </div>
-            <Link
-              to="/gigs"
-              className="hidden md:flex items-center gap-2 px-6 py-3 bg-white border-2 border-navyLight text-navyLight font-bold rounded-xl hover:bg-gray-50 transition"
-              style={{ borderColor: COLORS.navyLight, color: COLORS.navyLight }}
-            >
-              View All
-              <ArrowRight size={20} />
-            </Link>
+            <h2 className="text-4xl font-bold text-gray-900 relative inline-block">
+              Featured Gigs
+              <span className="absolute -bottom-2 left-0 right-0 h-1 bg-cyan-500 rounded-full"></span>
+            </h2>
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
-            {gigs.map((gig, idx) => {
+            {gigs.map((gig, i) => {
               const Icon =
                 {
                   "Web Development": Code,
@@ -610,35 +356,27 @@ const Home = () => {
                 <div
                   key={gig._id}
                   data-animate
-                  className={`group p-8 bg-white border-2 border-gray-100 rounded-2xl hover:border-navyLight hover:shadow-xl transition-all duration-300 transform hover:scale-105 ${
+                  className={`group p-8 bg-white border-2 border-gray-100 rounded-2xl hover:border-cyan hover:shadow-xl transition-all duration-300 transform hover:scale-105 ${
                     visible["gigs"]
                       ? "opacity-100 translate-y-0"
                       : "opacity-0 translate-y-10"
                   }`}
                   style={{
                     borderColor: COLORS.gray200,
-                    transitionDelay: `${idx * 100}ms`,
+                    transitionDelay: `${i * 100}ms`,
                   }}
                 >
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center gap-3">
-                      <div
-                        className="w-14 h-14 bg-gradient-to-br from-indigo-100 to-gray-100 rounded-full flex items-center justify-center"
-                        style={{
-                          background: `linear-gradient(to bottom right, #E0E7FF, ${COLORS.gray100})`,
-                        }}
-                      >
+                      <div className="w-14 h-14 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-full flex items-center justify-center">
                         <Icon
-                          className="text-navyLight"
+                          className="text-cyan"
                           size={28}
-                          style={{ color: COLORS.navyLight }}
+                          style={{ color: COLORS.cyan }}
                         />
                       </div>
                       <div>
-                        <h3
-                          className="text-lg font-bold text-gray-900"
-                          style={{ color: COLORS.navy }}
-                        >
+                        <h3 className="text-lg font-bold text-gray-900">
                           {gig.title}
                         </h3>
                         <p className="text-sm text-gray-500">{gig.category}</p>
@@ -661,7 +399,7 @@ const Home = () => {
 
                   <p
                     className="text-3xl font-bold mb-4"
-                    style={{ color: COLORS.navyLight }}
+                    style={{ color: COLORS.cyan }}
                   >
                     {formatINR(gig.price)}
                   </p>
@@ -716,8 +454,10 @@ const Home = () => {
                   ) : (
                     <Link
                       to={`/gigs/${gig._id}`}
-                      className="block w-full px-6 py-3 bg-navyLight text-white font-bold rounded-xl hover:bg-navy transition-all transform hover:scale-105"
-                      style={{ backgroundColor: COLORS.navyLight }}
+                      className="block w-full px-6 py-3 bg-gradient-to-r from-cyan to-blue-600 text-white font-bold rounded-xl hover:from-cyan-600 hover:to-blue-700 transition-all transform hover:scale-105"
+                      style={{
+                        background: `linear-gradient(to right, ${COLORS.cyan}, ${COLORS.blue})`,
+                      }}
                     >
                       View Details
                     </Link>
@@ -727,122 +467,117 @@ const Home = () => {
             })}
           </div>
 
-          <div className="text-center mt-12 md:hidden">
+          <div className="text-center mt-12">
             <Link
               to="/gigs"
-              className="px-8 py-3 bg-navyLight text-white font-bold rounded-xl hover:bg-navy transition"
-              style={{ backgroundColor: COLORS.navyLight }}
+              className="px-8 py-3 bg-cyan text-white font-bold rounded-xl hover:bg-cyan-600 transition"
+              style={{ backgroundColor: COLORS.cyan }}
             >
               View All Gigs
             </Link>
           </div>
         </div>
       </section>
+
       <SectionDivider />
 
-      {/* STATS SECTION */}
-      <section id="stats" data-animate className="py-20 px-4 bg-white">
+      {/* TESTIMONIALS SECTION */}
+      <section
+        data-animate
+        className="py-20 px-4 bg-gradient-to-br from-blue-50 to-cyan-50"
+      >
         <div className="max-w-6xl mx-auto">
           <div
-            className={`text-center mb-16 transition-all duration-1000 ${
-              visible["stats"]
+            className={`text-center mb-12 transition-all duration-1000 ${
+              visible["testimonials"]
                 ? "opacity-100 translate-y-0"
                 : "opacity-0 translate-y-10"
             }`}
+            id="testimonials"
           >
-            <h2
-              className="text-4xl font-bold text-gray-900 mb-4"
-              style={{ color: COLORS.navy }}
-            >
-              Platform Statistics
+            <h2 className="text-4xl font-bold text-gray-900 relative inline-block">
+              What Our Users Say
+              <span className="absolute -bottom-2 left-0 right-0 h-1 bg-cyan-500 rounded-full"></span>
             </h2>
-            <p className="text-lg text-gray-600">
-              Trusted by thousands of students and clients
-            </p>
           </div>
 
-          <div className="grid md:grid-cols-4 gap-6">
-            {[
-              { icon: TrendingUp, label: "Active Gigs", value: "2,450+" },
-              { icon: Users, label: "Talented Students", value: "5,000+" },
-              { icon: CheckCircle, label: "Projects Done", value: "10,000+" },
-              { icon: Star, label: "Avg Rating", value: "4.9/5" },
-            ].map((stat, idx) => {
-              const Icon = stat.icon;
-              return (
-                <div
-                  key={idx}
-                  data-animate
-                  className={`p-8 bg-gradient-to-br from-gray-50 to-white border-2 border-gray-100 rounded-2xl hover:border-navyLight hover:shadow-lg transition-all duration-500 text-center transform hover:scale-105 ${
-                    visible["stats"]
-                      ? "opacity-100 translate-y-0"
-                      : "opacity-0 translate-y-10"
-                  }`}
-                  style={{
-                    borderColor: COLORS.gray200,
-                    transitionDelay: `${idx * 100}ms`,
-                  }}
-                >
-                  <div
-                    className="w-16 h-16 bg-gradient-to-br from-navyLight to-navy rounded-2xl flex items-center justify-center mx-auto mb-4"
-                    style={{
-                      background: `linear-gradient(to bottom right, ${COLORS.navyLight}, ${COLORS.navy})`,
-                    }}
-                  >
-                    <Icon className="text-white" size={32} />
+          <div className="relative max-w-4xl mx-auto">
+            <div className="overflow-hidden rounded-3xl">
+              <div
+                className="flex transition-transform duration-500"
+                style={{ transform: `translateX(-${0 * 100}%)` }}
+              >
+                {[
+                  {
+                    quote:
+                      "Gig Connect connected me with a talented student developer who built my website in record time!",
+                    author: "Satyam Pandey",
+                    role: "Small Business Owner",
+                  },
+                  {
+                    quote:
+                      "As a student, I showcased my graphic design portfolio and landed my first freelance gig within a week.",
+                    author: "Apoorva Sharma",
+                    role: "Computer Science Student",
+                  },
+                  {
+                    quote:
+                      "The platform's focus on local campus talent made collaboration seamless and trustworthy.",
+                    author: "Priya Gupta",
+                    role: "Marketing Coordinator",
+                  },
+                ].map((t, i) => (
+                  <div key={i} className="w-full flex-shrink-0 px-4">
+                    <div className="group relative bg-white p-10 rounded-3xl shadow-xl border border-gray-200 hover:border-cyan transition-all duration-300">
+                      <div className="absolute inset-0 bg-cyan-50 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="relative">
+                        <div className="w-16 h-16 rounded-full bg-cyan flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
+                          <Quote className="text-white" size={32} />
+                        </div>
+                        <p className="text-xl text-gray-700 mb-8 italic leading-relaxed text-center">
+                          "{t.quote}"
+                        </p>
+                        <div className="text-center">
+                          <p className="text-cyan font-bold text-lg mb-1">
+                            {t.author}
+                          </p>
+                          <p className="text-gray-600">{t.role}</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <p
-                    className="text-4xl font-bold mb-2"
-                    style={{ color: COLORS.navyLight }}
-                  >
-                    {stat.value}
-                  </p>
-                  <p className="text-lg text-gray-600">{stat.label}</p>
-                </div>
-              );
-            })}
+                ))}
+              </div>
+            </div>
+
+            <button className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-12 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-cyan hover:text-white transition-all">
+              <ChevronLeft size={24} />
+            </button>
+            <button className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-12 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-cyan hover:text-white transition-all">
+              <ChevronRight size={24} />
+            </button>
+
+            <div className="flex justify-center mt-8 space-x-3">
+              {[0, 1, 2].map((i) => (
+                <button
+                  key={i}
+                  className={`h-2 rounded-full transition-all ${
+                    i === 0
+                      ? "w-8 bg-cyan"
+                      : "w-2 bg-gray-300 hover:bg-cyan-400"
+                  }`}
+                  style={{ backgroundColor: i === 0 ? COLORS.cyan : undefined }}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </section>
+
       <SectionDivider />
 
-      {/* CTA SECTION */}
-      <section
-        className="py-20 px-4"
-        style={{
-          background: `linear-gradient(to right, ${COLORS.navyLight}, ${COLORS.navy})`,
-        }}
-      >
-        <div className="max-w-4xl mx-auto text-center">
-          <div
-            data-animate
-            id="cta"
-            className={`transition-all duration-1000 ${
-              visible["cta"]
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 translate-y-10"
-            }`}
-          >
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-              Ready to Post Your First Gig?
-            </h2>
-            <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
-              Share your skills and start earning with GigConnect today. It
-              takes just 5 minutes.
-            </p>
-            <Link
-              to="/create-gig"
-              className="px-10 py-4 bg-white text-navyLight font-bold rounded-xl hover:bg-gray-50 transition-all transform hover:scale-105 shadow-lg"
-              style={{ color: COLORS.navyLight }}
-            >
-              Post Your First Gig
-            </Link>
-          </div>
-        </div>
-      </section>
-
       {/* FOOTER */}
-      <Footer></Footer>
+      <Footer />
     </div>
   );
 };
