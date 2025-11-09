@@ -1212,17 +1212,34 @@ app.get("/api/debug/gigs", async (req, res) => {
 });
 
 // Get Recent Gigs
+// Get Recent Gigs with review count
 app.get("/api/gigs/recent", async (req, res) => {
   try {
     const gigs = await Gig.find({ status: "open" })
       .select(
         "title sellerName sellerId thumbnail description category price rating status createdAt"
       )
+      .populate({
+        path: "sellerId",
+        select: "ratings",
+      })
       .sort({ createdAt: -1 })
       .limit(10)
       .lean();
-    console.log("Fetched recent gigs:", { count: gigs.length });
-    res.json(gigs);
+
+    const gigsWithReviews = gigs.map((gig) => {
+      const ratings = gig.sellerId?.ratings || [];
+      return {
+        ...gig,
+        reviews: ratings.length,
+        sellerId: gig.sellerId?._id || gig.sellerId,
+      };
+    });
+
+    console.log("Fetched recent gigs with reviews:", {
+      count: gigsWithReviews.length,
+    });
+    res.json(gigsWithReviews);
   } catch (err) {
     console.error("Recent gigs fetch error:", err);
     res.status(500).json({ error: "Server error", details: err.message });
