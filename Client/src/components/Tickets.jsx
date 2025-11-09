@@ -4,13 +4,22 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { jwtDecode } from "jwt-decode";
 import {
-  Ticket as TicketIcon,
+  Ticket,
   Search,
   Filter,
   ArrowUpDown,
   User,
   Star,
   ArrowLeft,
+  Clock,
+  DollarSign,
+  ChevronRight,
+  MessageSquare,
+  TrendingUp,
+  Package,
+  CheckCircle,
+  Shield,
+  AlertCircle,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -138,47 +147,59 @@ const Tickets = () => {
     setSortOrder(sortOrder === "desc" ? "asc" : "desc");
   };
 
+  const getStatusColor = (status) => {
+    const colors = {
+      open: "bg-blue-100 text-blue-800 border-blue-200",
+      negotiating: "bg-purple-100 text-purple-800 border-purple-200",
+      accepted: "bg-green-100 text-green-800 border-green-200",
+      paid: "bg-cyan-100 text-cyan-800 border-cyan-200",
+      pending_completion: "bg-amber-100 text-amber-800 border-amber-200",
+      completed: "bg-emerald-100 text-emerald-800 border-emerald-200",
+      closed: "bg-gray-100 text-gray-800 border-gray-200",
+    };
+    return colors[status] || "bg-gray-100 text-gray-800 border-gray-200";
+  };
+
+  const getStatusIcon = (status) => {
+    const icons = {
+      open: MessageSquare,
+      negotiating: TrendingUp,
+      accepted: CheckCircle,
+      paid: DollarSign,
+      pending_completion: Clock,
+      completed: Package,
+      closed: Shield,
+    };
+    const Icon = icons[status] || AlertCircle;
+    return <Icon className="h-4 w-4" />;
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col relative overflow-hidden">
-        <div className="absolute inset-0 z-0">
-          <div
-            className="absolute top-0 left-0 w-1/2 h-1/2 opacity-20"
-            style={{
-              background: "linear-gradient(135deg, #1E3A8A, #4B5EAA)",
-              clipPath:
-                "path('M0,200 C100,300 300,100 400,200 S600,300 800,200')",
-            }}
-          ></div>
-          <div
-            className="absolute bottom-0 right-0 w-1/3 h-1/3 opacity-20"
-            style={{
-              background: "linear-gradient(45deg, #2563EB, #4B5EAA)",
-              clipPath:
-                "path('M0,100 C50,150 150,50 200,100 S250,150 300,100')",
-            }}
-          ></div>
-        </div>
+      <div className="min-h-screen bg-white flex flex-col">
         <Navbar />
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 flex-1 relative z-10">
-          <div className="animate-pulse space-y-6 max-w-4xl mx-auto">
-            <div className="h-10 bg-gray-200 rounded w-1/4"></div>
-            <div className="flex flex-col sm:flex-row gap-4 mb-6">
-              <div className="h-10 bg-gray-200 rounded w-full sm:w-48"></div>
-              <div className="h-10 bg-gray-200 rounded w-full sm:w-32"></div>
-              <div className="h-10 bg-gray-200 rounded w-full sm:w-32"></div>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-[#1A2A4F] opacity-5 rounded-full blur-3xl -z-10"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#1A2A4F] opacity-5 rounded-full blur-3xl -z-10"></div>
+
+        <div className="max-w-7xl mx-auto px-6 py-12 flex-1">
+          <div className="space-y-8">
+            <div className="h-12 bg-gray-200 rounded-2xl w-1/4 animate-pulse"></div>
+            <div className="flex gap-4 mb-8">
+              <div className="h-12 bg-gray-200 rounded-xl w-full animate-pulse"></div>
+              <div className="h-12 bg-gray-200 rounded-xl w-48 animate-pulse"></div>
+              <div className="h-12 bg-gray-200 rounded-xl w-32 animate-pulse"></div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[...Array(6)].map((_, index) => (
                 <div
                   key={index}
-                  className="bg-white rounded-xl shadow-lg p-6 space-y-4"
+                  className="bg-white border-2 border-gray-200 rounded-2xl p-6 space-y-4"
                 >
-                  <div className="h-6 bg-gray-200 rounded w-3/4"></div>
-                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-                  <div className="h-4 bg-gray-200 rounded w-1/3"></div>
-                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-                  <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+                  <div className="h-6 bg-gray-200 rounded animate-pulse w-3/4"></div>
+                  <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2"></div>
+                  <div className="h-4 bg-gray-200 rounded animate-pulse w-1/3"></div>
+                  <div className="h-4 bg-gray-200 rounded animate-pulse w-2/3"></div>
+                  <div className="h-12 bg-gray-200 rounded-xl animate-pulse"></div>
                 </div>
               ))}
             </div>
@@ -191,34 +212,23 @@ const Tickets = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col relative overflow-hidden">
-        <div className="absolute inset-0 z-0">
-          <div
-            className="absolute top-0 left-0 w-1/2 h-1/2 opacity-20"
-            style={{
-              background: "linear-gradient(135deg, #1E3A8A, #4B5EAA)",
-              clipPath:
-                "path('M0,200 C100,300 300,100 400,200 S600,300 800,200')",
-            }}
-          ></div>
-          <div
-            className="absolute bottom-0 right-0 w-1/3 h-1/3 opacity-20"
-            style={{
-              background: "linear-gradient(45deg, #2563EB, #4B5EAA)",
-              clipPath:
-                "path('M0,100 C50,150 150,50 200,100 S250,150 300,100')",
-            }}
-          ></div>
-        </div>
+      <div className="min-h-screen bg-white flex flex-col">
         <Navbar />
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 flex-1 flex items-center justify-center relative z-10">
-          <div className="flex flex-col items-center gap-4 text-red-600">
-            <TicketIcon className="h-6 w-6" />
-            <span>{error}</span>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-[#1A2A4F] opacity-5 rounded-full blur-3xl -z-10"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#1A2A4F] opacity-5 rounded-full blur-3xl -z-10"></div>
+
+        <div className="max-w-7xl mx-auto px-6 py-12 flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="h-20 w-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="h-10 w-10 text-red-600" />
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">
+              Error Loading Tickets
+            </h3>
+            <p className="text-gray-600 mb-6">{error}</p>
             <button
               onClick={() => window.location.reload()}
-              className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors duration-200"
-              style={{ backgroundColor: "#1E3A8A" }}
+              className="px-6 py-3 bg-[#1A2A4F] text-white rounded-xl hover:opacity-90 font-semibold transition-all"
             >
               Retry
             </button>
@@ -230,442 +240,269 @@ const Tickets = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col relative overflow-hidden">
-      <style>
-        {`
-          @keyframes fadeInUp {
-            0% { opacity: 0; transform: translateY(20px); }
-            100% { opacity: 1; transform: translateY(0); }
-          }
-          .animate-fade-in-up {
-            animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-          }
-          @keyframes glow {
-            0% { box-shadow: 0 0 5px rgba(30, 58, 138, 0.3); }
-            50% { box-shadow: 0 0 15px rgba(30, 58, 138, 0.6), 0 0 25px rgba(30, 58, 138, 0.4); }
-            100% { box-shadow: 0 0 5px rgba(30, 58, 138, 0.3); }
-          }
-          .card {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.85));
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-          }
-          .card:hover {
-            transform: translateY(-6px) scale(1.02);
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
-            animation: glow 2s infinite;
-          }
-          .card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transition: left 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-          }
-          .card:hover::before {
-            left: 100%;
-          }
-          .avatar-badge {
-            position: absolute;
-            bottom: 0;
-            right: 0;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            border: 2px solid #fff;
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          }
-          .avatar-container:hover .avatar-badge {
-            transform: scale(1.2);
-          }
-          .ripple {
-            position: relative;
-            overflow: hidden;
-          }
-          .ripple::after {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 0;
-            height: 0;
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1), height 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.6s;
-            opacity: 0;
-          }
-          .ripple:active::after {
-            width: 200px;
-            height: 200px;
-            opacity: 1;
-            transition: 0s;
-          }
-          .hover-card {
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          }
-          .hover-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
-          }
-        `}
-      </style>
-      <div className="absolute inset-0 z-0">
-        <div
-          className="absolute top-0 left-0 w-1/2 h-1/2 opacity-20"
-          style={{
-            background: "linear-gradient(135deg, #1E3A8A, #4B5EAA)",
-            clipPath:
-              "path('M0,200 C100,300 300,100 400,200 S600,300 800,200')",
-          }}
-        ></div>
-        <div
-          className="absolute bottom-0 right-0 w-1/3 h-1/3 opacity-20"
-          style={{
-            background: "linear-gradient(45deg, #2563EB, #4B5EAA)",
-            clipPath: "path('M0,100 C50,150 150,50 200,100 S250,150 300,100')",
-          }}
-        ></div>
-        <div
-          className="absolute top-1/3 right-1/4 w-1/4 h-1/4 opacity-15"
-          style={{
-            background: "linear-gradient(180deg, #4B5EAA, #1E3A8A)",
-            clipPath: "path('M0,100 C50,200 150,50 200,100 S250,150 300,100')",
-          }}
-        ></div>
-      </div>
+    <div className="min-h-screen bg-white flex flex-col relative overflow-hidden">
       <Navbar />
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 flex-1 relative z-10">
-        <div className="max-w-4xl mx-auto">
-          {/* Header with Subtitle */}
-          <div className="mb-8">
-            <h1
-              className="text-3xl sm:text-4xl font-bold text-indigo-800 animate-fade-in-up"
-              style={{ color: "#1E3A8A" }}
-            >
-              My Tickets
-            </h1>
-            <p
-              className="mt-2 text-base sm:text-lg text-gray-600 animate-fade-in-up"
-              style={{ color: "#4B5EAA", animationDelay: "100ms" }}
-            >
-              Manage your active and past gig engagements
-            </p>
-          </div>
 
-          {/* Filters and Search with Back to Gigs Button */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6 items-start sm:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+      {/* Decorative Background */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-[#1A2A4F] opacity-5 rounded-full blur-3xl -z-10"></div>
+      <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#1A2A4F] opacity-5 rounded-full blur-3xl -z-10"></div>
+
+      {/* Hero Section */}
+      <div className="relative bg-[#1A2A4F] pt-32 pb-20 px-6 overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-10 right-10 w-72 h-72 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute bottom-10 left-10 w-96 h-96 bg-white rounded-full blur-3xl"></div>
+        </div>
+        <div className="max-w-7xl mx-auto text-center relative z-10">
+          <h1 className="text-5xl md:text-6xl font-black text-white mb-6 leading-tight">
+            My Tickets
+          </h1>
+          <p className="text-xl text-white/90 max-w-2xl mx-auto leading-relaxed">
+            Manage your active and past gig engagements
+          </p>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 py-12 flex-1">
+        {/* Search & Filters */}
+        <div className="mb-8 space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="flex-1 relative">
+              <Search
+                className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                size={20}
+              />
               <input
                 type="text"
+                placeholder="Search by gig title or user name..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by gig title or user name..."
-                className="w-full pl-10 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 transition-colors duration-200"
-                aria-label="Search tickets"
+                className="w-full pl-14 pr-6 py-4 text-base border-2 border-gray-300 rounded-2xl bg-white focus:outline-none focus:border-[#1A2A4F] focus:ring-4 focus:ring-[#1A2A4F]/10 transition-all"
               />
             </div>
-            <div className="flex gap-4 items-center">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 transition-colors duration-200"
-                aria-label="Filter by status"
-              >
-                <option value="">All Statuses</option>
-                <option value="open">Open</option>
-                <option value="negotiating">Negotiating</option>
-                <option value="accepted">Accepted</option>
-                <option value="paid">Paid</option>
-                <option value="completed">Completed</option>
-                <option value="closed">Closed</option>
-              </select>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 transition-colors duration-200"
-                aria-label="Sort by"
-              >
-                <option value="createdAt">Date Created</option>
-                <option value="agreedPrice">Price</option>
-              </select>
-              <button
-                onClick={handleSortToggle}
-                className="p-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors duration-200 ripple"
-                style={{ backgroundColor: "#1E3A8A" }}
-                aria-label={`Sort ${
-                  sortOrder === "desc" ? "ascending" : "descending"
-                }`}
-              >
-                <ArrowUpDown className="h-5 w-5" />
-              </button>
-              <button
-                onClick={() => navigate("/gigs")}
-                className="flex items-center gap-2 p-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors duration-200 ripple"
-                style={{ backgroundColor: "#1E3A8A" }}
-                aria-label="Back to gigs"
-              >
-                <ArrowLeft className="h-5 w-5" />
-                Back to Gigs
-              </button>
-            </div>
+            <button
+              onClick={() => navigate("/gigs")}
+              className="hidden md:flex items-center gap-2 px-5 py-4 bg-gray-100 text-gray-700 rounded-2xl font-semibold hover:bg-gray-200 transition-all"
+            >
+              <ArrowLeft className="h-5 w-5" />
+              Back to Gigs
+            </button>
           </div>
 
-          {/* Tickets Grid */}
-          {tickets.length === 0 ? (
-            <div className="text-center py-12 animate-fade-in-up">
-              <TicketIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 mb-4" style={{ color: "#4B5EAA" }}>
-                No tickets found. Start by browsing gigs!
-              </p>
-              <button
-                onClick={() => navigate("/gigs")}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors duration-200 ripple"
-                style={{ backgroundColor: "#1E3A8A" }}
-                aria-label="Browse gigs"
+          {/* Filter Controls */}
+          <div className="flex flex-wrap gap-3 items-center">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-5 py-3 border-2 border-gray-300 rounded-xl bg-white font-semibold text-sm cursor-pointer hover:border-[#1A2A4F] focus:outline-none focus:border-[#1A2A4F] focus:ring-4 focus:ring-[#1A2A4F]/10 transition-all"
+            >
+              <option value="">All Statuses</option>
+              <option value="open">Open</option>
+              <option value="negotiating">Negotiating</option>
+              <option value="accepted">Accepted</option>
+              <option value="paid">Paid</option>
+              <option value="completed">Completed</option>
+              <option value="closed">Closed</option>
+            </select>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="px-5 py-3 border-2 border-gray-300 rounded-xl bg-white font-semibold text-sm cursor-pointer hover:border-[#1A2A4F] focus:outline-none focus:border-[#1A2A4F] focus:ring-4 focus:ring-[#1A2A4F]/10 transition-all"
+            >
+              <option value="createdAt">Date Created</option>
+              <option value="agreedPrice">Price</option>
+            </select>
+            <button
+              onClick={handleSortToggle}
+              className="flex items-center gap-2 px-5 py-3 bg-[#1A2A4F] text-white rounded-xl font-semibold hover:opacity-90 transition-all"
+              title={`Sort ${
+                sortOrder === "desc" ? "Ascending" : "Descending"
+              }`}
+            >
+              <ArrowUpDown size={18} />
+              <span className="hidden sm:inline">
+                {sortOrder === "desc" ? "Newest" : "Oldest"}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Tickets Grid */}
+        {tickets.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 bg-white border-2 border-dashed border-gray-300 rounded-2xl text-center">
+            <Ticket className="w-20 h-20 text-gray-300 mb-6" />
+            <h3 className="text-2xl font-bold text-gray-700 mb-3">
+              No tickets found
+            </h3>
+            <p className="text-gray-500 mb-6 max-w-md">
+              Start by browsing gigs and applying to opportunities that match
+              your skills!
+            </p>
+            <button
+              onClick={() => navigate("/gigs")}
+              className="flex items-center gap-2 px-8 py-3 bg-[#1A2A4F] text-white rounded-xl font-semibold hover:opacity-90 transition-all"
+            >
+              Browse Gigs
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {tickets.map((ticket) => (
+              <div
+                key={ticket._id}
+                className="bg-white border-2 border-gray-200 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-[#1A2A4F] flex flex-col"
               >
-                Browse Gigs
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {tickets.map((ticket, index) => {
-                const statusColor = {
-                  open: "#F59E0B",
-                  negotiating: "#F97316",
-                  accepted: "#2563EB",
-                  paid: "#6D28D9",
-                  completed: "#16A34A",
-                  closed: "#DC2626",
-                }[ticket.status];
-                return (
-                  <div
-                    key={ticket._id}
-                    className="card rounded-xl p-6 relative animate-fade-in-up"
-                    style={{ animationDelay: `${index * 100}ms` }}
-                  >
-                    <div
-                      className="absolute inset-0"
-                      style={{
-                        border: `2px solid ${statusColor}`,
-                        borderRadius: "12px",
-                        animation: `pulse 2s infinite`,
-                      }}
-                    ></div>
-                    <h2
-                      className="text-xl font-semibold text-indigo-800 flex items-center mb-4"
-                      style={{ color: "#1E3A8A" }}
-                    >
-                      <TicketIcon className="h-5 w-5 mr-2" />
+                <div className="p-6 flex flex-col gap-4 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-xl font-bold text-[#1A2A4F] line-clamp-2 leading-tight flex-1">
                       {ticket.gigId.title}
-                    </h2>
-                    <p
-                      className="text-gray-600 mb-2 flex items-center"
-                      style={{ color: "#4B5EAA" }}
+                    </h3>
+                    <Ticket className="h-6 w-6 text-[#1A2A4F] flex-shrink-0" />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${getStatusColor(
+                        ticket.status
+                      )}`}
                     >
-                      <span className="font-semibold">Status:</span>
-                      <span
-                        className="ml-2 capitalize"
-                        style={{ color: statusColor }}
-                      >
-                        {ticket.status}
-                      </span>
-                    </p>
-                    <div className="flex items-center mb-2">
-                      <div className="relative avatar-container">
+                      {getStatusIcon(ticket.status)}{" "}
+                      {ticket.status.replace("_", " ").toUpperCase()}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 flex-1">
+                    {/* Seller */}
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-[#1A2A4F] flex items-center justify-center text-white font-bold flex-shrink-0">
                         {sellerProfiles[ticket.sellerId._id]?.profilePicture ? (
                           <img
                             src={
                               sellerProfiles[ticket.sellerId._id].profilePicture
                             }
                             alt={ticket.sellerId.fullName}
-                            className="h-8 w-8 rounded-full object-cover"
+                            className="h-10 w-10 rounded-full object-cover"
                           />
                         ) : (
-                          <User className="h-8 w-8 text-gray-400" />
+                          ticket.sellerId.fullName.charAt(0)
                         )}
-                        <div
-                          className="avatar-badge"
-                          style={{ backgroundColor: statusColor }}
-                        ></div>
                       </div>
-                      <p
-                        className="text-gray-600 ml-2"
-                        style={{ color: "#4B5EAA" }}
-                      >
-                        <span className="font-semibold">Seller:</span>{" "}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-500 font-semibold uppercase">
+                          Seller
+                        </p>
                         <button
                           onClick={() =>
                             navigate(`/users/${ticket.sellerId._id}`)
                           }
-                          className="text-indigo-600 hover:underline relative group"
-                          style={{ color: "#2563EB" }}
-                          aria-label={`View ${ticket.sellerId.fullName}'s profile`}
+                          className="text-sm font-bold text-gray-900 hover:text-[#1A2A4F] transition-colors truncate block w-full text-left"
                         >
                           {ticket.sellerId.fullName}
-                          {sellerProfiles[ticket.sellerId._id] && (
-                            <div className="absolute hidden group-hover:block bg-white shadow-lg rounded-lg p-4 w-64 z-10 hover-card">
-                              <div className="flex items-center gap-2 mb-2">
-                                {sellerProfiles[ticket.sellerId._id]
-                                  .profilePicture && (
-                                  <img
-                                    src={
-                                      sellerProfiles[ticket.sellerId._id]
-                                        .profilePicture
-                                    }
-                                    alt={ticket.sellerId.fullName}
-                                    className="h-10 w-10 rounded-full object-cover"
-                                  />
-                                )}
-                                <div>
-                                  <p className="font-semibold text-indigo-800">
-                                    {
-                                      sellerProfiles[ticket.sellerId._id]
-                                        .fullName
-                                    }
-                                  </p>
-                                  <p className="text-sm text-gray-600">
-                                    {sellerProfiles[ticket.sellerId._id]
-                                      .college || "No college provided"}
-                                  </p>
-                                </div>
-                              </div>
-                              <p className="text-sm text-gray-600 line-clamp-2">
-                                {sellerProfiles[ticket.sellerId._id].bio ||
-                                  "No bio provided"}
-                              </p>
-                              <div className="flex items-center gap-1 mt-2">
-                                <Star
-                                  className="h-4 w-4 text-yellow-400"
-                                  fill="currentColor"
-                                />
-                                <span className="text-sm text-gray-600">
-                                  {sellerProfiles[ticket.sellerId._id]
-                                    .averageRating || 0}{" "}
-                                  (
-                                  {sellerProfiles[ticket.sellerId._id]
-                                    .ratingsCount || 0}{" "}
-                                  reviews)
-                                </span>
-                              </div>
-                            </div>
-                          )}
                         </button>
-                      </p>
+                      </div>
                     </div>
-                    <div className="flex items-center mb-2">
-                      <div className="relative avatar-container">
+
+                    {/* Buyer */}
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-purple-600 flex items-center justify-center text-white font-bold flex-shrink-0">
                         {buyerProfiles[ticket.buyerId._id]?.profilePicture ? (
                           <img
                             src={
                               buyerProfiles[ticket.buyerId._id].profilePicture
                             }
                             alt={ticket.buyerId.fullName}
-                            className="h-8 w-8 rounded-full object-cover"
+                            className="h-10 w-10 rounded-full object-cover"
                           />
                         ) : (
-                          <User className="h-8 w-8 text-gray-400" />
+                          ticket.buyerId.fullName.charAt(0)
                         )}
-                        <div
-                          className="avatar-badge"
-                          style={{ backgroundColor: statusColor }}
-                        ></div>
                       </div>
-                      <p
-                        className="text-gray-600 ml-2"
-                        style={{ color: "#4B5EAA" }}
-                      >
-                        <span className="font-semibold">Buyer:</span>{" "}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-500 font-semibold uppercase">
+                          Buyer
+                        </p>
                         <button
                           onClick={() =>
                             navigate(`/users/${ticket.buyerId._id}`)
                           }
-                          className="text-indigo-600 hover:underline relative group"
-                          style={{ color: "#2563EB" }}
-                          aria-label={`View ${ticket.buyerId.fullName}'s profile`}
+                          className="text-sm font-bold text-gray-900 hover:text-[#1A2A4F] transition-colors truncate block w-full text-left"
                         >
                           {ticket.buyerId.fullName}
-                          {buyerProfiles[ticket.buyerId._id] && (
-                            <div className="absolute hidden group-hover:block bg-white shadow-lg rounded-lg p-4 w-64 z-10 hover-card">
-                              <div className="flex items-center gap-2 mb-2">
-                                {buyerProfiles[ticket.buyerId._id]
-                                  .profilePicture && (
-                                  <img
-                                    src={
-                                      buyerProfiles[ticket.buyerId._id]
-                                        .profilePicture
-                                    }
-                                    alt={ticket.buyerId.fullName}
-                                    className="h-10 w-10 rounded-full object-cover"
-                                  />
-                                )}
-                                <div>
-                                  <p className="font-semibold text-indigo-800">
-                                    {buyerProfiles[ticket.buyerId._id].fullName}
-                                  </p>
-                                  <p className="text-sm text-gray-600">
-                                    {buyerProfiles[ticket.buyerId._id]
-                                      .college || "No college provided"}
-                                  </p>
-                                </div>
-                              </div>
-                              <p className="text-sm text-gray-600 line-clamp-2">
-                                {buyerProfiles[ticket.buyerId._id].bio ||
-                                  "No bio provided"}
-                              </p>
-                              <div className="flex items-center gap-1 mt-2">
-                                <Star
-                                  className="h-4 w-4 text-yellow-400"
-                                  fill="currentColor"
-                                />
-                                <span className="text-sm text-gray-600">
-                                  {buyerProfiles[ticket.buyerId._id]
-                                    .averageRating || 0}{" "}
-                                  (
-                                  {buyerProfiles[ticket.buyerId._id]
-                                    .ratingsCount || 0}{" "}
-                                  reviews)
-                                </span>
-                              </div>
-                            </div>
-                          )}
                         </button>
-                      </p>
+                      </div>
                     </div>
-                    {ticket.agreedPrice && (
-                      <p
-                        className="text-gray-600 mb-4"
-                        style={{ color: "#4B5EAA" }}
-                      >
-                        <span className="font-semibold">Agreed Price:</span>{" "}
-                        {ticket.agreedPrice.toLocaleString("en-IN", {
-                          style: "currency",
-                          currency: "INR",
-                        })}
-                      </p>
-                    )}
-                    <button
-                      onClick={() => navigate(`/tickets/${ticket._id}`)}
-                      className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors duration-200 ripple"
-                      style={{ backgroundColor: "#1E3A8A" }}
-                      aria-label={`View ticket for ${ticket.gigId.title}`}
-                    >
-                      View Ticket
-                    </button>
                   </div>
-                );
-              })}
+
+                  {ticket.agreedPrice && (
+                    <div className="pt-3 border-t-2 border-gray-100">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500 font-semibold uppercase">
+                          Agreed Price
+                        </span>
+                        <span className="text-2xl font-bold text-[#1A2A4F]">
+                          ₹{ticket.agreedPrice.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => navigate(`/tickets/${ticket._id}`)}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#1A2A4F] text-white rounded-xl font-semibold hover:opacity-90 transition-all mt-2"
+                  >
+                    View Ticket
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Stats Bar */}
+        {tickets.length > 0 && (
+          <div className="mt-12 bg-[#1A2A4F] rounded-2xl p-8 relative overflow-hidden">
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full blur-3xl"></div>
+              <div className="absolute bottom-0 left-0 w-64 h-64 bg-white rounded-full blur-3xl"></div>
             </div>
-          )}
-        </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-center relative z-10">
+              <div>
+                <div className="text-4xl font-black text-white mb-2">
+                  {tickets.length}
+                </div>
+                <div className="text-white/80 font-semibold">Total Tickets</div>
+              </div>
+              <div>
+                <div className="text-4xl font-black text-white mb-2">
+                  {
+                    tickets.filter((t) =>
+                      ["open", "negotiating", "accepted", "paid"].includes(
+                        t.status
+                      )
+                    ).length
+                  }
+                </div>
+                <div className="text-white/80 font-semibold">Active</div>
+              </div>
+              <div>
+                <div className="text-4xl font-black text-white mb-2">
+                  {tickets.filter((t) => t.status === "completed").length}
+                </div>
+                <div className="text-white/80 font-semibold">Completed</div>
+              </div>
+              <div>
+                <div className="text-4xl font-black text-white mb-2">
+                  {tickets.filter((t) => t.status === "closed").length}
+                </div>
+                <div className="text-white/80 font-semibold">Closed</div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
       <Footer />
     </div>
   );
