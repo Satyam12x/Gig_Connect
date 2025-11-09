@@ -58,23 +58,26 @@ const formatINR = (amount) => {
   }).format(n);
 };
 
-/* ---------- SCROLL ANIMATION ---------- */
+/* ---------- SCROLL ANIMATION (FIXED) ---------- */
 const useScrollAnimation = () => {
   const [visible, setVisible] = useState({});
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        entries.forEach((e) => {
-          if (e.isIntersecting) {
-            setVisible((p) => ({ ...p, [e.target.id]: true }));
+        entries.forEach((entry) => {
+          const sectionId = entry.target.getAttribute("data-section");
+          if (entry.isIntersecting && sectionId) {
+            setVisible((prev) => ({ ...prev, [sectionId]: true }));
           }
         });
       },
-      { threshold: 0.1 }
+      { threshold: 0.1, rootMargin: "0px 0px -50px 0px" }
     );
-    document
-      .querySelectorAll("[data-animate]")
-      .forEach((el) => observer.observe(el));
+
+    document.querySelectorAll("[data-section]").forEach((el) => {
+      observer.observe(el);
+    });
+
     return () => observer.disconnect();
   }, []);
   return visible;
@@ -198,7 +201,7 @@ const Home = () => {
     <div className="min-h-screen bg-white">
       <style>
         {`
-          @keyframes blob { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(30px,-50px) scale(1.1)} 66%{transform:translate(-20px,20px) scale(.9)} }
+          @keyframes blob { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(30px,-50px/gpu) scale(1.1)} 66%{transform:translate(-20px,20px) scale(.9)} }
           .animate-blob { animation: blob 7s infinite; }
           .animation-delay-2000 { animation-delay: 2s; }
         `}
@@ -208,7 +211,10 @@ const Home = () => {
       <Navbar user={user} onLogout={handleLogout} />
 
       {/* HERO SECTION */}
-      <section className="pt-24 pb-16 px-4 bg-gradient-to-br from-blue-50 via-white to-cyan-50 relative overflow-hidden">
+      <section
+        data-section="hero"
+        className="pt-24 pb-16 px-4 bg-gradient-to-br from-blue-50 via-white to-cyan-50 relative overflow-hidden"
+      >
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-[-10%] right-[-10%] w-96 h-96 opacity-15">
             <div className="w-full h-full bg-gradient-to-br from-cyan-300 via-cyan-200 to-cyan-400 blur-3xl animate-blob" />
@@ -220,8 +226,6 @@ const Home = () => {
 
         <div className="relative max-w-6xl mx-auto">
           <div
-            data-animate
-            id="hero"
             className={`text-center mb-12 transition-all duration-1000 ${
               visible["hero"]
                 ? "opacity-100 translate-y-0"
@@ -254,7 +258,7 @@ const Home = () => {
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.value)}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search gigs, skills, services..."
                   className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-cyan transition"
                   style={{ borderColor: COLORS.gray200 }}
@@ -290,7 +294,6 @@ const Home = () => {
                 return (
                   <div
                     key={i}
-                    data-animate
                     className={`p-4 bg-white border-2 border-gray-100 rounded-xl transition-all duration-1000 ${
                       visible["hero"]
                         ? "opacity-100 translate-y-0"
@@ -324,7 +327,7 @@ const Home = () => {
       <SectionDivider />
 
       {/* FEATURED GIGS SECTION */}
-      <section id="gigs" data-animate className="py-20 px-4 bg-white">
+      <section data-section="gigs" className="py-20 px-4 bg-white">
         <div className="max-w-6xl mx-auto">
           <div
             className={`text-center mb-12 transition-all duration-1000 ${
@@ -340,131 +343,138 @@ const Home = () => {
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
-            {gigs.map((gig, i) => {
-              const Icon =
-                {
-                  "Web Development": Code,
-                  "Graphic Design": PenTool,
-                  Tutoring: BookOpen,
-                }[gig.category] || Laptop;
+            {gigs.length === 0 ? (
+              <p className="text-center text-gray-600 col-span-2">
+                No gigs available.
+              </p>
+            ) : (
+              gigs.map((gig, i) => {
+                const Icon =
+                  {
+                    "Web Development": Code,
+                    "Graphic Design": PenTool,
+                    Tutoring: BookOpen,
+                  }[gig.category] || Laptop;
 
-              const status = getApplicationStatus(gig._id);
-              const isFavorited = favorites.has(gig._id);
-              const closed = gig.status === "closed";
+                const status = getApplicationStatus(gig._id);
+                const isFavorited = favorites.has(gig._id);
+                const closed = gig.status === "closed";
 
-              return (
-                <div
-                  key={gig._id}
-                  data-animate
-                  className={`group p-8 bg-white border-2 border-gray-100 rounded-2xl hover:border-cyan hover:shadow-xl transition-all duration-300 transform hover:scale-105 ${
-                    visible["gigs"]
-                      ? "opacity-100 translate-y-0"
-                      : "opacity-0 translate-y-10"
-                  }`}
-                  style={{
-                    borderColor: COLORS.gray200,
-                    transitionDelay: `${i * 100}ms`,
-                  }}
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-14 h-14 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-full flex items-center justify-center">
-                        <Icon
-                          className="text-cyan"
-                          size={28}
-                          style={{ color: COLORS.cyan }}
-                        />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-gray-900">
-                          {gig.title}
-                        </h3>
-                        <p className="text-sm text-gray-500">{gig.category}</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => toggleFavorite(gig._id)}
-                      className="p-2 hover:bg-gray-50 rounded-lg transition"
-                    >
-                      <Heart
-                        size={24}
-                        className={`transition ${
-                          isFavorited
-                            ? "fill-red-500 text-red-500"
-                            : "text-gray-300"
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  <p
-                    className="text-3xl font-bold mb-4"
-                    style={{ color: COLORS.cyan }}
+                return (
+                  <div
+                    key={gig._id}
+                    className={`group p-8 bg-white border-2 border-gray-100 rounded-2xl hover:border-cyan hover:shadow-xl transition-all duration-300 transform hover:scale-105 ${
+                      visible["gigs"]
+                        ? "opacity-100 translate-y-0"
+                        : "opacity-0 translate-y-10"
+                    }`}
+                    style={{
+                      borderColor: COLORS.gray200,
+                      transitionDelay: `${i * 100}ms`,
+                    }}
                   >
-                    {formatINR(gig.price)}
-                  </p>
-
-                  <div className="flex items-center gap-4 mb-6 pb-6 border-b border-gray-100">
-                    <div className="flex items-center gap-2">
-                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-sm font-bold">
-                        {gig.sellerName?.[0] || "?"}
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-14 h-14 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-full flex items-center justify-center">
+                          <Icon
+                            className="text-cyan"
+                            size={28}
+                            style={{ color: COLORS.cyan }}
+                          />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-bold text-gray-900">
+                            {gig.title}
+                          </h3>
+                          <p className="text-sm text-gray-500">
+                            {gig.category}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-semibold text-gray-900 text-sm">
-                          {gig.sellerName}
-                        </p>
-                        {gig.rating && (
-                          <div className="flex items-center gap-1">
-                            <Star
-                              className="text-yellow-400 fill-yellow-400"
-                              size={14}
-                            />
-                            <span className="text-sm text-gray-600">
-                              {gig.rating} ({gig.reviews || 0} reviews)
-                            </span>
-                          </div>
-                        )}
+                      <button
+                        onClick={() => toggleFavorite(gig._id)}
+                        className="p-2 hover:bg-gray-50 rounded-lg transition"
+                      >
+                        <Heart
+                          size={24}
+                          className={`transition ${
+                            isFavorited
+                              ? "fill-red-500 text-red-500"
+                              : "text-gray-300"
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    <p
+                      className="text-3xl font-bold mb-4"
+                      style={{ color: COLORS.cyan }}
+                    >
+                      {formatINR(gig.price)}
+                    </p>
+
+                    <div className="flex items-center gap-4 mb-6 pb-6 border-b border-gray-100">
+                      <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-sm font-bold">
+                          {gig.sellerName?.[0] || "?"}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900 text-sm">
+                            {gig.sellerName}
+                          </p>
+                          {gig.rating && (
+                            <div className="flex items-center gap-1">
+                              <Star
+                                className="text-yellow-400 fill-yellow-400"
+                                size={14}
+                              />
+                              <span className="text-sm text-gray-600">
+                                {gig.rating} ({gig.reviews || 0} reviews)
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
+
+                    {status && (
+                      <p
+                        className={`text-sm font-semibold mb-3 ${
+                          status === "accepted"
+                            ? "text-green-600"
+                            : status === "rejected"
+                            ? "text-red-600"
+                            : "text-yellow-600"
+                        }`}
+                      >
+                        Application:{" "}
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </p>
+                    )}
+
+                    {closed ? (
+                      <span className="block w-full px-6 py-3 bg-gray-200 text-gray-600 rounded-xl text-center font-medium">
+                        Applications Closed
+                      </span>
+                    ) : status ? (
+                      <span className="block w-full px-6 py-3 bg-gray-200 text-gray-600 rounded-xl text-center font-medium">
+                        Application Submitted
+                      </span>
+                    ) : (
+                      <Link
+                        to={`/gigs/${gig._id}`}
+                        className="block w-full px-6 py-3 bg-gradient-to-r from-cyan to-blue-600 text-white font-bold rounded-xl hover:from-cyan-600 hover:to-blue-700 transition-all transform hover:scale-105"
+                        style={{
+                          background: `linear-gradient(to right, ${COLORS.cyan}, ${COLORS.blue})`,
+                        }}
+                      >
+                        View Details
+                      </Link>
+                    )}
                   </div>
-
-                  {status && (
-                    <p
-                      className={`text-sm font-semibold mb-3 ${
-                        status === "accepted"
-                          ? "text-green-600"
-                          : status === "rejected"
-                          ? "text-red-600"
-                          : "text-yellow-600"
-                      }`}
-                    >
-                      Application:{" "}
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </p>
-                  )}
-
-                  {closed ? (
-                    <span className="block w-full px-6 py-3 bg-gray-200 text-gray-600 rounded-xl text-center font-medium">
-                      Applications Closed
-                    </span>
-                  ) : status ? (
-                    <span className="block w-full px-6 py-3 bg-gray-200 text-gray-600 rounded-xl text-center font-medium">
-                      Application Submitted
-                    </span>
-                  ) : (
-                    <Link
-                      to={`/gigs/${gig._id}`}
-                      className="block w-full px-6 py-3 bg-gradient-to-r from-cyan to-blue-600 text-white font-bold rounded-xl hover:from-cyan-600 hover:to-blue-700 transition-all transform hover:scale-105"
-                      style={{
-                        background: `linear-gradient(to right, ${COLORS.cyan}, ${COLORS.blue})`,
-                      }}
-                    >
-                      View Details
-                    </Link>
-                  )}
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
 
           <div className="text-center mt-12">
@@ -483,7 +493,7 @@ const Home = () => {
 
       {/* TESTIMONIALS SECTION */}
       <section
-        data-animate
+        data-section="testimonials"
         className="py-20 px-4 bg-gradient-to-br from-blue-50 to-cyan-50"
       >
         <div className="max-w-6xl mx-auto">
@@ -493,7 +503,6 @@ const Home = () => {
                 ? "opacity-100 translate-y-0"
                 : "opacity-0 translate-y-10"
             }`}
-            id="testimonials"
           >
             <h2 className="text-4xl font-bold text-gray-900 relative inline-block">
               What Our Users Say
@@ -505,7 +514,7 @@ const Home = () => {
             <div className="overflow-hidden rounded-3xl">
               <div
                 className="flex transition-transform duration-500"
-                style={{ transform: `translateX(-${0 * 100}%)` }}
+                style={{ transform: `translateX(0%)` }}
               >
                 {[
                   {
@@ -538,7 +547,10 @@ const Home = () => {
                           "{t.quote}"
                         </p>
                         <div className="text-center">
-                          <p className="text-cyan font-bold text-lg mb-1">
+                          <p
+                            className="text-cyan font-bold text-lg mb-1"
+                            style={{ color: COLORS.cyan }}
+                          >
                             {t.author}
                           </p>
                           <p className="text-gray-600">{t.role}</p>
