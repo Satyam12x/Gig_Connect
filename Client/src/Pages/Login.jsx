@@ -21,8 +21,14 @@ const Login = () => {
     setIsLoading(true);
     try {
       const res = await axios.post(`${API_BASE}/auth/login`, formData);
+
+      // Save token and userId to localStorage
       localStorage.setItem("token", res.data.token);
+      localStorage.setItem("userId", res.data.user.id);
+
+      console.log("Login successful:", res.data.user);
       navigate("/home");
+      window.location.reload(); // Refresh to load user data
     } catch (err) {
       setError(err.response?.data?.error || "Login failed");
     } finally {
@@ -228,7 +234,6 @@ const Login = () => {
       `}</style>
 
       <div className="w-full max-w-md">
-        {/* <CHANGE> Complete redesign with modern UI, animations, and smooth transitions */}
         <div className="form-container bg-white rounded-2xl shadow-xl p-8 sm:p-10 border border-slate-100">
           {/* Header Section */}
           <div className="form-header text-center mb-8">
