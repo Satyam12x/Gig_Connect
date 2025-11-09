@@ -28,12 +28,16 @@ import {
   XCircle,
   AlertCircle,
   ChevronDown,
+  Ticket,
+  Menu,
 } from "lucide-react";
 
-const API_BASE = "http://localhost:5000/api";
-const NAVY = "#1A2A4F";
-const PLACEHOLDER_IMG = "/api/placeholder-gig.jpg";
+// Import your components
+import Navbar from "../components/Navbar";
+import Footer from "../components/Footer";
 
+const API_BASE = "http://localhost:5000/api";
+const PLACEHOLDER_IMG = "/api/placeholder-gig.jpg";
 const Gigs = () => {
   const [user, setUser] = useState(null);
   const [gigs, setGigs] = useState([]);
@@ -86,7 +90,6 @@ const Gigs = () => {
         });
         if (selectedCategory) params.append("category", selectedCategory);
         if (searchTerm) params.append("search", searchTerm);
-
         const [gigsRes, catsRes, appsRes, featuredRes, userRes] =
           await Promise.all([
             fetch(`${API_BASE}/gigs?${params}`),
@@ -103,7 +106,6 @@ const Gigs = () => {
                 })
               : Promise.resolve(null),
           ]);
-
         const [gigsData, catsData, appsData, featuredData, userData] =
           await Promise.all([
             gigsRes.json(),
@@ -112,13 +114,11 @@ const Gigs = () => {
             featuredRes.json(),
             userRes ? userRes.json() : null,
           ]);
-
         setGigs(gigsData.gigs || []);
         setTotalPages(gigsData.pages || 1);
         setCategories(catsData.categories || []);
         setFeaturedGigs(featuredData.slice(0, 3) || []);
         if (userData) setUser(userData);
-
         setUserApplications(
           (appsData || []).map((app) => ({
             gigId: app.gigId._id,
@@ -126,7 +126,6 @@ const Gigs = () => {
             _id: app._id,
           }))
         );
-
         if (userId) {
           const userGigs = gigsData.gigs.filter(
             (gig) => gig.sellerId === userId
@@ -149,7 +148,6 @@ const Gigs = () => {
         setIsLoading(false);
       }
     };
-
     fetchData();
   }, [page, selectedCategory, searchTerm, userId]);
 
@@ -244,6 +242,15 @@ const Gigs = () => {
     return filtered;
   }, [gigs, showSavedOnly, priceFilter, priceRange, favorites]);
 
+  // Check if any filter is active
+  const isFilterActive =
+    selectedCategory ||
+    searchTerm ||
+    showSavedOnly ||
+    priceFilter !== "all" ||
+    priceRange[0] > 0 ||
+    priceRange[1] < 100000;
+
   const categoryColors = useMemo(
     () =>
       categories.reduce((acc, category, index) => {
@@ -281,7 +288,6 @@ const Gigs = () => {
               {gig.category}
             </div>
           </div>
-
           <div className="p-6 flex flex-col gap-4 flex-1">
             <div className="flex justify-between items-start">
               <div className="flex-1">
@@ -307,11 +313,9 @@ const Gigs = () => {
                 />
               </button>
             </div>
-
             <p className="text-gray-600 line-clamp-3 leading-relaxed">
               {gig.description}
             </p>
-
             <div className="flex justify-between items-center mt-auto pt-4 border-t border-gray-200">
               <div className="flex gap-6 items-center">
                 <div className="flex flex-col">
@@ -327,7 +331,6 @@ const Gigs = () => {
                   <span>Just posted</span>
                 </div>
               </div>
-
               <div className="flex gap-3">
                 {isOwner ? (
                   <Link
@@ -411,19 +414,16 @@ const Gigs = () => {
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-
           {isFeatured && (
             <div className="absolute top-3 right-3 flex items-center gap-2 px-3 py-2 bg-[#1A2A4F] text-white rounded-lg text-xs font-bold shadow-lg">
               <Sparkles className="h-3 w-3" /> Featured
             </div>
           )}
-
           <div
             className={`absolute top-3 left-3 px-3 py-2 text-white rounded-lg text-xs font-bold shadow-lg bg-[#1A2A4F]`}
           >
             {gig.category}
           </div>
-
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -438,7 +438,6 @@ const Gigs = () => {
             />
           </button>
         </div>
-
         <div className="p-6 flex flex-col gap-3 flex-1">
           <h3 className="text-xl font-bold text-[#1A2A4F] line-clamp-2 leading-tight">
             {gig.title}
@@ -450,7 +449,6 @@ const Gigs = () => {
           <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed flex-1">
             {gig.description}
           </p>
-
           <div className="flex justify-between items-center pt-3 border-t-2 border-gray-100">
             <div className="flex flex-col">
               <span className="text-xs text-gray-500 font-semibold uppercase">
@@ -465,7 +463,6 @@ const Gigs = () => {
               <span>Just posted</span>
             </div>
           </div>
-
           <div className="flex gap-2 mt-2">
             {isOwner ? (
               <Link
@@ -539,11 +536,13 @@ const Gigs = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white relative overflow-hidden">
-      {/* Decorative Background Shapes */}
+    <div className="min-h-screen bg-white relative overflow-hidden flex flex-col">
+      {/* Navbar */}
+      <Navbar />
+
+      {/* Decorative Background */}
       <div className="absolute top-0 right-0 w-96 h-96 bg-[#1A2A4F] opacity-5 rounded-full blur-3xl -z-10"></div>
       <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#1A2A4F] opacity-5 rounded-full blur-3xl -z-10"></div>
-      <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-[#1A2A4F] opacity-5 rounded-full blur-3xl -z-10"></div>
 
       {/* Hero Section */}
       <div className="relative bg-[#1A2A4F] pt-32 pb-20 px-6 overflow-hidden">
@@ -563,23 +562,42 @@ const Gigs = () => {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-12">
-        {/* Search & Filters */}
+      <div className="max-w-7xl mx-auto px-6 py-12 flex-1">
+        {/* Search & Filters + My Tickets Button */}
         <div className="mb-8 space-y-4">
-          <div className="relative">
-            <Search
-              className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-              size={20}
-            />
-            <input
-              type="text"
-              placeholder="Search gigs by title, category, or skills..."
-              value={searchTerm}
-              onChange={handleSearchChange}
-              className="w-full pl-14 pr-6 py-4 text-base border-2 border-gray-300 rounded-2xl bg-white focus:outline-none focus:border-[#1A2A4F] focus:ring-4 focus:ring-[#1A2A4F]/10 transition-all"
-            />
+          <div className="flex items-center gap-4">
+            <div className="flex-1 relative">
+              <Search
+                className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                size={20}
+              />
+              <input
+                type="text"
+                placeholder="Search gigs by title, category, or skills..."
+                value={searchTerm}
+                onChange={handleSearchChange}
+                className="w-full pl-14 pr-6 py-4 text-base border-2 border-gray-300 rounded-2xl bg-white focus:outline-none focus:border-[#1A2A4F] focus:ring-4 focus:ring-[#1A2A4F]/10 transition-all"
+              />
+            </div>
+            {/* My Tickets Button - Mobile Icon Only */}
+            {userId && (
+              <Link
+                to="/tickets"
+                className="hidden md:flex items-center gap-2 px-5 py-4 bg-[#1A2A4F] text-white rounded-2xl font-semibold hover:opacity-90 transition-all"
+              >
+                <Ticket className="h-5 w-5" />
+                My Tickets
+              </Link>
+            )}
+            <Link
+              to="/tickets"
+              className="md:hidden p-4 bg-[#1A2A4F] text-white rounded-2xl hover:opacity-90 transition-all"
+            >
+              <Ticket className="h-5 w-5" />
+            </Link>
           </div>
 
+          {/* Filter Controls */}
           <div className="flex flex-wrap gap-3 items-center">
             <select
               value={sortBy}
@@ -590,7 +608,6 @@ const Gigs = () => {
               <option value="price-asc">Price: Low to High</option>
               <option value="price-desc">Price: High to Low</option>
             </select>
-
             <select
               value={priceFilter}
               onChange={(e) => setPriceFilter(e.target.value)}
@@ -601,7 +618,6 @@ const Gigs = () => {
               <option value="medium">₹10,000 - ₹50,000</option>
               <option value="high">Above ₹50,000</option>
             </select>
-
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`flex items-center gap-2 px-5 py-3 border-2 rounded-xl font-semibold text-sm transition-all ${
@@ -611,9 +627,8 @@ const Gigs = () => {
               }`}
             >
               <SlidersHorizontal size={18} />
-              Advanced Filters
+              <span className="hidden sm:inline">Filters</span>
             </button>
-
             {userId && (
               <button
                 onClick={() => setShowSavedOnly(!showSavedOnly)}
@@ -627,10 +642,11 @@ const Gigs = () => {
                   size={18}
                   className={showSavedOnly ? "fill-white" : ""}
                 />
-                Saved ({favorites.length})
+                <span className="hidden sm:inline">
+                  Saved ({favorites.length})
+                </span>
               </button>
             )}
-
             <div className="ml-auto flex gap-2">
               <button
                 onClick={() => setViewMode("grid")}
@@ -721,31 +737,28 @@ const Gigs = () => {
           </div>
         </div>
 
-        {/* Featured Gigs */}
-        {featuredGigs.length > 0 &&
-          !selectedCategory &&
-          !searchTerm &&
-          !showSavedOnly && (
-            <div className="mb-12">
-              <div className="flex items-center gap-3 mb-6">
-                <TrendingUp size={32} className="text-[#1A2A4F]" />
-                <h2 className="text-4xl font-black text-[#1A2A4F]">
-                  Featured Gigs
-                </h2>
-              </div>
-              <div
-                className={
-                  viewMode === "grid"
-                    ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-                    : "space-y-6"
-                }
-              >
-                {featuredGigs.map((gig) => (
-                  <GigCard key={gig._id} gig={gig} isFeatured={true} />
-                ))}
-              </div>
+        {/* Featured Gigs - Hidden if any filter applied */}
+        {featuredGigs.length > 0 && !isFilterActive && (
+          <div className="mb-12">
+            <div className="flex items-center gap-3 mb-6">
+              <TrendingUp size={32} className="text-[#1A2A4F]" />
+              <h2 className="text-4xl font-black text-[#1A2A4F]">
+                Featured Gigs
+              </h2>
             </div>
-          )}
+            <div
+              className={
+                viewMode === "grid"
+                  ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                  : "space-y-6"
+              }
+            >
+              {featuredGigs.map((gig) => (
+                <GigCard key={gig._id} gig={gig} isFeatured={true} />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* All Gigs */}
         <div>
@@ -831,7 +844,6 @@ const Gigs = () => {
             >
               <ChevronLeft size={20} />
             </button>
-
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
               const pageNum = page <= 3 ? i + 1 : page - 2 + i;
               if (pageNum > totalPages) return null;
@@ -849,11 +861,9 @@ const Gigs = () => {
                 </button>
               );
             }).filter(Boolean)}
-
             {totalPages > 5 && page < totalPages - 2 && (
               <span className="text-gray-600 font-semibold px-2">...</span>
             )}
-
             <button
               onClick={() => handlePageChange(page + 1)}
               disabled={page === totalPages}
@@ -902,6 +912,9 @@ const Gigs = () => {
           </div>
         )}
       </div>
+
+      {/* Footer */}
+      <Footer />
     </div>
   );
 };
