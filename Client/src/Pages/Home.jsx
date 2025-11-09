@@ -1,3 +1,6 @@
+// src/pages/Home.jsx
+"use client";
+
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -23,8 +26,9 @@ import Footer from "../components/Footer";
 const API_BASE = "http://localhost:5000/api";
 
 const COLORS = {
+  navy: "#1A2A4F",
+  navyLight: "#3A4A7F",
   cyan: "#06B6D4",
-  blue: "#1E40AF",
   gray200: "#E5E7EB",
   gray600: "#4B5563",
   red500: "#EF4444",
@@ -56,7 +60,7 @@ const Home = () => {
 
   /* ---------- FETCH DATA ---------- */
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchAll = async () => {
       const token = localStorage.getItem("token");
       const userId = localStorage.getItem("userId");
 
@@ -87,7 +91,7 @@ const Home = () => {
       }
     };
 
-    fetchData();
+    fetchAll();
   }, []);
 
   /* ---------- HANDLERS ---------- */
@@ -125,7 +129,7 @@ const Home = () => {
             size={48}
             style={{ color: COLORS.cyan }}
           />
-          <p className="font-medium" style={{ color: COLORS.blue }}>
+          <p className="font-medium" style={{ color: COLORS.navy }}>
             Loading…
           </p>
         </div>
@@ -162,16 +166,19 @@ const Home = () => {
       {/* NAVBAR */}
       <Navbar user={user} onLogout={handleLogout} />
 
-      {/* HERO */}
+      {/* HERO + USER STATS */}
       <section className="pt-20 pb-12 px-4 bg-gradient-to-b from-gray-50 to-white">
         <div className="max-w-6xl mx-auto text-center">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-3">
+          <h1
+            className="text-4xl md:text-5xl font-bold mb-3"
+            style={{ color: COLORS.navy }}
+          >
             Welcome back,{" "}
             <span style={{ color: COLORS.cyan }}>
               {user?.fullName?.split(" ")[0] || "Guest"}
             </span>
           </h1>
-          <p className="text-lg text-gray-600 mb-8">
+          <p className="text-lg mb-8" style={{ color: COLORS.gray600 }}>
             {user?.role === "Seller"
               ? "Showcase your skills and start earning!"
               : user?.role === "Buyer"
@@ -237,7 +244,10 @@ const Home = () => {
                     </div>
                     <div className="text-left">
                       <p className="text-xs text-gray-500">{stat.label}</p>
-                      <p className="font-semibold text-gray-900">
+                      <p
+                        className="font-semibold"
+                        style={{ color: COLORS.navy }}
+                      >
                         {stat.value}
                       </p>
                     </div>
@@ -251,15 +261,18 @@ const Home = () => {
 
       <hr className="my-8 border-gray-200" />
 
-      {/* FEATURED GIGS */}
+      {/* FEATURED GIGS – MODERN CARD STYLE */}
       <section className="py-12 px-4">
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">
+          <h2
+            className="text-3xl font-bold mb-8 text-center"
+            style={{ color: COLORS.navy }}
+          >
             Featured Gigs
           </h2>
 
           {gigs.length === 0 ? (
-            <p className="text-center text-gray-600">
+            <p className="text-center" style={{ color: COLORS.gray600 }}>
               No gigs available.{" "}
               <Link
                 to="/gigs"
@@ -286,65 +299,67 @@ const Home = () => {
                 return (
                   <div
                     key={gig._id}
-                    className="p-6 bg-white border rounded-xl hover:border-cyan transition"
+                    className="group bg-white p-6 rounded-lg shadow-lg border border-blue-100 flex flex-col items-center text-center hover:bg-blue-50 hover:border-navyLight hover:shadow-2xl transition-all duration-300"
                     style={{ borderColor: COLORS.gray200 }}
                   >
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-full flex items-center justify-center">
-                          <Icon size={24} style={{ color: COLORS.cyan }} />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-900">
-                            {gig.title}
-                          </h3>
-                          <p className="text-sm text-gray-500">
-                            {gig.category}
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => toggleFavorite(gig._id)}
-                        className="p-1 rounded hover:bg-gray-100 transition"
-                      >
-                        <Heart
-                          size={22}
-                          className={
-                            isFavorited
-                              ? "fill-red-500 text-red-500"
-                              : "text-gray-400"
-                          }
-                        />
-                      </button>
-                    </div>
+                    {/* Icon */}
+                    <Icon
+                      className="mb-4 group-hover:rotate-12 transition-transform"
+                      size={40}
+                      style={{ color: COLORS.navyLight }}
+                    />
 
+                    {/* Title & Category */}
+                    <h3
+                      className="text-xl font-semibold mb-2"
+                      style={{ color: COLORS.navy }}
+                    >
+                      {gig.title}
+                    </h3>
+                    <p className="mb-4" style={{ color: COLORS.gray600 }}>
+                      {gig.category}
+                    </p>
+
+                    {/* Price */}
                     <p
-                      className="text-2xl font-bold mb-3"
+                      className="text-2xl font-bold mb-4"
                       style={{ color: COLORS.cyan }}
                     >
                       {formatINR(gig.price)}
                     </p>
 
-                    <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-200">
-                      <div className="w-9 h-9 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold">
-                        {gig.sellerName?.[0] || "?"}
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900 text-sm">
-                          {gig.sellerName}
-                        </p>
-                        {gig.rating > 0 && (
-                          <div className="flex items-center gap-1 text-sm text-gray-600">
-                            <Star
-                              className="fill-yellow-400 text-yellow-400"
-                              size={14}
-                            />
-                            {gig.rating} ({gig.reviews || 0} reviews)
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    {/* Seller */}
+                    <p
+                      className="font-medium mb-4"
+                      style={{ color: COLORS.navy }}
+                    >
+                      By {gig.sellerName}
+                    </p>
 
+                    {/* Rating */}
+                    {gig.rating > 0 && (
+                      <div className="flex items-center gap-1 mb-4">
+                        {[...Array(5)].map((_, i) => (
+                          <Star
+                            key={i}
+                            size={16}
+                            className={
+                              i < Math.floor(gig.rating)
+                                ? "fill-yellow-400 text-yellow-400"
+                                : "text-gray-300"
+                            }
+                          />
+                        ))}
+                        <span
+                          className="ml-1 text-sm"
+                          style={{ color: COLORS.gray600 }}
+                        >
+                          {gig.rating} ({gig.reviews || 0} reviews)
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Application status */}
                     {status && (
                       <p
                         className={`text-sm font-medium mb-3 ${
@@ -360,29 +375,46 @@ const Home = () => {
                       </p>
                     )}
 
+                    {/* Action button */}
                     {closed ? (
-                      <span className="block w-full text-center py-2 bg-gray-200 text-gray-600 rounded-lg">
+                      <span className="block w-full py-2 bg-gray-200 text-gray-600 rounded-lg">
                         Applications Closed
                       </span>
                     ) : status ? (
-                      <span className="block w-full text-center py-2 bg-gray-200 text-gray-600 rounded-lg">
+                      <span className="block w-full py-2 bg-gray-200 text-gray-600 rounded-lg">
                         Application Submitted
                       </span>
                     ) : (
                       <Link
                         to={`/gigs/${gig._id}`}
-                        className="block w-full text-center py-2 rounded-lg text-white font-medium"
-                        style={{ backgroundColor: COLORS.cyan }}
+                        className="block w-full py-2 rounded-lg text-white font-medium"
+                        style={{ backgroundColor: COLORS.navy }}
                       >
                         View Details
                       </Link>
                     )}
+
+                    {/* Favorite heart (top-right) */}
+                    <button
+                      onClick={() => toggleFavorite(gig._id)}
+                      className="absolute top-4 right-4 p-1 rounded hover:bg-gray-100 transition"
+                    >
+                      <Heart
+                        size={22}
+                        className={
+                          isFavorited
+                            ? "fill-red-500 text-red-500"
+                            : "text-gray-400"
+                        }
+                      />
+                    </button>
                   </div>
                 );
               })}
             </div>
           )}
 
+          {/* View All */}
           <div className="text-center mt-10">
             <Link
               to="/gigs"
