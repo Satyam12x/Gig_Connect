@@ -964,38 +964,48 @@ app.get("/api/users/profile", authMiddleware, async (req, res) => {
 });
 
 // Get Public User Profile
+// GET /api/users/:id → Public Profile (MUST MATCH FRONTEND)
 app.get("/api/users/:id", async (req, res) => {
   try {
-    const user = await User.findOne({ _id: req.params.id })
+    const user = await User.findById(req.params.id)
       .select(
-        "fullName college bio profilePicture role skills certifications socialLinks gigsCompleted totalGigs completionRate credits ratings"
+        "fullName college bio profilePicture role skills certifications socialLinks gigsCompleted totalGigs completionRate credits ratings orderHistory"
       )
       .lean();
+
     if (!user) return res.status(404).json({ error: "User not found" });
 
     const ratings = user.ratings || [];
     const averageRating =
       ratings.length > 0
-        ? (
-            ratings.reduce((sum, r) => sum + r.value, 0) / ratings.length
-          ).toFixed(1)
+        ? ratings.reduce((sum, r) => sum + r.value, 0) / ratings.length
         : 0;
 
-    console.log("Fetched public profile:", { userId: req.params.id });
+    // Calculate total earnings (for badge logic if needed)
+    const totalEarnings =
+      user.orderHistory
+        ?.filter((o) => o.status === "completed")
+        .reduce((sum, o) => sum + (o.earnings || 0), 0) || 0;
+
+    // Determine badge
+    let badge = "New";
+    if (user.gigsCompleted >= 10) badge = "Pro";
+    else if (user.gigsCompleted >= 5) badge = "Rising Star";
+    else if (user.gigsCompleted >= 1) badge = "Active";
+
     res.json({
       ...user,
-      averageRating,
+      rating: parseFloat(averageRating.toFixed(1)),
+      averageRating: parseFloat(averageRating.toFixed(1)),
       ratingsCount: ratings.length,
-      ratings: ratings.map((r) => ({
-        value: r.value,
-        ticketId: r.ticketId,
-        giverId: r.giverId,
-        givenAt: r.givenAt,
-      })),
+      badge,
+      gigsCompleted: user.gigsCompleted || 0,
+      totalGigs: user.totalGigs || 0,
+      completionRate: user.completionRate || 0,
     });
   } catch (err) {
-    console.error("Public profile fetch error:", err);
-    res.status(500).json({ error: "Server error", details: err.message });
+    console.error("Public profile error:", err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 

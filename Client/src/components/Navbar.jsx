@@ -28,7 +28,7 @@ const Navbar = () => {
   const navItems = [
     { icon: Home, label: "Home", to: "/", id: "home" },
     { icon: Briefcase, label: "Gigs", to: "/gigs", id: "gigs" },
-    { icon: MessageCircle, label: "Messages", to: "/messages", id: "messages" },
+    { icon: MessageCircle, label: "Messages", to: "/global-chat", id: "messages" },
     {
       icon: Bell,
       label: "Notifications",
