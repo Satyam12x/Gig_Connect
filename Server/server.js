@@ -15,6 +15,10 @@ const { check, validationResult } = require("express-validator");
 const sanitizeHtml = require("sanitize-html");
 const { Server } = require("socket.io");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const session = require("express-session");
+const passport = require("passport");
+const GoogleStrategy = require("passport-google-oauth20").Strategy;
+const cookieParser = require("cookie-parser");
 
 const app = express();
 const server = http.createServer(app);
@@ -30,6 +34,89 @@ app.use(
   })
 );
 app.use(express.json());
+
+//Google auth middlewares
+app.use(cookieParser());
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "fallback-super-secret",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: false, // set true in production with HTTPS
+      maxAge: 24 * 60 * 60 * 1000, // 1 day
+    },
+  })
+);
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Serialize / Deserialize User
+passport.serializeUser((user, done) => done(null, user._id));
+passport.deserializeUser(async (id, done) => {
+  try {
+    const user = await User.findOne({ _id: id }).lean();
+    done(null, user || false);
+  } catch (err) {
+    done(err);
+  }
+});
+
+// Google OAuth Strategy
+passport.use(
+  new GoogleStrategy(
+    {
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackURL:
+        process.env.GOOGLE_CALLBACK_URL ||
+        "http://localhost:5000/api/auth/google/callback",
+      scope: ["profile", "email"],
+    },
+    async (accessToken, refreshToken, profile, done) => {
+      try {
+        const email = profile.emails?.[0]?.value?.toLowerCase();
+        const fullName = profile.displayName?.trim() || email.split("@")[0];
+        const photo = profile.photos?.[0]?.value || "";
+
+        if (!email) return done(new Error("No email from Google"));
+
+        let user = await User.findOne({ email }).lean();
+
+        if (!user) {
+          const userId = crypto.randomBytes(16).toString("hex");
+          const dummyPassword = await bcrypt.hash(
+            crypto.randomBytes(20).toString("hex"),
+            10
+          );
+
+          user = {
+            _id: userId,
+            fullName,
+            email,
+            password: dummyPassword,
+            role: "Both",
+            isVerified: true,
+            profilePicture: photo,
+            skills: [],
+            certifications: [],
+            orderHistory: [],
+            gigsCompleted: 0,
+            totalGigs: 0,
+            completionRate: 0,
+            credits: 0,
+            ratings: [],
+          };
+          await User.create(user);
+        }
+
+        return done(null, user);
+      } catch (err) {
+        return done(err);
+      }
+    }
+  )
+);
 
 // Rate limiters
 const applyLimiter = rateLimit({
@@ -780,7 +867,86 @@ app.put(
     }
   }
 );
+//pata ni kya kr rha hu
+app.get("/api/auth/check", async (req, res) => {
+  try {
+    const authHeader = req.header("Authorization");
+    if (!authHeader) {
+      return res.json({ authenticated: false });
+    }
 
+    const token = authHeader.replace("Bearer ", "");
+    if (!token) {
+      return res.json({ authenticated: false });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findOne({ _id: decoded.id })
+      .select("-password -emailOtp -emailOtpExpire")
+      .lean();
+
+    if (!user) {
+      return res.json({ authenticated: false });
+    }
+
+    res.json({
+      authenticated: true,
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+        profilePicture: user.profilePicture,
+      },
+    });
+  } catch (err) {
+    console.error("Auth check error:", err.message);
+    res.json({ authenticated: false });
+  }
+});
+
+// Optional: Add a middleware to protect routes
+const requireAuth = async (req, res, next) => {
+  const authHeader = req.header("Authorization");
+  if (!authHeader) {
+    return res.status(401).json({
+      error: "Authentication required",
+      redirectTo: "/",
+    });
+  }
+
+  const token = authHeader.replace("Bearer ", "");
+  if (!token) {
+    return res.status(401).json({
+      error: "Authentication required",
+      redirectTo: "/",
+    });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findOne({ _id: decoded.id }).select(
+      "-password -emailOtp -emailOtpExpire"
+    );
+
+    if (!user) {
+      return res.status(401).json({
+        error: "User not found",
+        redirectTo: "/",
+      });
+    }
+
+    req.user = user;
+    req.userId = decoded.id;
+    next();
+  } catch (err) {
+    console.error("Token verification error:", err.message);
+    res.status(401).json({
+      error: "Invalid token",
+      redirectTo: "/",
+    });
+  }
+};
 // Add Skill
 app.post(
   "/api/users/skills",
@@ -1008,7 +1174,24 @@ app.get("/api/users/:id", async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
+app.get("/api/gigs/user/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
 
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: "Invalid user ID" });
+    }
+
+    const gigs = await Gig.find({ seller: userId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json(gigs);
+  } catch (err) {
+    console.error("Error fetching user gigs:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
 // Login
 app.post(
   "/api/auth/login",
@@ -2809,6 +2992,33 @@ app.post(
       console.error("AI chat error:", err);
       res.status(500).json({ error: "Server error", details: err.message });
     }
+  }
+);
+
+//Google auth system:
+app.get(
+  "/api/auth/google",
+  passport.authenticate("google", { scope: ["profile", "email"] })
+);
+
+// In /api/auth/google/callback
+app.get(
+  "/api/auth/google/callback",
+  passport.authenticate("google", { failureRedirect: "/login" }),
+  (req, res) => {
+    const token = jwt.sign(
+      { id: req.user._id, role: req.user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "24h" }
+    );
+
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+
+    // NEW: Check if user is new
+    const isNewUser = !req.user.isVerified; // or check if role === "Both" and no profile pic
+    const redirectPath = isNewUser ? "/signup?google=true" : "/home";
+
+    res.redirect(`${frontendUrl}${redirectPath}?token=${token}`);
   }
 );
 

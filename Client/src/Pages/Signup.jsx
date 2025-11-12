@@ -1,27 +1,74 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { Eye, EyeOff } from "lucide-react";
 
-const API_BASE = "http://localhost:5000/api";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
+const GOOGLE_AUTH_URL = `${API_BASE}/auth/google`;
 
 const Signup = () => {
-  const [step, setStep] = useState(1); // 1: Form, 2: OTP, 3: Profile Picture
+  const [step, setStep] = useState(1); // 1: Form, 2: OTP, 3: Onboarding
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
     password: "",
-    role: "Both", // Default role
+    role: "Both",
   });
   const [otp, setOtp] = useState("");
-  const [profilePicture, setProfilePicture] = useState(null);
+  const [onboarding, setOnboarding] = useState({
+    profilePicture: null,
+    skills: "",
+    bio: "",
+  });
+  const [preview, setPreview] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
   const [token, setToken] = useState("");
-  const [showPassword, setShowPassword] = useState(false); // Password visibility toggle
+  const [showPassword, setShowPassword] = useState(false);
+  const [isGoogleSignup, setIsGoogleSignup] = useState(false);
+  const [googleUser, setGoogleUser] = useState(null);
+
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // === HANDLE GOOGLE TOKEN & FETCH USER ===
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tokenFromUrl = params.get("token");
+
+    if (tokenFromUrl) {
+      localStorage.setItem("token", tokenFromUrl);
+      setToken(tokenFromUrl);
+      setIsGoogleSignup(true);
+      fetchGoogleUser(tokenFromUrl);
+      navigate("/signup", { replace: true }); // Clean URL
+    }
+  }, [location, navigate]);
+
+  const fetchGoogleUser = async (token) => {
+    try {
+      const res = await axios.get(`${API_BASE}/auth/check`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.data.authenticated) {
+        const user = res.data.user;
+        setGoogleUser(user);
+        setFormData((prev) => ({
+          ...prev,
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role || "Both",
+        }));
+        setPreview(user.profilePicture || "");
+        toast.success(`Welcome back, ${user.fullName.split(" ")[0]}!`);
+        setStep(3); // Skip email & OTP
+      }
+    } catch (err) {
+      toast.error("Failed to load user data");
+      navigate("/login");
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -31,30 +78,23 @@ const Signup = () => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    if (
-      !formData.fullName ||
-      !formData.email ||
-      !formData.password ||
-      !formData.role
-    ) {
-      setError("Please fill in all required fields.");
-      toast.error("Please fill in all required fields.");
+
+    if (!formData.fullName || !formData.email || !formData.password) {
+      toast.error("Please fill all fields");
       setLoading(false);
       return;
     }
+
     try {
       const res = await axios.post(`${API_BASE}/auth/signup`, formData);
       if (res.data.success) {
         setToken(res.data.token);
         localStorage.setItem("token", res.data.token);
-        console.log("Signup token:", res.data.token); // Debug
-        toast.success("Signup successful. Check your email for OTP.");
-        setStep(2); // Move to OTP verification
+        toast.success("Check your email for OTP");
+        setStep(2);
       }
     } catch (err) {
-      const errorMsg = err.response?.data?.error || "Signup failed";
-      setError(errorMsg);
-      toast.error(errorMsg);
+      toast.error(err.response?.data?.error || "Signup failed");
     }
     setLoading(false);
   };
@@ -62,353 +102,362 @@ const Signup = () => {
   const handleOtpSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
     const currentToken = token || localStorage.getItem("token");
-    console.log("OTP submit token:", currentToken); // Debug
-    if (!currentToken) {
-      setError("No token found. Please sign up again.");
-      toast.error("No token found. Please sign up again.");
-      setLoading(false);
-      return;
-    }
+
     if (!otp) {
-      setError("Please enter the OTP.");
-      toast.error("Please enter the OTP.");
+      toast.error("Enter OTP");
       setLoading(false);
       return;
     }
+
     try {
-      const res = await axios.post(
+      await axios.post(
         `${API_BASE}/auth/verify-otp`,
         { otp },
-        {
-          headers: {
-            Authorization: `Bearer ${currentToken}`,
-          },
-        }
+        { headers: { Authorization: `Bearer ${currentToken}` } }
       );
-      if (res.data.success) {
-        toast.success("OTP verified. Please add your profile picture.");
-        setStep(3); // Move to profile picture step
-      }
+      toast.success("Email verified!");
+      setStep(3);
     } catch (err) {
-      const errorMsg = err.response?.data?.error || "OTP verification failed";
-      setError(errorMsg);
-      toast.error(errorMsg);
-      console.log("OTP error:", err.response?.data); // Debug
+      toast.error(err.response?.data?.error || "Invalid OTP");
     }
     setLoading(false);
   };
 
-  const handleProfileUpload = async (e) => {
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setOnboarding({ ...onboarding, profilePicture: file });
+      setPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleOnboardingSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
     const currentToken = token || localStorage.getItem("token");
-    console.log("Profile upload token:", currentToken); // Debug
-    if (!currentToken) {
-      setError("No token found. Please sign up again.");
-      toast.error("No token found. Please sign up again.");
-      setLoading(false);
-      return;
-    }
-    if (!profilePicture) {
-      setError("Please select a profile picture.");
-      toast.error("Please select a profile picture.");
-      setLoading(false);
-      return;
-    }
+
     try {
       const formDataUpload = new FormData();
-      formDataUpload.append("image", profilePicture);
-      const res = await axios.post(
-        `${API_BASE}/users/upload-profile`,
-        formDataUpload,
-        {
+      if (onboarding.profilePicture) {
+        formDataUpload.append("image", onboarding.profilePicture);
+      }
+      if (onboarding.bio) formDataUpload.append("bio", onboarding.bio);
+      formDataUpload.append("role", formData.role);
+
+      // Upload picture + update role/bio
+      if (onboarding.profilePicture || onboarding.bio || formData.role) {
+        await axios.post(`${API_BASE}/users/upload-profile`, formDataUpload, {
           headers: {
-            "Content-Type": "multipart/form-data",
             Authorization: `Bearer ${currentToken}`,
+            "Content-Type": "multipart/form-data",
           },
-        }
-      );
-      if (res.data.success) {
-        setSuccess(true);
-        toast.success("Profile picture uploaded! Redirecting...");
-        setTimeout(() => navigate("/"), 2000);
+        });
       }
+
+      // Add skills
+      if (onboarding.skills) {
+        const skills = onboarding.skills
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        for (const skill of skills) {
+          await axios.post(
+            `${API_BASE}/users/skills`,
+            { skill },
+            { headers: { Authorization: `Bearer ${currentToken}` } }
+          );
+        }
+      }
+
+      toast.success("Profile completed!");
+      navigate("/home");
     } catch (err) {
-      const errorMsg = err.response?.data?.error || "Upload failed";
-      setError(errorMsg);
-      toast.error(errorMsg);
-      console.log("Upload error:", err.response?.data); // Debug
+      toast.error("Failed to save profile");
     }
     setLoading(false);
   };
 
-  const handleSkipProfile = async () => {
-    setLoading(true);
-    setError("");
-    const currentToken = token || localStorage.getItem("token");
-    console.log("Skip profile token:", currentToken); // Debug
-    if (!currentToken) {
-      setError("No token found. Please sign up again.");
-      toast.error("No token found. Please sign up again.");
-      setLoading(false);
-      return;
-    }
-    try {
-      const res = await axios.post(
-        `${API_BASE}/users/skip-profile`,
-        {},
-        {
-          headers: { Authorization: `Bearer ${currentToken}` },
-        }
-      );
-      if (res.data.success) {
-        setSuccess(true);
-        toast.success("Profile setup complete! Redirecting...");
-        setTimeout(() => navigate("/"), 2000);
-      }
-    } catch (err) {
-      const errorMsg = err.response?.data?.error || "Skip failed";
-      setError(errorMsg);
-      toast.error(errorMsg);
-      console.log("Skip error:", err.response?.data); // Debug
-    }
-    setLoading(false);
+  const handleSkipOnboarding = () => {
+    navigate("/home");
   };
 
-  if (success) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-lg shadow-lg border border-blue-100 text-center">
-          <h2
-            className="text-3xl font-bold text-navyBlue font-sans"
-            style={{ color: "#1A2A4F" }}
-          >
-            Welcome to Gig Connect!
-          </h2>
-          <p
-            className="text-navyBlueMedium font-sans"
-            style={{ color: "#2A3A6F" }}
-          >
-            Your profile has been created successfully.
-          </p>
-          {profilePicture && (
-            <img
-              src={URL.createObjectURL(profilePicture)}
-              alt="Profile"
-              className="w-32 h-32 rounded-full mx-auto"
-            />
-          )}
-          <p className="text-navyBlue font-sans" style={{ color: "#1A2A4F" }}>
-            Redirecting to landing page...
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const handleGoogleSignup = () => {
+    window.location.href = GOOGLE_AUTH_URL;
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-lg shadow-lg border border-blue-100">
+    <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 flex items-center justify-center py-12 px-4">
+      <div className="max-w-2xl w-full space-y-8 bg-white p-10 rounded-lg shadow-lg border border-blue-100">
         <div className="text-center">
           <h2
             className="text-3xl font-bold text-navyBlue font-sans"
             style={{ color: "#1A2A4F" }}
           >
-            Join Gig Connect
+            {isGoogleSignup
+              ? `Hi ${googleUser?.fullName?.split(" ")[0] || ""}!`
+              : "Join Gig Connect"}
           </h2>
           <p
             className="mt-2 text-navyBlueMedium font-sans"
             style={{ color: "#2A3A6F" }}
           >
-            {step === 1
+            {step === 1 && !isGoogleSignup
               ? "Create your account"
               : step === 2
-              ? "Verify your email with OTP"
-              : "Add your profile picture"}
+              ? "Verify your email"
+              : "Complete your profile"}
           </p>
         </div>
+
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded font-sans">
             {error}
           </div>
         )}
-        {step === 1 ? (
-          <form onSubmit={handleSignup} className="space-y-6">
-            <div>
-              <label
-                htmlFor="fullName"
-                className="block text-sm font-medium text-navyBlue font-sans"
-                style={{ color: "#1A2A4F" }}
-              >
-                Full Name
-              </label>
-              <input
-                type="text"
-                name="fullName"
-                required
-                value={formData.fullName}
-                onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-navyBlue focus:border-navyBlue sm:text-sm font-sans"
-                placeholder="Enter your full name"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-navyBlue font-sans"
-                style={{ color: "#1A2A4F" }}
-              >
-                Email
-              </label>
-              <input
-                type="email"
-                name="email"
-                required
-                value={formData.email}
-                onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-navyBlue focus:border-navyBlue sm:text-sm font-sans"
-                placeholder="Enter your email"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-navyBlue font-sans"
-                style={{ color: "#1A2A4F" }}
-              >
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  name="password"
-                  required
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-navyBlue focus:border-navyBlue sm:text-sm font-sans"
-                  placeholder="Enter your password"
+
+        {/* GOOGLE BUTTON */}
+        {step === 1 && !isGoogleSignup && (
+          <div className="mt-4">
+            <button
+              onClick={handleGoogleSignup}
+              className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 font-sans"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-2.5 text-navyBlueLight"
-                  style={{ color: "#3A4A7F" }}
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 6.75c1.63 0 3.06.56 4.21 1.65l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                />
+              </svg>
+              Continue with Google
+            </button>
+            <div className="my-6 flex items-center">
+              <div className="flex-1 border-t border-gray-300"></div>
+              <span className="px-3 text-sm text-gray-500 font-sans">or</span>
+              <div className="flex-1 border-t border-gray-300"></div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 1: EMAIL SIGNUP */}
+        {step === 1 && !isGoogleSignup && (
+          <form onSubmit={handleSignup} className="space-y-6">
+            <input
+              type="text"
+              name="fullName"
+              placeholder="Full Name"
+              value={formData.fullName}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border rounded-lg"
+              required
+            />
+            <input
+              type="email"
+              name="email"
+              placeholder="Email"
+              value={formData.email}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border rounded-lg"
+              required
+            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                name="password"
+                placeholder="Password"
+                value={formData.password}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border rounded-lg pr-10"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-2.5 text-navyBlueLight"
+                style={{ color: "#3A4A7F" }}
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+            <select
+              name="role"
+              value={formData.role}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border rounded-lg"
+            >
+              <option value="Seller">Seller (Post Work)</option>
+              <option value="Buyer">Buyer (Seek Work)</option>
+              <option value="Both">Both</option>
+            </select>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 bg-navyBlue text-white rounded-lg"
+              style={{ backgroundColor: "#1A2A4F" }}
+            >
+              {loading ? "Signing up..." : "Sign up"}
+            </button>
+          </form>
+        )}
+
+        {/* STEP 2: OTP */}
+        {step === 2 && (
+          <form onSubmit={handleOtpSubmit} className="space-y-6">
+            <input
+              type="text"
+              placeholder="Enter 6-digit OTP"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg text-center text-xl tracking-widest"
+              maxLength="6"
+              required
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 bg-navyBlue text-white rounded-lg"
+              style={{ backgroundColor: "#1A2A4F" }}
+            >
+              {loading ? "Verifying..." : "Verify OTP"}
+            </button>
+          </form>
+        )}
+
+        {/* STEP 3: FULL ONBOARDING */}
+        {step === 3 && (
+          <form onSubmit={handleOnboardingSubmit} className="space-y-6">
+            {/* Role */}
+            <div>
+              <label
+                className="block text-sm font-medium text-navyBlue font-sans"
+                style={{ color: "#1A2A4F" }}
+              >
+                I want to:
+              </label>
+              <div className="flex gap-4 mt-2">
+                {["Seller", "Buyer", "Both"].map((r) => (
+                  <label key={r} className="flex items-center">
+                    <input
+                      type="radio"
+                      value={r}
+                      checked={formData.role === r}
+                      onChange={(e) =>
+                        setFormData({ ...formData, role: e.target.value })
+                      }
+                      className="mr-2"
+                    />
+                    <span>{r === "Both" ? "Both (Sell & Buy)" : r}</span>
+                  </label>
+                ))}
               </div>
             </div>
+
+            {/* Profile Picture */}
             <div>
               <label
-                htmlFor="role"
                 className="block text-sm font-medium text-navyBlue font-sans"
                 style={{ color: "#1A2A4F" }}
               >
-                Role
+                Profile Picture{" "}
+                {isGoogleSignup && preview ? "(Auto-filled)" : ""}
               </label>
-              <select
-                name="role"
-                value={formData.role}
-                onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm text-gray-900 focus:outline-none focus:ring-navyBlue focus:border-navyBlue sm:text-sm font-sans"
-              >
-                <option value="Seller">Seller (Post Work)</option>
-                <option value="Buyer">Buyer (Seek Work)</option>
-                <option value="Both">Both</option>
-              </select>
+              <div className="flex items-center gap-4 mt-2">
+                {preview ? (
+                  <img
+                    src={preview}
+                    alt="Preview"
+                    className="w-24 h-24 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-24 h-24 bg-gray-200 border-2 border-dashed rounded-full flex items-center justify-center">
+                    <span className="text-gray-500 text-xs">No Image</span>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-navyBlue file:text-white"
+                />
+              </div>
             </div>
-            <div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-navyBlue hover:bg-navyBlueLight focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-navyBlue font-sans"
-                style={{ backgroundColor: "#1A2A4F" }}
-              >
-                {loading ? "Signing up..." : "Sign up"}
-              </button>
-            </div>
-          </form>
-        ) : step === 2 ? (
-          <form onSubmit={handleOtpSubmit} className="space-y-6">
+
+            {/* Skills */}
             <div>
               <label
-                htmlFor="otp"
                 className="block text-sm font-medium text-navyBlue font-sans"
                 style={{ color: "#1A2A4F" }}
               >
-                OTP (Check your email)
+                Skills (comma-separated)
               </label>
               <input
                 type="text"
-                name="otp"
-                required
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-navyBlue focus:border-navyBlue sm:text-sm font-sans"
-                placeholder="Enter 6-digit OTP"
+                value={onboarding.skills}
+                onChange={(e) =>
+                  setOnboarding({ ...onboarding, skills: e.target.value })
+                }
+                placeholder="React, Node.js, Design"
+                className="w-full px-3 py-2 border rounded-lg mt-1"
               />
             </div>
-            <div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-navyBlue hover:bg-navyBlueLight focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-navyBlue font-sans"
-                style={{ backgroundColor: "#1A2A4F" }}
-              >
-                {loading ? "Verifying..." : "Verify OTP"}
-              </button>
-            </div>
-          </form>
-        ) : (
-          <form onSubmit={handleProfileUpload} className="space-y-6">
+
+            {/* Bio */}
             <div>
               <label
-                htmlFor="profilePicture"
                 className="block text-sm font-medium text-navyBlue font-sans"
                 style={{ color: "#1A2A4F" }}
               >
-                Profile Picture (Optional)
+                Bio
               </label>
-              <input
-                type="file"
-                name="profilePicture"
-                accept="image/*"
-                onChange={(e) => setProfilePicture(e.target.files[0])}
-                className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-navyBlue file:text-white hover:file:bg-navyBlueLight font-sans"
+              <textarea
+                value={onboarding.bio}
+                onChange={(e) =>
+                  setOnboarding({ ...onboarding, bio: e.target.value })
+                }
+                placeholder="Tell us about yourself..."
+                rows="4"
+                maxLength="500"
+                className="w-full px-3 py-2 border rounded-lg mt-1"
               />
+              <p className="text-xs text-right text-gray-500">
+                {onboarding.bio.length}/500
+              </p>
             </div>
-            {profilePicture && (
-              <img
-                src={URL.createObjectURL(profilePicture)}
-                alt="Preview"
-                className="w-32 h-32 rounded-full mx-auto"
-              />
-            )}
-            <div className="flex space-x-4">
+
+            <div className="flex gap-4">
               <button
                 type="submit"
-                disabled={loading || !profilePicture}
-                className="flex-1 flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-navyBlue hover:bg-navyBlueLight focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-navyBlue font-sans"
+                disabled={loading}
+                className="flex-1 py-3 bg-navyBlue text-white rounded-lg"
                 style={{ backgroundColor: "#1A2A4F" }}
               >
-                {loading ? "Uploading..." : "Upload and Continue"}
+                {loading ? "Saving..." : "Complete Profile"}
               </button>
               <button
                 type="button"
-                onClick={handleSkipProfile}
-                disabled={loading}
-                className="flex-1 flex justify-center py-3 px-4 border border-navyBlue rounded-lg shadow-sm text-sm font-medium text-navyBlue bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-navyBlue font-sans"
+                onClick={handleSkipOnboarding}
+                className="flex-1 py-3 border border-navyBlue text-navyBlue rounded-lg bg-white"
                 style={{ color: "#1A2A4F", borderColor: "#1A2A4F" }}
               >
-                {loading ? "Processing..." : "Skip"}
+                Skip
               </button>
             </div>
           </form>
         )}
-        <div className="text-center">
+
+        <div className="text-center mt-6">
           <Link
             to="/login"
             className="text-navyBlue hover:text-navyBlueLight font-sans"
