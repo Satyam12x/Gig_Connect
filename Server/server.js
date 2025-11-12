@@ -3015,8 +3015,8 @@ app.get(
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
 
     // NEW: Check if user is new
-    const isNewUser = !req.user.isVerified; // or check if role === "Both" and no profile pic
-    const redirectPath = isNewUser ? "/signup?google=true" : "/home";
+    const redirectPath = req.user.isNew ? "/signup" : "/home"; // or check if role === "Both" and no profile pic
+    // const redirectPath = isNewUser ? "/signup?google=true" : "/home";
 
     res.redirect(`${frontendUrl}${redirectPath}?token=${token}`);
   }
