@@ -1,3 +1,4 @@
+// src/App.jsx
 import React, { useEffect, useState } from "react";
 import {
   BrowserRouter as Router,
@@ -7,14 +8,20 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
 
 // Pages
 import LandingPage from "./Pages/LandingPage";
-import Signup from "./Pages/Signup";
-import Login from "./Pages/Login";
+import Login from "./Pages/Onbaording/Login";
 import Profile from "./Pages/Profile";
 import Home from "./Pages/Home";
 import GlobalChat from "./Pages/GlobalChat";
+
+// Auth Pages (NEW)
+import SignupEmail from "./Pages/Onbaording/SignupEmail";
+import OtpVerify from "./Pages/Onbaording/OtpVerify";
+import OnboardProfile from "./Pages/Onbaording/OnboardProfile";
+import GoogleCallback from "./Pages/Onbaording/GoogleCallback";
 
 // Components
 import CreateGig from "./components/CreateGig";
@@ -24,7 +31,7 @@ import Ticket from "./components/Ticket";
 import Tickets from "./components/Tickets";
 import UserProfile from "./components/UserProfile";
 
-// Protected Route Component
+// Protected Route
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem("token");
   const location = useLocation();
@@ -36,7 +43,7 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// Token Extractor (for Google OAuth redirect)
+// Google OAuth Token Extractor (Legacy fallback)
 const TokenExtractor = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -48,8 +55,7 @@ const TokenExtractor = () => {
 
     if (token) {
       localStorage.setItem("token", token);
-      // Clean URL
-      navigate("/home", { replace: true });
+      navigate("/signup/onboard", { replace: true });
     }
 
     setLoading(false);
@@ -66,20 +72,28 @@ const TokenExtractor = () => {
   return null;
 };
 
-// Main App Component
+// Main App
 const App = () => {
   return (
     <Router>
-      {/* Extract token from URL on any page */}
+      {/* Show toast notifications */}
+      <Toaster position="top-right" />
+
+      {/* Extract token from old ?token= URLs (optional fallback) */}
       <TokenExtractor />
 
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<LandingPage />} />
-        <Route path="/signup" element={<Signup />} />
         <Route path="/login" element={<Login />} />
 
-        {/* Protected Routes */}
+        {/* === NEW AUTH FLOW === */}
+        <Route path="/signup" element={<SignupEmail />} />
+        <Route path="/signup/otp" element={<OtpVerify />} />
+        <Route path="/signup/onboard" element={<OnboardProfile />} />
+        <Route path="/auth/google/callback" element={<GoogleCallback />} />
+
+        {/* === PROTECTED ROUTES === */}
         <Route
           path="/home"
           element={

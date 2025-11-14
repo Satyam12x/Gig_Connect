@@ -6,113 +6,101 @@ import toast from "react-hot-toast";
 import { Eye, EyeOff } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
+
 const GOOGLE_AUTH_URL = `${API_BASE}/auth/google`;
 
 const Signup = () => {
-  // ────────────────────────────────────────
-  // 1. State
-  // ────────────────────────────────────────
-  const [step, setStep] = useState(1); // 1: Form | 2: OTP | 3: Onboarding
-  const [isGoogleSignup, setIsGoogleSignup] = useState(false);
-  const [googleUser, setGoogleUser] = useState(null);
+  // ────── STATE ──────
+  const [step, setStep] = useState(1); // 1 = email form, 2 = OTP, 3 = onboarding
+  const [isGoogle, setIsGoogle] = useState(false);
+  const [googleData, setGoogleData] = useState(null);
   const [token, setToken] = useState("");
 
-  // Step-1 (Email signup)
-  const [formData, setFormData] = useState({
+  // Email signup
+  const [form, setForm] = useState({
     fullName: "",
     email: "",
     password: "",
     role: "Both",
   });
 
-  // Step-2 (OTP)
+  // OTP
   const [otp, setOtp] = useState("");
 
-  // Step-3 (Onboarding)
+  // Onboarding (shared for both flows)
   const [onboard, setOnboard] = useState({
     profilePicture: null,
-    preview: "",
+    preview: "", // URL preview
     skills: "",
     bio: "",
     college: "",
     socialLinks: { linkedin: "", github: "", instagram: "" },
   });
 
-  const [showPassword, setShowPassword] = useState(false);
+  const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
 
-  // ────────────────────────────────────────
-  // 2. Google token handling
-  // ────────────────────────────────────────
+  // ────── GOOGLE CALLBACK ──────
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const tokenFromUrl = params.get("token");
+    const t = params.get("token");
+    if (!t) return;
 
-    if (tokenFromUrl) {
-      localStorage.setItem("token", tokenFromUrl);
-      setToken(tokenFromUrl);
-      setIsGoogleSignup(true);
-      fetchGoogleUser(tokenFromUrl);
-      navigate("/signup", { replace: true });
-    }
+    localStorage.setItem("token", t);
+    setToken(t);
+    setIsGoogle(true);
+    checkAuth(t);
+    navigate("/signup", { replace: true });
   }, [location, navigate]);
 
-  const fetchGoogleUser = async (tok) => {
+  const checkAuth = async (tok) => {
     try {
       const { data } = await axios.get(`${API_BASE}/auth/check`, {
         headers: { Authorization: `Bearer ${tok}` },
       });
-      if (data.authenticated) {
-        const u = data.user;
-        setGoogleUser(u);
-        setFormData((prev) => ({
-          ...prev,
-          fullName: u.fullName,
-          email: u.email,
-          role: u.role || "Both",
-        }));
-        setOnboard((prev) => ({
-          ...prev,
-          preview: u.profilePicture || "",
-        }));
-        toast.success(`Welcome, ${u.fullName.split(" ")[0]}!`);
-        setStep(3); // jump to onboarding
-      }
+      if (!data.authenticated) throw new Error();
+
+      const u = data.user;
+      setGoogleData(u);
+      setForm((p) => ({
+        ...p,
+        fullName: u.fullName,
+        email: u.email,
+        role: u.role || "Both",
+      }));
+      setOnboard((p) => ({ ...p, preview: u.profilePicture || "" }));
+      toast.success(`Welcome ${u.fullName.split(" ")[0]}!`);
+      setStep(3); // straight to onboarding
     } catch {
-      toast.error("Failed to load Google profile");
+      toast.error("Google login failed");
       navigate("/login");
-      console.log("Han bhai yahi maa chudri hai iski")
     }
   };
 
-  // ────────────────────────────────────────
-  // 3. Helpers
-  // ────────────────────────────────────────
+  // ────── HELPERS ──────
   const handleChange = (e) =>
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleImage = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setOnboard((prev) => ({
-        ...prev,
-        profilePicture: file,
-        preview: URL.createObjectURL(file),
+    const f = e.target.files[0];
+    if (f) {
+      setOnboard((p) => ({
+        ...p,
+        profilePicture: f,
+        preview: URL.createObjectURL(f),
       }));
     }
   };
 
-  // ────────────────────────────────────────
-  // 4. Step 1 – Email signup
-  // ────────────────────────────────────────
-  const handleSignup = async (e) => {
+  // ────── EMAIL SIGNUP ──────
+  const submitEmail = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { data } = await axios.post(`${API_BASE}/auth/signup`, formData);
+      const { data } = await axios.post(`${API_BASE}/auth/signup`, form);
       setToken(data.token);
       localStorage.setItem("token", data.token);
       toast.success("Check your email for OTP");
@@ -124,18 +112,16 @@ const Signup = () => {
     }
   };
 
-  // ────────────────────────────────────────
-  // 5. Step 2 – OTP verification
-  // ────────────────────────────────────────
-  const handleOtp = async (e) => {
+  // ────── OTP VERIFY ──────
+  const submitOtp = async (e) => {
     e.preventDefault();
     setLoading(true);
-    const curToken = token || localStorage.getItem("token");
+    const cur = token || localStorage.getItem("token");
     try {
       await axios.post(
         `${API_BASE}/auth/verify-otp`,
         { otp },
-        { headers: { Authorization: `Bearer ${curToken}` } }
+        { headers: { Authorization: `Bearer ${cur}` } }
       );
       toast.success("Email verified!");
       setStep(3);
@@ -146,25 +132,23 @@ const Signup = () => {
     }
   };
 
-  // ────────────────────────────────────────
-  // 6. Step 3 – Full Onboarding (single API call)
-  // ────────────────────────────────────────
-  const handleOnboard = async (e) => {
+  // ────── ONBOARDING (single API call) ──────
+  const submitOnboard = async (e) => {
     e.preventDefault();
     setLoading(true);
-    const curToken = token || localStorage.getItem("token");
+    const cur = token || localStorage.getItem("token");
 
     const payload = new FormData();
-    payload.append("role", formData.role);
+    payload.append("role", form.role);
     if (onboard.profilePicture) payload.append("image", onboard.profilePicture);
     if (onboard.bio) payload.append("bio", onboard.bio);
     if (onboard.college) payload.append("college", onboard.college);
     if (onboard.skills) {
-      const skillsArr = onboard.skills
+      const arr = onboard.skills
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
-      payload.append("skills", JSON.stringify(skillsArr));
+      payload.append("skills", JSON.stringify(arr));
     }
     if (
       onboard.socialLinks.linkedin ||
@@ -177,7 +161,7 @@ const Signup = () => {
     try {
       await axios.post(`${API_BASE}/users/onboard`, payload, {
         headers: {
-          Authorization: `Bearer ${curToken}`,
+          Authorization: `Bearer ${cur}`,
           "Content-Type": "multipart/form-data",
         },
       });
@@ -192,27 +176,22 @@ const Signup = () => {
 
   const skipOnboard = () => navigate("/home");
 
-  // ────────────────────────────────────────
-  // 7. Render
-  // ────────────────────────────────────────
+  // ────── RENDER ──────
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 flex items-center justify-center py-12 px-4">
       <div className="max-w-2xl w-full space-y-8 bg-white p-10 rounded-lg shadow-lg border border-blue-100">
         {/* Header */}
         <div className="text-center">
           <h2
-            className="text-3xl font-bold text-navyBlue font-sans"
+            className="text-3xl font-bold text-navyBlue"
             style={{ color: "#1A2A4F" }}
           >
-            {isGoogleSignup
-              ? `Hi ${googleUser?.fullName?.split(" ")[0] || ""}!`
+            {isGoogle
+              ? `Hi ${googleData?.fullName?.split(" ")[0] || ""}!`
               : "Join Gig Connect"}
           </h2>
-          <p
-            className="mt-2 text-navyBlueMedium font-sans"
-            style={{ color: "#2A3A6F" }}
-          >
-            {step === 1 && !isGoogleSignup
+          <p className="mt-2 text-navyBlueMedium" style={{ color: "#2A3A6F" }}>
+            {step === 1 && !isGoogle
               ? "Create your account"
               : step === 2
               ? "Verify your email"
@@ -220,10 +199,10 @@ const Signup = () => {
           </p>
         </div>
 
-        {/* ──────── STEP 1 ──────── */}
-        {step === 1 && !isGoogleSignup && (
+        {/* ────── STEP 1 – EMAIL ────── */}
+        {step === 1 && !isGoogle && (
           <>
-            {/* Google button */}
+            {/* Google */}
             <div className="mt-6">
               <button
                 type="button"
@@ -250,6 +229,7 @@ const Signup = () => {
                 </svg>
                 Continue with Google
               </button>
+
               <div className="my-6 flex items-center">
                 <div className="flex-1 border-t border-gray-300" />
                 <span className="px-3 text-sm text-gray-500">or</span>
@@ -258,12 +238,12 @@ const Signup = () => {
             </div>
 
             {/* Email form */}
-            <form onSubmit={handleSignup} className="space-y-5">
+            <form onSubmit={submitEmail} className="space-y-5">
               <input
                 type="text"
                 name="fullName"
                 placeholder="Full Name"
-                value={formData.fullName}
+                value={form.fullName}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
@@ -272,34 +252,34 @@ const Signup = () => {
                 type="email"
                 name="email"
                 placeholder="Email"
-                value={formData.email}
+                value={form.email}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               />
               <div className="relative">
                 <input
-                  type={showPassword ? "text" : "password"}
+                  type={showPwd ? "text" : "password"}
                   name="password"
                   placeholder="Password"
-                  value={formData.password}
+                  value={form.password}
                   onChange={handleChange}
                   className="w-full px-3 py-2 border rounded-lg pr-10"
                   required
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() => setShowPwd(!showPwd)}
                   className="absolute right-3 top-2.5 text-navyBlueLight"
                   style={{ color: "#3A4A7F" }}
                 >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  {showPwd ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
 
               <select
                 name="role"
-                value={formData.role}
+                value={form.role}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border rounded-lg"
               >
@@ -320,9 +300,9 @@ const Signup = () => {
           </>
         )}
 
-        {/* ──────── STEP 2 ──────── */}
+        {/* ────── STEP 2 – OTP ────── */}
         {step === 2 && (
-          <form onSubmit={handleOtp} className="space-y-6">
+          <form onSubmit={submitOtp} className="space-y-6">
             <input
               type="text"
               placeholder="Enter 6-digit OTP"
@@ -343,9 +323,9 @@ const Signup = () => {
           </form>
         )}
 
-        {/* ──────── STEP 3 – ONBOARDING ──────── */}
+        {/* ────── STEP 3 – ONBOARDING ────── */}
         {step === 3 && (
-          <form onSubmit={handleOnboard} className="space-y-6">
+          <form onSubmit={submitOnboard} className="space-y-6">
             {/* Role */}
             <div>
               <label
@@ -361,9 +341,9 @@ const Signup = () => {
                       type="radio"
                       name="role"
                       value={r}
-                      checked={formData.role === r}
+                      checked={form.role === r}
                       onChange={(e) =>
-                        setFormData({ ...formData, role: e.target.value })
+                        setForm({ ...form, role: e.target.value })
                       }
                       className="mr-2"
                     />
@@ -379,8 +359,7 @@ const Signup = () => {
                 className="block text-sm font-medium text-navyBlue"
                 style={{ color: "#1A2A4F" }}
               >
-                Profile Picture{" "}
-                {isGoogleSignup && onboard.preview && "(from Google)"}
+                Profile Picture {isGoogle && onboard.preview && "(from Google)"}
               </label>
               <div className="flex items-center gap-4 mt-2">
                 {onboard.preview ? (
