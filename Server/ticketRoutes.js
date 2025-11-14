@@ -1,4 +1,4 @@
-// ticketRoutes.js
+//backend code (currently not in use)
 const { check, validationResult } = require("express-validator");
 const sanitizeHtml = require("sanitize-html");
 const mongoose = require("mongoose");
