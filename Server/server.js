@@ -3020,6 +3020,65 @@ app.get(
   }
 );
 
+//fixing the signup issue:
+// POST /api/users/onboard
+app.post(
+  "/api/users/onboard",
+  authMiddleware,
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      const user = await User.findOne({ _id: req.userId });
+      if (!user) return res.status(404).json({ error: "User not found" });
+
+      // role
+      if (req.body.role) user.role = req.body.role;
+
+      // picture
+      if (req.file) {
+        const result = await new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder: "gigconnect/profiles" },
+            (err, res) => (err ? reject(err) : resolve(res))
+          );
+          Readable.from(req.file.buffer).pipe(stream);
+        });
+        user.profilePicture = result.secure_url;
+      }
+
+      // bio & college
+      if (req.body.bio) user.bio = req.body.bio;
+      if (req.body.college) user.college = req.body.college;
+
+      // skills
+      if (req.body.skills) {
+        const skills = JSON.parse(req.body.skills);
+        for (const s of skills) {
+          if (
+            !user.skills.some((x) => x.name.toLowerCase() === s.toLowerCase())
+          ) {
+            user.skills.push({ name: s, endorsements: 0 });
+          }
+        }
+      }
+
+      // social links
+      if (req.body.socialLinks) {
+        user.socialLinks = {
+          ...user.socialLinks,
+          ...JSON.parse(req.body.socialLinks),
+        };
+      }
+
+      await user.save();
+      res.json({ success: true, message: "Onboarding complete" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Server error" });
+    }
+  }
+);
+
 // Start Server
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
