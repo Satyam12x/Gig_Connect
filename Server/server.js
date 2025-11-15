@@ -898,6 +898,7 @@ app.get("/api/auth/check", async (req, res) => {
         email: user.email,
         role: user.role,
         profilePicture: user.profilePicture,
+        onboarded: user.onboarded || false,
       },
     });
   } catch (err) {

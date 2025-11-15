@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import axios from "axios"; // ADD THIS
 import toast from "react-hot-toast";
+
+const API = import.meta.env.VITE_API_BASE || "http://localhost:5000/api"; // ADD THIS
 
 export default function GoogleCallback() {
   const navigate = useNavigate();
@@ -10,14 +13,15 @@ export default function GoogleCallback() {
     const params = new URLSearchParams(location.search);
     const token = params.get("token");
     const userId = params.get("userId");
+
     if (!token) {
       toast.error("Google login failed");
       return navigate("/login");
     }
+
     localStorage.setItem("token", token);
     if (userId) localStorage.setItem("userId", userId);
 
-    // Check onboarding status
     axios
       .get(`${API}/auth/check`, {
         headers: { Authorization: `Bearer ${token}` },
