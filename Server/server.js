@@ -72,8 +72,9 @@ passport.use(
         process.env.GOOGLE_CALLBACK_URL ||
         "http://localhost:5000/api/auth/google/callback",
       scope: ["profile", "email"],
+      passReqToCallback: true, // Enable to access req in callback
     },
-    async (accessToken, refreshToken, profile, done) => {
+    async (req, accessToken, refreshToken, profile, done) => {
       try {
         const email = profile.emails?.[0]?.value?.toLowerCase();
         const fullName = profile.displayName?.trim() || email.split("@")[0];
@@ -81,9 +82,18 @@ passport.use(
 
         if (!email) return done(new Error("No email from Google"));
 
+        // Check if this is signup or login based on the route
+        const isSignup = req.query.state === "signup";
+
         let user = await User.findOne({ email }).lean();
 
-        if (!user) {
+        if (isSignup) {
+          // SIGNUP FLOW - User should NOT exist
+          if (user) {
+            return done(null, false, { message: "account_exists" });
+          }
+
+          // Create new user with onboarded: false
           const userId = crypto.randomBytes(16).toString("hex");
           const dummyPassword = await bcrypt.hash(
             crypto.randomBytes(20).toString("hex"),
@@ -98,6 +108,7 @@ passport.use(
             role: "Both",
             isVerified: true,
             profilePicture: photo,
+            onboarded: false, // IMPORTANT: Must complete onboarding
             skills: [],
             certifications: [],
             orderHistory: [],
@@ -108,10 +119,23 @@ passport.use(
             ratings: [],
           };
           await User.create(user);
-        }
+          console.log("New Google user created:", userId);
+          return done(null, user);
+        } else {
+          // LOGIN FLOW - User MUST exist and be onboarded
+          if (!user) {
+            return done(null, false, { message: "no_account" });
+          }
 
-        return done(null, user);
+          if (!user.onboarded) {
+            return done(null, false, { message: "not_onboarded" });
+          }
+
+          console.log("Existing user logged in:", user._id);
+          return done(null, user);
+        }
       } catch (err) {
+        console.error("Google OAuth error:", err);
         return done(err);
       }
     }
@@ -556,6 +580,7 @@ app.post(
         bio: pendingUser.bio,
         socialLinks: pendingUser.socialLinks,
         isVerified: true,
+        onboarded: false,
         skills: [],
         certifications: [],
         orderHistory: [],
@@ -892,7 +917,7 @@ app.get("/api/auth/check", async (req, res) => {
         email: user.email,
         role: user.role,
         profilePicture: user.profilePicture,
-        onboarded: user.onboarded || false,
+        onboarded: user.onboarded ?? false,
       },
     });
   } catch (err) {
@@ -2992,16 +3017,35 @@ app.post(
 );
 
 //Google auth system:
-app.get(
-  "/api/auth/google",
-  passport.authenticate("google", { scope: ["profile", "email"] })
-);
+// Google Signup Route
+app.get("/api/auth/google/signup", (req, res, next) => {
+  passport.authenticate("google", {
+    scope: ["profile", "email"],
+    state: "signup", // Pass state to identify signup flow
+  })(req, res, next);
+});
 
-// In /api/auth/google/callback
+// Google Login Route
+app.get("/api/auth/google/login", (req, res, next) => {
+  passport.authenticate("google", {
+    scope: ["profile", "email"],
+    state: "login", // Pass state to identify login flow
+  })(req, res, next);
+});
+
+// Google Callback - REPLACE YOUR EXISTING ONE
 app.get(
   "/api/auth/google/callback",
-  passport.authenticate("google", { failureRedirect: "/login" }),
+  passport.authenticate("google", {
+    failureRedirect: "/auth/google/failure",
+    session: false,
+  }),
   (req, res) => {
+    if (!req.user) {
+      const front = process.env.FRONTEND_URL || "http://localhost:5173";
+      return res.redirect(`${front}/login?error=auth_failed`);
+    }
+
     const token = jwt.sign(
       { id: req.user._id, role: req.user.role },
       process.env.JWT_SECRET,
@@ -3009,10 +3053,34 @@ app.get(
     );
 
     const front = process.env.FRONTEND_URL || "http://localhost:5173";
-    const redirect = `${front}/auth/google/callback?token=${token}&userId=${req.user._id}`;
+    const onboarded = req.user.onboarded ? "true" : "false";
+    const redirect = `${front}/auth/google/callback?token=${token}&userId=${req.user._id}&onboarded=${onboarded}`;
+
+    console.log("Google callback redirect:", {
+      userId: req.user._id,
+      onboarded,
+    });
     res.redirect(redirect);
   }
 );
+
+// Google Auth Failure Handler - ADD THIS NEW ROUTE
+app.get("/auth/google/failure", (req, res) => {
+  const message = req.session?.messages?.[0] || "auth_failed";
+  const front = process.env.FRONTEND_URL || "http://localhost:5173";
+
+  console.log("Google auth failed:", message);
+
+  if (message === "account_exists") {
+    res.redirect(`${front}/signup?error=account_exists`);
+  } else if (message === "no_account") {
+    res.redirect(`${front}/login?error=no_account`);
+  } else if (message === "not_onboarded") {
+    res.redirect(`${front}/login?error=not_onboarded`);
+  } else {
+    res.redirect(`${front}/login?error=auth_failed`);
+  }
+});
 
 //fixing the signup issue:
 app.post(
@@ -3056,7 +3124,7 @@ app.post(
         };
       }
 
-      user.onboarded = true; // MARK AS COMPLETED
+      user.onboarded = true;
       await user.save();
 
       res.json({ success: true, message: "Onboarding complete" });
@@ -3066,6 +3134,46 @@ app.post(
     }
   }
 );
+
+//Paapiyo ka khatma:
+app.delete("/api/admin/cleanup-pending", async (req, res) => {
+  try {
+    const cutoffDate = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours ago
+
+    const result = await User.deleteMany({
+      onboarded: false,
+      createdAt: { $lt: cutoffDate },
+    });
+
+    console.log(`Cleaned up ${result.deletedCount} non-onboarded users`);
+    res.json({
+      success: true,
+      deletedCount: result.deletedCount,
+      message: `Removed ${result.deletedCount} incomplete registrations`,
+    });
+  } catch (err) {
+    console.error("Cleanup error:", err);
+    res.status(500).json({ error: "Cleanup failed", details: err.message });
+  }
+});
+setInterval(async () => {
+  try {
+    const cutoffDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const result = await User.deleteMany({
+      onboarded: false,
+      createdAt: { $lt: cutoffDate },
+    });
+    if (result.deletedCount > 0) {
+      console.log(
+        `Auto-cleanup: Removed ${result.deletedCount} non-onboarded users older than 24 hours`
+      );
+    }
+  } catch (err) {
+    console.error("Auto-cleanup error:", err);
+  }
+}, 6 * 60 * 60 * 1000); // Every 6 hours
+
+console.log("Auto-cleanup job scheduled (runs every 6 hours)");
 
 // Start Server
 server.listen(PORT, () => {

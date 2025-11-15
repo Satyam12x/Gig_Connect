@@ -1,10 +1,7 @@
 // src/pages/auth/GoogleCallback.jsx
 import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import axios from "axios";
 import toast from "react-hot-toast";
-
-const API = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
 
 export default function GoogleCallback() {
   const navigate = useNavigate();
@@ -14,43 +11,32 @@ export default function GoogleCallback() {
     const params = new URLSearchParams(location.search);
     const token = params.get("token");
     const userId = params.get("userId");
+    const onboarded = params.get("onboarded");
 
     if (!token) {
-      toast.error("Google login failed");
+      toast.error("Google authentication failed");
       return navigate("/login", { replace: true });
     }
 
-    // Save token immediately
+    // Save token and userId
     localStorage.setItem("token", token);
     if (userId) localStorage.setItem("userId", userId);
 
-    // Always call /auth/check to get user state
-    axios
-      .get(`${API}/auth/check`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then((res) => {
-        const onboarded = res.data.user?.onboarded ?? false;
-        if (onboarded) {
-          navigate("/home", { replace: true });
-        } else {
-          navigate("/onboard", { replace: true }); // New user → onboard
-        }
-      })
-      .catch((err) => {
-        console.error("Auth check failed:", err);
-        localStorage.removeItem("token");
-        localStorage.removeItem("userId");
-        toast.error("Session expired. Please try again.");
-        navigate("/login", { replace: true });
-      });
+    // Check if user needs onboarding
+    if (onboarded === "false") {
+      toast.success("Welcome! Please complete your profile.");
+      navigate("/onboard", { replace: true });
+    } else {
+      toast.success("Welcome back!");
+      navigate("/home", { replace: true });
+    }
   }, [location, navigate]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-white to-gray-50">
       <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-navyBlue mx-auto"></div>
-        <p className="mt-4 text-gray-600">Completing sign in...</p>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="mt-4 text-gray-600">Completing authentication...</p>
       </div>
     </div>
   );

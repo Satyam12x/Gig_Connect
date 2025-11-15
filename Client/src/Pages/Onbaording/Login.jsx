@@ -1,6 +1,5 @@
-// src/Pages/Login.jsx
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
 
@@ -12,6 +11,20 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const errorParam = searchParams.get("error");
+    if (errorParam === "account_exists") {
+      toast.error("Account already exists! Please login instead.");
+    } else if (errorParam === "no_account") {
+      toast.error("No account found. Please sign up first.");
+    } else if (errorParam === "not_onboarded") {
+      toast.error("Please complete your profile setup first.");
+    } else if (errorParam === "auth_failed") {
+      toast.error("Google authentication failed. Please try again.");
+    }
+  }, [searchParams]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -38,13 +51,12 @@ const Login = () => {
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = `${API_BASE}/auth/google`;
+    window.location.href = `${API_BASE}/auth/google/login`;
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <style>{`
-        /* === ALL YOUR ORIGINAL STYLES (unchanged) === */
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
         @keyframes bounce { 0%, 60%, 100% { opacity: 0.5; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-10px); } }
@@ -82,7 +94,6 @@ const Login = () => {
 
       <div className="w-full max-w-md">
         <div className="form-container bg-white rounded-2xl shadow-xl p-8 sm:p-10 border border-slate-100">
-          {/* Header */}
           <div className="form-header text-center mb-8">
             <h2
               className="text-4xl font-bold text-slate-900 mb-2"
@@ -99,7 +110,6 @@ const Login = () => {
             </p>
           </div>
 
-          {/* Error */}
           {error && (
             <div className="error-message mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-start gap-3">
               <svg
@@ -117,7 +127,6 @@ const Login = () => {
             </div>
           )}
 
-          {/* Google Button (NEW) */}
           <button
             onClick={handleGoogleLogin}
             className="google-btn w-full flex items-center justify-center gap-3 py-3 mb-6 border border-slate-300 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-medium"
@@ -143,7 +152,6 @@ const Login = () => {
             Continue with Google
           </button>
 
-          {/* Divider */}
           <div className="flex items-center gap-3 my-6">
             <div className="flex-1 h-px bg-slate-200"></div>
             <span className="text-xs text-slate-500 font-medium">
@@ -152,9 +160,7 @@ const Login = () => {
             <div className="flex-1 h-px bg-slate-200"></div>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-0">
-            {/* Email */}
             <div className="input-field">
               <div className="input-wrapper">
                 <label htmlFor="email" className="form-label">
@@ -175,7 +181,6 @@ const Login = () => {
               </div>
             </div>
 
-            {/* Password */}
             <div className="input-field">
               <div className="input-wrapper">
                 <label htmlFor="password" className="form-label">
@@ -196,7 +201,6 @@ const Login = () => {
               </div>
             </div>
 
-            {/* Submit */}
             <div className="submit-button pt-2">
               <button
                 type="submit"
@@ -237,7 +241,6 @@ const Login = () => {
             </div>
           </form>
 
-          {/* Sign Up Link */}
           <div className="signup-section text-center mt-6">
             <p className="text-slate-600 text-sm">
               Don't have an account?{" "}

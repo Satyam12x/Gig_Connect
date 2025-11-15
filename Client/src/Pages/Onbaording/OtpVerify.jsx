@@ -21,8 +21,8 @@ export default function OtpVerify() {
         { otp },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      toast.success("Email verified!");
-      navigate("/signup/onboard");
+      toast.success("Email verified! Complete your profile.");
+      navigate("/onboard");
     } catch (err) {
       toast.error(err.response?.data?.error || "Invalid OTP");
     } finally {
@@ -51,11 +51,11 @@ export default function OtpVerify() {
             value={otp}
             onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
             placeholder="000000"
-            className="w-full text-center text-2xl tracking-widest px-3 py-3 border rounded-lg"
+            className="w-full text-center text-2xl tracking-widest px-3 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             disabled={loading || otp.length !== 6}
-            className="mt-6 w-full py-3 bg-navyBlue text-white rounded-lg disabled:opacity-50"
+            className="mt-6 w-full py-3 bg-navyBlue text-white rounded-lg disabled:opacity-50 transition-all"
             style={{ backgroundColor: "#1A2A4F" }}
           >
             {loading ? "Verifying…" : "Verify"}
