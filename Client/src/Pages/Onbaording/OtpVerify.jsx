@@ -22,7 +22,7 @@ export default function OtpVerify() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       toast.success("Email verified! Complete your profile.");
-      navigate("/onboard");
+      navigate("/signup/onboard");
     } catch (err) {
       toast.error(err.response?.data?.error || "Invalid OTP");
     } finally {

@@ -3042,9 +3042,17 @@ app.get(
   }),
   (req, res) => {
     if (!req.user) {
+      console.error("Google callback: No user found");
       const front = process.env.FRONTEND_URL || "http://localhost:5173";
       return res.redirect(`${front}/login?error=auth_failed`);
     }
+
+    console.log("Google callback - User details:", {
+      userId: req.user._id,
+      email: req.user.email,
+      onboarded: req.user.onboarded,
+      isVerified: req.user.isVerified,
+    });
 
     const token = jwt.sign(
       { id: req.user._id, role: req.user.role },
@@ -3053,13 +3061,12 @@ app.get(
     );
 
     const front = process.env.FRONTEND_URL || "http://localhost:5173";
-    const onboarded = req.user.onboarded ? "true" : "false";
+    const onboarded = req.user.onboarded === true ? "true" : "false";
     const redirect = `${front}/auth/google/callback?token=${token}&userId=${req.user._id}&onboarded=${onboarded}`;
 
-    console.log("Google callback redirect:", {
-      userId: req.user._id,
-      onboarded,
-    });
+    console.log("Google callback - Redirecting to:", redirect);
+    console.log("Onboarded status being sent:", onboarded);
+
     res.redirect(redirect);
   }
 );

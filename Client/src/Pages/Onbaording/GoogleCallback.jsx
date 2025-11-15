@@ -13,6 +13,12 @@ export default function GoogleCallback() {
     const userId = params.get("userId");
     const onboarded = params.get("onboarded");
 
+    console.log("Google Callback params:", {
+      token: !!token,
+      userId,
+      onboarded,
+    });
+
     if (!token) {
       toast.error("Google authentication failed");
       return navigate("/login", { replace: true });
@@ -22,13 +28,44 @@ export default function GoogleCallback() {
     localStorage.setItem("token", token);
     if (userId) localStorage.setItem("userId", userId);
 
-    // Check if user needs onboarding
-    if (onboarded === "false") {
+    // IMPORTANT: Check onboarding status - use /signup/onboard to match your routes
+    if (onboarded === "false" || onboarded === false) {
+      console.log("User needs onboarding, redirecting to /signup/onboard");
       toast.success("Welcome! Please complete your profile.");
-      navigate("/onboard", { replace: true });
-    } else {
+      setTimeout(() => {
+        navigate("/signup/onboard", { replace: true });
+      }, 100);
+    } else if (onboarded === "true" || onboarded === true) {
+      console.log("User onboarded, redirecting to /home");
       toast.success("Welcome back!");
-      navigate("/home", { replace: true });
+      setTimeout(() => {
+        navigate("/home", { replace: true });
+      }, 100);
+    } else {
+      // Fallback: check with API
+      console.log("Onboarded status unclear, checking with API");
+      axios
+        .get(
+          `${
+            import.meta.env.VITE_API_BASE || "http://localhost:5000/api"
+          }/auth/check`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        )
+        .then((res) => {
+          if (res.data.authenticated) {
+            if (res.data.user?.onboarded) {
+              navigate("/home", { replace: true });
+            } else {
+              navigate("/signup/onboard", { replace: true });
+            }
+          }
+        })
+        .catch((err) => {
+          console.error("Auth check failed:", err);
+          navigate("/signup/onboard", { replace: true });
+        });
     }
   }, [location, navigate]);
 

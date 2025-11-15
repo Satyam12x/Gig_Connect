@@ -17,7 +17,7 @@ import Profile from "./Pages/Profile";
 import Home from "./Pages/Home";
 import GlobalChat from "./Pages/GlobalChat";
 
-// Auth Pages (NEW)
+// Auth Pages
 import SignupEmail from "./Pages/Onbaording/SignupEmail";
 import OtpVerify from "./Pages/Onbaording/OtpVerify";
 import OnboardProfile from "./Pages/Onbaording/OnboardProfile";
@@ -43,35 +43,6 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// Google OAuth Token Extractor (Legacy fallback)
-const TokenExtractor = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const token = params.get("token");
-
-    if (token) {
-      localStorage.setItem("token", token);
-      navigate("/signup/onboard", { replace: true });
-    }
-
-    setLoading(false);
-  }, [location, navigate]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  return null;
-};
-
 // Main App
 const App = () => {
   return (
@@ -79,18 +50,20 @@ const App = () => {
       {/* Show toast notifications */}
       <Toaster position="top-right" />
 
-      {/* Extract token from old ?token= URLs (optional fallback) */}
-      <TokenExtractor />
-
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
 
-        {/* === NEW AUTH FLOW === */}
+        {/* === AUTH FLOW === */}
         <Route path="/signup" element={<SignupEmail />} />
         <Route path="/signup/otp" element={<OtpVerify />} />
         <Route path="/signup/onboard" element={<OnboardProfile />} />
+
+        {/* Onboard alias routes - both should work */}
+        <Route path="/onboard" element={<OnboardProfile />} />
+
+        {/* Google OAuth Callback */}
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
 
         {/* === PROTECTED ROUTES === */}
