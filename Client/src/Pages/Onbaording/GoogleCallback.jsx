@@ -1,4 +1,3 @@
-// src/pages/auth/GoogleCallback.jsx
 import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -10,14 +9,15 @@ export default function GoogleCallback() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const token = params.get("token");
+    const userId = params.get("userId");
     if (!token) {
       toast.error("Google login failed");
       return navigate("/login");
     }
-
     localStorage.setItem("token", token);
+    if (userId) localStorage.setItem("userId", userId);
     toast.success("Google login successful!");
-    navigate("/signup/onboard");
+    navigate("/signup/onboard", { replace: true });
   }, [location, navigate]);
 
   return (

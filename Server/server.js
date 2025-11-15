@@ -176,6 +176,7 @@ const userSchema = new mongoose.Schema(
         givenAt: { type: Date, default: Date.now },
       },
     ],
+    onboarded: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -3011,58 +3012,47 @@ app.get(
       process.env.JWT_SECRET,
       { expiresIn: "24h" }
     );
-
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-
-    const redirectPath = req.user.isNew ? "/signup" : "/home";
-
-    res.redirect(`${frontendUrl}${redirectPath}?token=${token}`);
+    const front = process.env.FRONTEND_URL || "http://localhost:5173";
+    const redirect = `${front}/auth/google/callback?token=${token}&userId=${req.user._id}`;
+    res.redirect(redirect);
   }
 );
 
 //fixing the signup issue:
-// POST /api/users/onboard
 app.post(
   "/api/users/onboard",
   authMiddleware,
   upload.single("image"),
   async (req, res) => {
     try {
-      const user = await User.findOne({ _id: req.userId });
+      const user = await User.findById(req.userId);
       if (!user) return res.status(404).json({ error: "User not found" });
 
-      // role
       if (req.body.role) user.role = req.body.role;
+      if (req.body.bio) user.bio = req.body.bio;
+      if (req.body.college) user.college = req.body.college;
 
-      // picture
       if (req.file) {
         const result = await new Promise((resolve, reject) => {
           const stream = cloudinary.uploader.upload_stream(
             { folder: "gigconnect/profiles" },
-            (err, res) => (err ? reject(err) : resolve(res))
+            (err, r) => (err ? reject(err) : resolve(r))
           );
           Readable.from(req.file.buffer).pipe(stream);
         });
         user.profilePicture = result.secure_url;
       }
 
-      // bio & college
-      if (req.body.bio) user.bio = req.body.bio;
-      if (req.body.college) user.college = req.body.college;
-
-      // skills
       if (req.body.skills) {
         const skills = JSON.parse(req.body.skills);
         for (const s of skills) {
-          if (
-            !user.skills.some((x) => x.name.toLowerCase() === s.toLowerCase())
-          ) {
+          const lower = s.toLowerCase();
+          if (!user.skills.some((x) => x.name.toLowerCase() === lower)) {
             user.skills.push({ name: s, endorsements: 0 });
           }
         }
       }
 
-      // social links
       if (req.body.socialLinks) {
         user.socialLinks = {
           ...user.socialLinks,
@@ -3070,7 +3060,9 @@ app.post(
         };
       }
 
+      user.onboarded = true; // MARK AS COMPLETED
       await user.save();
+
       res.json({ success: true, message: "Onboarding complete" });
     } catch (err) {
       console.error(err);

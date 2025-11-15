@@ -20,7 +20,6 @@ export default function OnboardProfile() {
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
 
-  // Pre-fill Google data if present
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -50,11 +49,10 @@ export default function OnboardProfile() {
     }
   };
 
-  const submit = async (e) => {
-    e.preventDefault();
+  const handleSaveAndContinue = async () => {
     setLoading(true);
     const form = new FormData();
-    form.append("role", data.role);
+    if (data.role) form.append("role", data.role);
     if (data.image) form.append("image", data.image);
     if (data.bio) form.append("bio", data.bio);
     if (data.college) form.append("college", data.college);
@@ -63,10 +61,13 @@ export default function OnboardProfile() {
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
-      form.append("skills", JSON.stringify(arr));
+      if (arr.length) form.append("skills", JSON.stringify(arr));
     }
-    if (Object.values(data.socialLinks).some((v) => v)) {
-      form.append("socialLinks", JSON.stringify(data.socialLinks));
+    const social = Object.fromEntries(
+      Object.entries(data.socialLinks).filter(([, v]) => v)
+    );
+    if (Object.keys(social).length) {
+      form.append("socialLinks", JSON.stringify(social));
     }
 
     try {
@@ -85,8 +86,6 @@ export default function OnboardProfile() {
     }
   };
 
-  const skip = () => navigate("/home");
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl bg-white rounded-lg shadow-lg p-8 border border-blue-100">
@@ -97,8 +96,7 @@ export default function OnboardProfile() {
           Complete Your Profile
         </h2>
 
-        <form onSubmit={submit} className="mt-8 space-y-6">
-          {/* Role */}
+        <div className="mt-8 space-y-6">
           <div>
             <label className="block font-medium">I want to:</label>
             <div className="flex gap-6 mt-2">
@@ -118,7 +116,6 @@ export default function OnboardProfile() {
             </div>
           </div>
 
-          {/* Picture */}
           <div>
             <label className="block font-medium">Profile Picture</label>
             <div className="flex items-center gap-4 mt-2">
@@ -140,7 +137,6 @@ export default function OnboardProfile() {
             </div>
           </div>
 
-          {/* Skills */}
           <input
             placeholder="Skills (comma-separated)"
             value={data.skills}
@@ -148,7 +144,6 @@ export default function OnboardProfile() {
             className="w-full px-3 py-2 border rounded-lg"
           />
 
-          {/* College */}
           <input
             placeholder="College / University (optional)"
             value={data.college}
@@ -156,7 +151,6 @@ export default function OnboardProfile() {
             className="w-full px-3 py-2 border rounded-lg"
           />
 
-          {/* Bio */}
           <textarea
             rows="4"
             maxLength="500"
@@ -166,7 +160,6 @@ export default function OnboardProfile() {
             className="w-full px-3 py-2 border rounded-lg"
           />
 
-          {/* Social */}
           <div className="grid grid-cols-3 gap-3">
             <input
               placeholder="LinkedIn"
@@ -211,7 +204,9 @@ export default function OnboardProfile() {
 
           <div className="flex gap-4">
             <button
+              type="button"
               disabled={loading}
+              onClick={handleSaveAndContinue}
               className="flex-1 py-3 bg-navyBlue text-white rounded-lg"
               style={{ backgroundColor: "#1A2A4F" }}
             >
@@ -219,14 +214,14 @@ export default function OnboardProfile() {
             </button>
             <button
               type="button"
-              onClick={skip}
+              onClick={() => navigate("/home")}
               className="flex-1 py-3 border border-navyBlue text-navyBlue rounded-lg bg-white"
               style={{ color: "#1A2A4F", borderColor: "#1A2A4F" }}
             >
               Skip
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
