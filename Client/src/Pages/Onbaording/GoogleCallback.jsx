@@ -16,8 +16,22 @@ export default function GoogleCallback() {
     }
     localStorage.setItem("token", token);
     if (userId) localStorage.setItem("userId", userId);
-    toast.success("Google login successful!");
-    navigate("/signup/onboard", { replace: true });
+
+    // Check onboarding status
+    axios
+      .get(`${API}/auth/check`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        if (res.data.user.onboarded) {
+          navigate("/home", { replace: true });
+        } else {
+          navigate("/onboard", { replace: true });
+        }
+      })
+      .catch(() => {
+        navigate("/onboard", { replace: true });
+      });
   }, [location, navigate]);
 
   return (
