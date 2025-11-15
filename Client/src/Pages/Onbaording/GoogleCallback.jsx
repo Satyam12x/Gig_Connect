@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import axios from "axios"; // ADD THIS
+import axios from "axios";
 import toast from "react-hot-toast";
 
-const API = import.meta.env.VITE_API_BASE || "http://localhost:5000/api"; // ADD THIS
+const API = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
 
 export default function GoogleCallback() {
   const navigate = useNavigate();

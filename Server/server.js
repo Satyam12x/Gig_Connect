@@ -872,23 +872,17 @@ app.put(
 app.get("/api/auth/check", async (req, res) => {
   try {
     const authHeader = req.header("Authorization");
-    if (!authHeader) {
-      return res.json({ authenticated: false });
-    }
+    if (!authHeader) return res.json({ authenticated: false });
 
     const token = authHeader.replace("Bearer ", "");
-    if (!token) {
-      return res.json({ authenticated: false });
-    }
+    if (!token) return res.json({ authenticated: false });
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findOne({ _id: decoded.id })
       .select("-password -emailOtp -emailOtpExpire")
       .lean();
 
-    if (!user) {
-      return res.json({ authenticated: false });
-    }
+    if (!user) return res.json({ authenticated: false });
 
     res.json({
       authenticated: true,
@@ -3013,6 +3007,7 @@ app.get(
       process.env.JWT_SECRET,
       { expiresIn: "24h" }
     );
+
     const front = process.env.FRONTEND_URL || "http://localhost:5173";
     const redirect = `${front}/auth/google/callback?token=${token}&userId=${req.user._id}`;
     res.redirect(redirect);
