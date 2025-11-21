@@ -2,10 +2,13 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
+import useDocumentTitle from "../../hooks/useDocumentTitle";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
 
 const Login = () => {
+  useDocumentTitle("Sign In to Your Account");
+
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -79,7 +82,8 @@ const Login = () => {
         .input-wrapper::after { content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, #1A2A4F, #2A3A6F); transform: scaleX(0); transition: transform 0.3s ease; transform-origin: left; }
         .input-wrapper:focus-within::after { transform: scaleX(1); }
         .sign-up-link { transition: all 0.3s ease; color: #1A2A4F; text-decoration: none; font-weight: 500; position: relative; }
-        .sign-up-link::after { content: ''; position: absolute; bottom: -2px; left: 0; width: 100%; height: 2px; background: #1A2A4F; transform: scaleX(0); transition: transform 0.3s ease; transform-origin: left; }
+        .sign-up-link::after { content: ''; position: absolute; bottom: -2px; left: 0; width: 100%; height: 2px; background: #1A2A4F; transform: scaleX(0); transition: transform 0.3s ease; transform-origin:
+        left; }
         .sign-up-link:hover::after { transform: scaleX(1); }
         .form-header { animation: fadeInUp 0.6s ease-out 0.1s both; }
         .form-subtitle { animation: fadeInUp 0.6s ease-out 0.2s both; }
