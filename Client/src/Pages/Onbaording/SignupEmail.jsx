@@ -4,10 +4,13 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { Eye, EyeOff } from "lucide-react";
+import useDocumentTitle from "../../hooks/useDocumentTitle";
 
 const API = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
 
 export default function SignupEmail() {
+  useDocumentTitle("Create Your Gig Connect Account");
+
   const [form, setForm] = useState({
     fullName: "",
     email: "",
@@ -37,10 +40,10 @@ export default function SignupEmail() {
     try {
       const { data } = await axios.post(`${API}/auth/signup`, form);
       localStorage.setItem("token", data.token);
-      toast.success("Check your email for OTP");
+      toast.success("Account created! Check your email for OTP");
       navigate("/signup/otp");
     } catch (err) {
-      toast.error(err.response?.data?.error || "Signup failed");
+      toast.error(err.response?.data?.error || "Signup failed. Try again.");
     } finally {
       setLoading(false);
     }
@@ -52,17 +55,20 @@ export default function SignupEmail() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-8 border border-blue-100">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 border border-slate-100">
         <h2
-          className="text-3xl font-bold text-center text-navyBlue"
+          className="text-3xl font-bold text-center mb-2"
           style={{ color: "#1A2A4F" }}
         >
-          Create Account
+          Create Your Account
         </h2>
+        <p className="text-center text-gray-600 text-sm mb-8">
+          Join Gig Connect and start freelancing or hiring today
+        </p>
 
         <button
           onClick={handleGoogleSignup}
-          className="mt-6 w-full flex items-center justify-center gap-3 py-3 border rounded-lg bg-white hover:bg-gray-50 transition-all"
+          className="w-full flex items-center justify-center gap-3 py-3 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-all font-medium"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path
@@ -82,78 +88,81 @@ export default function SignupEmail() {
               d="M12 6.75c1.63 0 3.06.56 4.21 1.65l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
             />
           </svg>
-          Sign up with Google
+          Continue with Google
         </button>
 
         <div className="my-6 flex items-center">
           <div className="flex-1 border-t border-gray-300" />
-          <span className="px-3 text-sm text-gray-500">or</span>
+          <span className="px-4 text-sm text-gray-500 font-medium">
+            or sign up with email
+          </span>
           <div className="flex-1 border-t border-gray-300" />
         </div>
 
-        <form onSubmit={submit} className="space-y-4">
+        <form onSubmit={submit} className="space-y-5">
           <input
             required
             name="fullName"
             placeholder="Full Name"
             value={form.fullName}
             onChange={handleChange}
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           />
           <input
             required
             type="email"
             name="email"
-            placeholder="Email"
+            placeholder="Email Address"
             value={form.email}
             onChange={handleChange}
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           />
           <div className="relative">
             <input
               required
               type={showPwd ? "text" : "password"}
               name="password"
-              placeholder="Password"
+              placeholder="Create Password"
               value={form.password}
               onChange={handleChange}
-              className="w-full px-3 py-2 border rounded-lg pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
             />
             <button
               type="button"
               onClick={() => setShowPwd(!showPwd)}
-              className="absolute right-3 top-2.5 text-gray-500 hover:text-gray-700"
+              className="absolute right-3 top-3.5 text-gray-500 hover:text-gray-700 transition"
             >
-              {showPwd ? <EyeOff size={20} /> : <Eye size={20} />}
+              {showPwd ? <EyeOff size={22} /> : <Eye size={22} />}
             </button>
           </div>
+
           <select
             name="role"
             value={form.role}
             onChange={handleChange}
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           >
-            <option value="Seller">Seller</option>
-            <option value="Buyer">Buyer</option>
-            <option value="Both">Both</option>
+            <option value="Both">I want to hire & freelance (Both)</option>
+            <option value="Seller">I want to freelance (Seller)</option>
+            <option value="Buyer">I want to hire talent (Buyer)</option>
           </select>
+
           <button
             disabled={loading}
-            className="w-full py-3 bg-navyBlue text-white rounded-lg hover:opacity-90 transition-all disabled:opacity-50"
-            style={{ backgroundColor: "#1A2A4F" }}
+            className="w-full py-3.5 bg-gradient-to-r from-[#1A2A4F] to-[#0F1729] text-white font-semibold rounded-lg hover:shadow-lg transform hover:-translate-y-0.5 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            {loading ? "Signing up…" : "Sign up"}
+            {loading ? "Creating Account..." : "Create Account"}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm">
+        <p className="mt-8 text-center text-sm text-gray-600">
           Already have an account?{" "}
           <Link
             to="/login"
-            className="text-navyBlue font-medium hover:underline"
+            className="font-semibold hover:underline"
             style={{ color: "#1A2A4F" }}
           >
-            Sign in
+            Sign in here
           </Link>
         </p>
       </div>
