@@ -21,6 +21,10 @@ import {
   MessageSquare,
   Clock,
   Activity,
+  Globe,
+  Layers,
+  Filter,
+  SortDesc,
 } from "lucide-react";
 
 import Navbar from "../components/Navbar";
@@ -38,7 +42,6 @@ const COLORS = {
   gray200: "#E5E7EB",
   gray600: "#4B5563",
   gray900: "#111827",
-  // cyan removed completely
 };
 
 const formatINR = (amount) => {
@@ -63,6 +66,20 @@ const SkeletonCard = () => (
     <div className="h-8 bg-gray-200 rounded mb-4 w-2/3 mx-auto"></div>
     <div className="h-4 bg-gray-200 rounded mb-6 w-1/2 mx-auto"></div>
     <div className="h-12 bg-gray-200 rounded w-full"></div>
+  </div>
+);
+
+const SkeletonGig = () => (
+  <div className="bg-white rounded-3xl p-3 border border-gray-100 shadow-sm animate-pulse">
+    <div className="h-56 bg-gray-200 rounded-2xl mb-4"></div>
+    <div className="px-2 pb-2">
+      <div className="h-6 bg-gray-200 rounded mb-2"></div>
+      <div className="h-4 bg-gray-200 rounded mb-6"></div>
+      <div className="flex justify-between items-center">
+        <div className="h-8 bg-gray-200 rounded w-20"></div>
+        <div className="h-4 bg-gray-200 rounded w-16"></div>
+      </div>
+    </div>
   </div>
 );
 
@@ -97,6 +114,23 @@ const SkeletonActivity = () => (
   </div>
 );
 
+const BentoItem = ({ title, desc, icon: Icon, className }) => (
+  <div
+    className={`relative overflow-hidden rounded-3xl p-8 border-2 border-gray-100 shadow-sm hover:shadow-xl transition-all duration-500 group ${className}`}
+  >
+    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-bl-full -mr-10 -mt-10 transition-transform group-hover:scale-150"></div>
+    <div className="relative z-10 h-full flex flex-col justify-between">
+      <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mb-4 text-[#1A2A4F] group-hover:bg-[#1A2A4F] group-hover:text-white transition-colors">
+        <Icon size={24} />
+      </div>
+      <div>
+        <h3 className="text-xl font-bold text-[#1A2A4F] mb-2">{title}</h3>
+        <p className="text-gray-500 text-sm leading-relaxed">{desc}</p>
+      </div>
+    </div>
+  </div>
+);
+
 const Home = () => {
   const navigate = useNavigate();
 
@@ -110,9 +144,11 @@ const Home = () => {
     activeUsers: 0,
     completedProjects: 0,
   });
+  const [filterCategory, setFilterCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [favorites, setFavorites] = useState(new Set());
   const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState("recent");
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -204,6 +240,43 @@ const Home = () => {
       navigate(`/gigs?search=${encodeURIComponent(searchQuery.trim())}`);
     }
   };
+  const filteredGigs = gigs
+    .filter((gig) => {
+      if (filterCategory === "all") return true;
+      return gig.category === filterCategory;
+    })
+    .sort((a, b) => {
+      if (sortBy === "recent")
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      if (sortBy === "price-low") return a.price - b.price;
+      if (sortBy === "price-high") return b.price - a.price;
+      if (sortBy === "rating") return b.rating - a.rating;
+      return 0;
+    });
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center max-w-md animate-fade-in">
+          <AlertTriangle size={64} className="mx-auto mb-6 text-red-500" />
+          <h2
+            className="text-2xl font-bold mb-4"
+            style={{ color: COLORS.navy }}
+          >
+            Oops! Something went wrong
+          </h2>
+          <p className="text-lg text-gray-600 mb-8">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-8 py-4 rounded-xl text-white font-semibold transition-all hover:scale-105"
+            style={{ backgroundColor: COLORS.navyLight }}
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const toggleFavorite = (gigId) => {
     const newFavs = new Set(favorites);
@@ -212,7 +285,7 @@ const Home = () => {
   };
 
   const getApplicationStatus = (gigId) =>
-    applications.find((a) => a.gigId._id === gigId)?.status || null;
+    applications.find((a) => a.gigId?._id === gigId)?.status || null;
 
   if (error) {
     return (
@@ -647,7 +720,8 @@ const Home = () => {
                     {tickets.slice(0, 3).length > 0 ? (
                       <div className="space-y-4">
                         {tickets.slice(0, 3).map((ticket) => (
-                          <div
+                          <Link
+                            to={`/tickets/${ticket._id}`}
                             key={ticket._id}
                             className="flex items-center justify-between p-4 rounded-xl transition-all hover:scale-105"
                             style={{
@@ -673,7 +747,7 @@ const Home = () => {
                               size={20}
                               style={{ color: COLORS.navyLight }}
                             />
-                          </div>
+                          </Link>
                         ))}
                       </div>
                     ) : (
@@ -755,332 +829,428 @@ const Home = () => {
         </div>
       </section>
 
-      <section className="py-20 px-4 relative z-10">
-        <div className="max-w-6xl mx-auto">
-          <h2
-            className="text-5xl font-bold mb-16 text-center scroll-animate"
-            style={{ color: COLORS.navy }}
-          >
-            Featured Opportunities
-          </h2>
-
-          {loading ? (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-              <SkeletonCard />
-              <SkeletonCard />
-              <SkeletonCard />
-              <SkeletonCard />
-              <SkeletonCard />
-              <SkeletonCard />
-            </div>
-          ) : gigs.length === 0 ? (
-            <div className="text-center">
-              <p style={{ color: COLORS.gray600 }}>
-                No gigs available yet.{" "}
-                <Link
-                  to="/gigs"
-                  className="underline font-medium"
-                  style={{ color: COLORS.navyLight }}
-                >
-                  Browse all
-                </Link>
+      {/* --- FEATURED OPPORTUNITIES --- */}
+      <section className="py-24 px-4 lg:px-8 bg-white relative">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-end justify-between mb-8 scroll-animate">
+            <div>
+              <h2 className="text-4xl font-bold text-[#1A2A4F]">
+                Featured Opportunities
+              </h2>
+              <p className="text-gray-500 mt-2">
+                Discover the best gigs from talented students
               </p>
             </div>
-          ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {gigs.map((gig) => {
-                const Icon =
-                  {
-                    "Web Development": Code,
-                    "Graphic Design": PenTool,
-                    Tutoring: BookOpen,
-                  }[gig.category] || Laptop;
-                const status = getApplicationStatus(gig._id);
-                const isFavorited = favorites.has(gig._id);
-                const closed = gig.status === "closed";
+            <Link
+              to="/gigs"
+              className="hidden md:flex items-center gap-2 px-5 py-2 rounded-full border border-gray-200 font-semibold text-gray-600 hover:bg-[#1A2A4F] hover:text-white hover:border-[#1A2A4F] transition-all"
+            >
+              Explore All <ArrowRight size={16} />
+            </Link>
+          </div>
 
-                return (
-                  <div
-                    key={gig._id}
-                    className="relative group p-8 rounded-2xl bg-white hover-lift scroll-animate"
-                    style={{
-                      border: `2px solid ${COLORS.gray100}`,
-                      boxShadow: "0 10px 30px rgba(26, 42, 79, 0.08)",
-                    }}
-                  >
-                    <button
-                      onClick={() => toggleFavorite(gig._id)}
-                      className="absolute top-6 right-6 p-3 rounded-xl transition-all hover:scale-110"
-                      style={{
-                        backgroundColor: COLORS.gray50,
-                        border: `1px solid ${COLORS.gray200}`,
-                      }}
-                    >
-                      <Heart
-                        size={20}
-                        className={
-                          isFavorited
-                            ? "fill-red-500 text-red-500"
-                            : "text-gray-400"
-                        }
-                      />
-                    </button>
+          {/* Filter and Sort Controls */}
+          {!loading && categories.length > 0 && (
+            <div className="flex flex-wrap gap-4 mb-8 scroll-animate">
+              <div className="flex items-center gap-2">
+                <Filter size={18} className="text-gray-400" />
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-[#1A2A4F]/20 transition-all"
+                >
+                  <option value="all">All Categories</option>
+                  {categories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                    <div
-                      className="w-20 h-20 mx-auto mb-6 rounded-2xl flex items-center justify-center"
-                      style={{
-                        backgroundColor: `${COLORS.navyLight}20`,
-                        border: `2px solid ${COLORS.navyLight}30`,
-                      }}
-                    >
-                      <Icon size={36} style={{ color: COLORS.navyLight }} />
-                    </div>
-
-                    <h3
-                      className="text-2xl font-bold mb-3 text-center"
-                      style={{ color: COLORS.navy }}
-                    >
-                      {gig.title}
-                    </h3>
-                    <p
-                      className="text-center mb-4"
-                      style={{ color: COLORS.gray600 }}
-                    >
-                      {gig.category}
-                    </p>
-
-                    <p
-                      className="text-3xl font-bold text-center mb-4"
-                      style={{ color: COLORS.navyLight }}
-                    >
-                      {formatINR(gig.price)}
-                    </p>
-
-                    <p
-                      className="text-center font-semibold mb-4"
-                      style={{ color: COLORS.navy }}
-                    >
-                      By {gig.sellerName}
-                    </p>
-
-                    {gig.rating > 0 && (
-                      <div className="flex items-center justify-center gap-2 mb-6">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            size={18}
-                            className={
-                              i < Math.floor(gig.rating)
-                                ? "fill-yellow-400 text-yellow-400"
-                                : "text-gray-300"
-                            }
-                          />
-                        ))}
-                        <span
-                          className="ml-1 text-sm font-medium"
-                          style={{ color: COLORS.gray600 }}
-                        >
-                          {gig.rating} ({gig.reviews || 0})
-                        </span>
-                      </div>
-                    )}
-
-                    {status && (
-                      <p
-                        className={`text-sm text-center font-semibold mb-4 ${
-                          status === "accepted"
-                            ? "text-green-600"
-                            : status === "rejected"
-                            ? "text-red-600"
-                            : "text-yellow-600"
-                        }`}
-                      >
-                        Application:{" "}
-                        {status.charAt(0).toUpperCase() + status.slice(1)}
-                      </p>
-                    )}
-
-                    {closed ? (
-                      <span
-                        className="block w-full py-4 text-center rounded-xl font-semibold"
-                        style={{
-                          backgroundColor: COLORS.gray100,
-                          color: COLORS.gray600,
-                        }}
-                      >
-                        Applications Closed
-                      </span>
-                    ) : status ? (
-                      <span
-                        className="block w-full py-4 text-center rounded-xl font-semibold"
-                        style={{
-                          backgroundColor: COLORS.gray100,
-                          color: COLORS.gray600,
-                        }}
-                      >
-                        Application Submitted
-                      </span>
-                    ) : (
-                      <Link
-                        to={`/gigs/${gig._id}`}
-                        className="block w-full py-4 text-center rounded-xl text-white font-semibold transition-all hover:scale-105"
-                        style={{
-                          backgroundColor: COLORS.navy,
-                          boxShadow: "0 4px 12px rgba(26, 42, 79, 0.3)",
-                        }}
-                      >
-                        View Details
-                      </Link>
-                    )}
-                  </div>
-                );
-              })}
+              <div className="flex items-center gap-2">
+                <SortDesc size={18} className="text-gray-400" />
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-[#1A2A4F]/20 transition-all"
+                >
+                  <option value="recent">Most Recent</option>
+                  <option value="price-low">Price: Low to High</option>
+                  <option value="price-high">Price: High to Low</option>
+                  <option value="rating">Highest Rated</option>
+                </select>
+              </div>
             </div>
           )}
 
-          <div className="text-center mt-16">
-            <Link
-              to="/gigs"
-              className="inline-flex items-center gap-3 px-10 py-4 rounded-xl text-white font-bold text-lg transition-all hover:scale-105 scroll-animate"
-              style={{
-                backgroundColor: COLORS.navyLight,
-                boxShadow: "0 8px 20px rgba(42, 58, 111, 0.4)",
-              }}
-            >
-              Explore All Gigs <ArrowRight size={24} />
-            </Link>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {loading ? (
+              [1, 2, 3, 4, 5, 6].map((i) => <SkeletonGig key={i} />)
+            ) : filteredGigs.length === 0 ? (
+              <div className="col-span-full text-center py-16">
+                <Eye size={64} className="mx-auto mb-4 text-gray-300" />
+                <p className="text-xl text-gray-500 mb-4">No gigs found</p>
+                <Link
+                  to="/gigs"
+                  className="text-[#1A2A4F] font-semibold hover:underline"
+                >
+                  Browse all gigs
+                </Link>
+              </div>
+            ) : (
+              filteredGigs.map((gig) => {
+                const isFav = favorites.has(gig._id);
+                const status = getApplicationStatus(gig._id);
+                const closed = gig.status === "closed";
+                return (
+                  <div
+                    key={gig._id}
+                    className="group bg-white rounded-3xl p-3 border-2 border-gray-100 shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 flex flex-col h-full scroll-animate"
+                  >
+                    {/* Image Container */}
+                    <div className="relative h-56 bg-gray-100 rounded-2xl overflow-hidden mb-4">
+                      {gig.thumbnail ? (
+                        <img
+                          src={gig.thumbnail}
+                          alt={gig.title}
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-blue-50">
+                          <Laptop size={40} className="text-[#1A2A4F]/30" />
+                        </div>
+                      )}
+
+                      {/* Badges */}
+                      <div className="absolute top-3 left-3 bg-white/90 backdrop-blur text-[#1A2A4F] text-xs font-bold px-3 py-1.5 rounded-lg">
+                        {gig.category}
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          toggleFavorite(gig._id);
+                        }}
+                        className="absolute top-3 right-3 w-9 h-9 bg-white/80 backdrop-blur rounded-full flex items-center justify-center hover:bg-white transition-colors shadow-sm z-10"
+                      >
+                        <Heart
+                          size={16}
+                          className={
+                            isFav
+                              ? "fill-red-500 text-red-500"
+                              : "text-gray-400"
+                          }
+                        />
+                      </button>
+                      <div className="absolute bottom-3 right-3 bg-[#1A2A4F] text-white text-sm font-bold px-3 py-1.5 rounded-lg shadow-lg">
+                        {formatINR(gig.price)}
+                      </div>
+                    </div>
+
+                    {/* Content */}
+                    <div className="px-2 pb-2 flex flex-col flex-1">
+                      <h3 className="font-bold text-lg text-[#1A2A4F] line-clamp-1 mb-2 group-hover:text-blue-600 transition-colors">
+                        {gig.title}
+                      </h3>
+                      <p className="text-gray-500 text-sm line-clamp-2 mb-4">
+                        {gig.description}
+                      </p>
+
+                      {gig.rating > 0 && (
+                        <div className="flex items-center gap-2 mb-4">
+                          <div className="flex items-center gap-1">
+                            {[...Array(5)].map((_, i) => (
+                              <Star
+                                key={i}
+                                size={14}
+                                className={
+                                  i < Math.floor(gig.rating)
+                                    ? "fill-yellow-400 text-yellow-400"
+                                    : "text-gray-300"
+                                }
+                              />
+                            ))}
+                          </div>
+                          <span className="text-xs font-bold text-gray-700">
+                            {gig.rating} ({gig.reviews || 0})
+                          </span>
+                        </div>
+                      )}
+
+                      {status && (
+                        <p
+                          className={`text-sm text-center font-semibold mb-4 ${
+                            status === "accepted"
+                              ? "text-green-600"
+                              : status === "rejected"
+                              ? "text-red-600"
+                              : "text-yellow-600"
+                          }`}
+                        >
+                          Application:{" "}
+                          {status.charAt(0).toUpperCase() + status.slice(1)}
+                        </p>
+                      )}
+
+                      <div className="mt-auto flex items-center justify-between pt-4 border-t border-gray-50">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-gray-100 text-[#1A2A4F] flex items-center justify-center text-xs font-bold border border-gray-200">
+                            {gig.sellerName.charAt(0)}
+                          </div>
+                          <span className="text-sm font-medium text-gray-600">
+                            {gig.sellerName}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4">
+                        {closed ? (
+                          <span className="block w-full py-3 text-center rounded-xl font-semibold bg-gray-100 text-gray-600">
+                            Applications Closed
+                          </span>
+                        ) : status ? (
+                          <span className="block w-full py-3 text-center rounded-xl font-semibold bg-gray-100 text-gray-600">
+                            Application Submitted
+                          </span>
+                        ) : (
+                          <Link
+                            to={`/gigs/${gig._id}`}
+                            className="block w-full py-3 text-center rounded-xl text-white font-semibold transition-all hover:scale-105 bg-[#1A2A4F] shadow-lg hover:shadow-blue-900/30"
+                          >
+                            View Details
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
+
+          {/* View All Button */}
+          {!loading && filteredGigs.length > 0 && (
+            <div className="text-center mt-16 scroll-animate">
+              <Link
+                to="/gigs"
+                className="inline-flex items-center gap-3 px-10 py-4 rounded-xl text-white font-bold text-lg transition-all hover:scale-105"
+                style={{
+                  backgroundColor: COLORS.navyLight,
+                  boxShadow: "0 8px 20px rgba(42, 58, 111, 0.4)",
+                }}
+              >
+                Explore All Gigs <ArrowRight size={24} />
+              </Link>
+            </div>
+          )}
         </div>
       </section>
 
+      {/* --- WHY CHOOSE GIG CONNECT (BENTO GRID STYLE) --- */}
       <section
-        className="py-20 px-4 relative z-10"
+        className="py-24 px-4 relative z-10"
         style={{ backgroundColor: COLORS.gray50 }}
       >
-        <div className="max-w-6xl mx-auto">
-          <h2
-            className="text-5xl font-bold mb-16 text-center scroll-animate"
-            style={{ color: COLORS.navy }}
-          >
-            Why Choose Gig Connect?
-          </h2>
-          <div className="grid md:grid-cols-3 gap-10">
-            {[
-              {
-                icon: Shield,
-                title: "Secure Payments",
-                description:
-                  "Your transactions are protected with industry-leading security standards",
-              },
-              {
-                icon: Zap,
-                title: "Quick Turnaround",
-                description:
-                  "Find and hire verified talent in minutes, not days or weeks",
-              },
-              {
-                icon: Users,
-                title: "Verified Talent",
-                description:
-                  "Work with pre-screened students and verified professionals",
-              },
-            ].map((feature, i) => {
-              const Icon = feature.icon;
-              return (
-                <div
-                  key={i}
-                  className="text-center p-10 rounded-2xl bg-white hover-lift scroll-animate"
-                  style={{
-                    border: `2px solid ${COLORS.gray100}`,
-                    boxShadow: "0 10px 30px rgba(26, 42, 79, 0.08)",
-                  }}
-                >
-                  <div
-                    className="w-24 h-24 mx-auto mb-6 rounded-2xl flex items-center justify-center"
-                    style={{
-                      backgroundColor: `${COLORS.navyLight}20`,
-                      border: `2px solid ${COLORS.navyLight}30`,
-                    }}
-                  >
-                    <Icon size={48} style={{ color: COLORS.navyLight }} />
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center max-w-3xl mx-auto mb-16 scroll-animate">
+            <h2
+              className="text-5xl font-bold mb-4"
+              style={{ color: COLORS.navy }}
+            >
+              Why Gig Connect?
+            </h2>
+            <p className="text-lg" style={{ color: COLORS.gray600 }}>
+              Designed to protect your work and your wallet
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 scroll-animate">
+            {/* Large Left */}
+            <div className="md:col-span-2 bg-white rounded-3xl p-10 border-2 border-gray-100 shadow-sm relative overflow-hidden group hover:shadow-lg transition-all">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full blur-3xl opacity-50 -mr-10 -mt-10"></div>
+              <div className="relative z-10">
+                <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mb-6 text-[#1A2A4F]">
+                  <Shield size={32} />
+                </div>
+                <h3 className="text-2xl font-bold text-[#1A2A4F] mb-3">
+                  Secure Escrow Payments
+                </h3>
+                <p className="text-gray-500 max-w-md leading-relaxed">
+                  Funds are held safely until the work is approved. This ensures
+                  sellers get paid for their effort and buyers get exactly what
+                  they ordered.
+                </p>
+              </div>
+            </div>
+
+            {/* Small Right Top */}
+            <BentoItem
+              title="Verified IDs"
+              desc="Students are verified via college emails."
+              icon={CheckCircle}
+              className="bg-white"
+            />
+
+            {/* Small Left Bottom */}
+            <BentoItem
+              title="Fast Withdrawals"
+              desc="Get paid directly to your Bank Account."
+              icon={Zap}
+              className="bg-white"
+            />
+
+            {/* Large Right Bottom */}
+            <div className="md:col-span-2 bg-[#1A2A4F] rounded-3xl p-10 border-2 border-[#1A2A4F] relative overflow-hidden group text-white shadow-xl shadow-blue-900/10">
+              <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#2A3A6F] rounded-full blur-3xl opacity-50 -ml-10 -mb-10"></div>
+              <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+                <div className="text-left">
+                  <div className="w-14 h-14 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mb-6 text-white">
+                    <Globe size={32} />
                   </div>
-                  <h3
-                    className="text-2xl font-bold mb-4"
-                    style={{ color: COLORS.navy }}
-                  >
-                    {feature.title}
-                  </h3>
-                  <p
-                    className="text-lg leading-relaxed"
-                    style={{ color: COLORS.gray600 }}
-                  >
-                    {feature.description}
+                  <h3 className="text-2xl font-bold mb-2">Community First</h3>
+                  <p className="text-blue-100 max-w-md">
+                    Connect with peers, build your portfolio, and launch your
+                    freelance career while still in college.
                   </p>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {!user && (
-        <section className="py-20 px-4 relative z-10">
-          <div
-            className="max-w-5xl mx-auto text-center p-16 rounded-3xl relative overflow-hidden scroll-animate"
-            style={{
-              backgroundColor: COLORS.navy,
-              boxShadow: "0 20px 50px rgba(26, 42, 79, 0.3)",
-            }}
-          >
-            <div
-              className="absolute -top-20 -right-20 w-80 h-80 rounded-full opacity-10"
-              style={{
-                background: `radial-gradient(circle, ${COLORS.navyLight}, transparent)`,
-              }}
-            />
-            <div
-              className="absolute -bottom-20 -left-20 w-80 h-80 rounded-full opacity-10"
-              style={{
-                background: `radial-gradient(circle, ${COLORS.navyLight}, transparent)`,
-              }}
-            />
-
-            <div className="relative z-10">
-              <h2 className="text-5xl font-bold mb-6 text-white">
-                Ready to Get Started?
-              </h2>
-              <p className="text-xl mb-10 text-white opacity-90">
-                Join thousands of students and professionals already using Gig
-                Connect
-              </p>
-              <div className="flex gap-6 justify-center flex-wrap">
                 <Link
                   to="/signup"
-                  className="px-10 py-4 rounded-xl font-bold text-lg transition-all hover:scale-105"
-                  style={{
-                    backgroundColor: COLORS.navyLight,
-                    color: COLORS.white,
-                    boxShadow: "0 8px 20px rgba(42, 58, 111, 0.4)",
-                  }}
+                  className="px-8 py-4 bg-white text-[#1A2A4F] rounded-xl font-bold hover:bg-blue-50 transition-colors shrink-0"
                 >
-                  Sign Up Now
-                </Link>
-                <Link
-                  to="/login"
-                  className="px-10 py-4 rounded-xl font-bold text-lg transition-all hover:scale-105"
-                  style={{
-                    backgroundColor: COLORS.white,
-                    color: COLORS.navy,
-                    boxShadow: "0 8px 20px rgba(255, 255, 255, 0.3)",
-                  }}
-                >
-                  Login
+                  Join Now
                 </Link>
               </div>
             </div>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
+
+      {/* --- HOW IT WORKS (UPDATED) --- */}
+      <section className="py-24 px-4 relative z-10">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center max-w-3xl mx-auto mb-16 scroll-animate">
+            <h2
+              className="text-5xl font-bold mb-4"
+              style={{ color: COLORS.navy }}
+            >
+              How It Works
+            </h2>
+            <p className="text-lg" style={{ color: COLORS.gray600 }}>
+              Get started in 3 simple steps
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-12">
+            {[
+              {
+                step: "01",
+                title: "Create Your Profile",
+                desc: "Sign up with your college email, showcase your skills, and build your portfolio to stand out.",
+                icon: Users,
+              },
+              {
+                step: "02",
+                title: "Browse & Apply",
+                desc: "Find gigs that match your expertise. Apply with proposals and negotiate terms securely.",
+                icon: Search,
+              },
+              {
+                step: "03",
+                title: "Deliver & Get Paid",
+                desc: "Complete the work, get it approved, and receive secure payment directly to your account.",
+                icon: TrendingUp,
+              },
+            ].map((item, idx) => (
+              <div key={idx} className="relative group scroll-animate">
+                {/* Connector Line (hidden on last item) */}
+                {idx < 2 && (
+                  <div className="hidden md:block absolute top-12 left-[60%] w-[80%] h-0.5 bg-gradient-to-r from-gray-200 to-transparent"></div>
+                )}
+
+                <div className="relative bg-white p-8 rounded-3xl border-2 border-gray-100 shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2">
+                  <div
+                    className="absolute -top-6 left-8 w-12 h-12 text-white rounded-2xl flex items-center justify-center font-bold text-lg shadow-lg"
+                    style={{ backgroundColor: COLORS.navy }}
+                  >
+                    {item.step}
+                  </div>
+
+                  <div
+                    className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-6 mt-4 group-hover:bg-[#1A2A4F] group-hover:text-white transition-colors"
+                    style={{ color: COLORS.navy }}
+                  >
+                    <item.icon size={32} />
+                  </div>
+
+                  <h3
+                    className="text-xl font-bold mb-3"
+                    style={{ color: COLORS.navy }}
+                  >
+                    {item.title}
+                  </h3>
+                  <p
+                    className="leading-relaxed"
+                    style={{ color: COLORS.gray600 }}
+                  >
+                    {item.desc}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* --- STATS SECTION --- */}
+      <section
+        className="py-24 px-4 relative z-10"
+        style={{ backgroundColor: COLORS.navy }}
+      >
+        <div className="max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-4 gap-12">
+            {loading ? (
+              <>
+                <SkeletonStat />
+                <SkeletonStat />
+                <SkeletonStat />
+                <SkeletonStat />
+              </>
+            ) : (
+              [
+                {
+                  label: "Total Earnings Distributed",
+                  value: "₹1.2 Cr+",
+                  icon: TrendingUp,
+                },
+                { label: "Success Rate", value: "96%", icon: CheckCircle },
+                {
+                  label: "Avg. Response Time",
+                  value: "< 2 hours",
+                  icon: Clock,
+                },
+                {
+                  label: "Active Categories",
+                  value: `${categories.length}+`,
+                  icon: Layers,
+                },
+              ].map((stat, idx) => (
+                <div
+                  key={idx}
+                  className="text-center group hover:scale-105 transition-transform duration-300 scroll-animate text-white"
+                >
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/10 backdrop-blur-sm mb-4 group-hover:bg-white/20 transition-colors">
+                    <stat.icon size={28} />
+                  </div>
+                  <div className="text-4xl font-bold mb-2">{stat.value}</div>
+                  <div className="text-blue-100 text-sm">{stat.label}</div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </section>
+
+      
 
       <Footer />
     </div>
