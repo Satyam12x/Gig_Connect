@@ -27,14 +27,14 @@ import {
   RefreshCw,
   Briefcase,
   Laptop,
-  XCircle,
 } from "lucide-react";
 import io from "socket.io-client";
 import { debounce } from "lodash";
 import moment from "moment";
 
-const API_BASE = "http://localhost:5000/api";
-const SOCKET_URL = "http://localhost:5000";
+// Use Environment Variables
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
 
 const Ticket = () => {
   const { id } = useParams();
@@ -97,6 +97,9 @@ const Ticket = () => {
   // Socket.IO connection
   useEffect(() => {
     if (!userId || !ticket) return;
+
+    // Prevent double connection
+    if (socketRef.current && socketRef.current.connected) return;
 
     const socket = io(SOCKET_URL, {
       auth: { token: localStorage.getItem("token") },
@@ -187,22 +190,6 @@ const Ticket = () => {
     markAsRead();
   }, [ticket, userId, id]);
 
-  // Typing indicator
-  useEffect(() => {
-    if (message && socketRef.current && ticket) {
-      const userName =
-        userId === ticket.freelancerId._id
-          ? ticket.freelancerId.fullName
-          : ticket.providerId.fullName;
-
-      socketRef.current.emit("typing", {
-        ticketId: id,
-        userId,
-        userName,
-      });
-    }
-  }, [message, id, userId, ticket]);
-
   // Search functionality
   const debouncedSearch = useCallback(
     debounce(async (query) => {
@@ -233,6 +220,7 @@ const Ticket = () => {
     if (searchQuery) {
       debouncedSearch(searchQuery);
     } else if (ticket) {
+      // Refetch to restore original messages if search cleared
       const refetchTicket = async () => {
         try {
           const { data } = await axios.get(`${API_BASE}/tickets/${id}`, {
@@ -242,14 +230,14 @@ const Ticket = () => {
           });
           setTicket(data);
         } catch (error) {
-          // Silent fail
+          /* Silent */
         }
       };
       refetchTicket();
     }
   }, [searchQuery, debouncedSearch, id]);
 
-  // Utility functions
+  // Scroll Utility
   const scrollToBottom = (smooth = true) => {
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current);
@@ -273,7 +261,7 @@ const Ticket = () => {
     );
   };
 
-  // Message handlers
+  // Handlers
   const handleSendMessage = async () => {
     if (!message.trim() && !file) {
       toast.error("Please enter a message or attach a file.");
@@ -305,7 +293,6 @@ const Ticket = () => {
       setFilePreview(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       scrollToBottom(true);
-      toast.success("Message sent!");
     } catch (error) {
       toast.error(error.response?.data?.error || "Failed to send message");
     } finally {
@@ -328,7 +315,6 @@ const Ticket = () => {
     );
   };
 
-  // Price handlers
   const handleProposePrice = async () => {
     if (!agreedPrice || parseFloat(agreedPrice) <= 0) {
       toast.error("Please enter a valid price amount");
@@ -351,16 +337,20 @@ const Ticket = () => {
     }
   };
 
+  // --- CRITICAL FIX: Accept Price & Applicant ---
   const handleAcceptPrice = async () => {
     setConfirmAction({
-      title: "Accept Price & Application",
-      message: `Are you sure you want to accept the price of ₹${ticket.agreedPrice?.toLocaleString(
+      title: "Hire Freelancer",
+      message: `Are you sure you want to hire ${
+        ticket.freelancerId?.fullName
+      } for ₹${ticket.agreedPrice?.toLocaleString(
         "en-IN"
-      )}? This will change the gig status to "In Progress" and accept the freelancer's application.`,
+      )}? \n\nThis will:\n1. Change Gig status to "In Progress"\n2. Reject all other applicants\n3. Allow you to proceed with payment.`,
       action: async () => {
         try {
+          // CALLING THE CORRECT ENDPOINT
           const { data } = await axios.patch(
-            `${API_BASE}/tickets/${id}/accept-price`,
+            `${API_BASE}/tickets/${id}/accept-price-and-applicant`,
             {},
             {
               headers: {
@@ -369,11 +359,11 @@ const Ticket = () => {
             }
           );
           setTicket(data.ticket);
-          toast.success(
-            "Price accepted! Gig is now in progress. Provider can now proceed with payment."
-          );
+          toast.success("Freelancer Hired! Gig is now In Progress.");
         } catch (error) {
-          toast.error(error.response?.data?.error || "Failed to accept price");
+          toast.error(
+            error.response?.data?.error || "Failed to hire freelancer"
+          );
         }
       },
     });
@@ -388,7 +378,6 @@ const Ticket = () => {
     }, 100);
   };
 
-  // Payment handler (Provider pays Freelancer)
   const handleConfirmPayment = async () => {
     setConfirmAction({
       title: "Confirm Payment",
@@ -407,7 +396,7 @@ const Ticket = () => {
             }
           );
           setTicket(data.ticket);
-          toast.success("Payment confirmed! Freelancer can start the work.");
+          toast.success("Payment confirmed! Work can begin.");
         } catch (error) {
           toast.error(
             error.response?.data?.error || "Failed to confirm payment"
@@ -418,7 +407,6 @@ const Ticket = () => {
     setIsConfirmModalOpen(true);
   };
 
-  // Completion handler (Freelancer marks work as done)
   const handleMarkComplete = async () => {
     setConfirmAction({
       title: "Mark as Complete",
@@ -436,9 +424,7 @@ const Ticket = () => {
             }
           );
           setTicket(data.ticket);
-          toast.success(
-            "Work marked as complete! Waiting for Provider confirmation."
-          );
+          toast.success("Marked as complete! Waiting for Provider review.");
         } catch (error) {
           toast.error(
             error.response?.data?.error || "Failed to mark as complete"
@@ -449,7 +435,7 @@ const Ticket = () => {
     setIsConfirmModalOpen(true);
   };
 
-  // Close ticket handler (Provider rates Freelancer)
+  // --- CLOSE & ARCHIVE LOGIC ---
   const handleCloseTicket = async () => {
     const isProvider = userId === ticket.providerId?._id;
     if (isProvider && ticket.status === "completed" && rating === 0) {
@@ -469,8 +455,9 @@ const Ticket = () => {
       setTicket(data.ticket);
       setIsRatingModalOpen(false);
       setRating(0);
-      toast.success("Ticket closed successfully! Gig has been archived.");
-      setTimeout(() => navigate("/gigs"), 2000);
+      toast.success("Gig Archived & Ticket Closed.");
+      // Redirect after closing because the original Gig ID is deleted
+      setTimeout(() => navigate("/tickets"), 2000);
     } catch (error) {
       toast.error(error.response?.data?.error || "Failed to close ticket");
     } finally {
@@ -491,23 +478,8 @@ const Ticket = () => {
     return colors[status] || "bg-gray-100 text-gray-800 border-gray-300";
   };
 
-  const getStatusIcon = (status) => {
-    const icons = {
-      open: MessageSquare,
-      negotiating: TrendingUp,
-      accepted: CheckCircle,
-      paid: DollarSign,
-      completed: Package,
-      closed: Shield,
-    };
-    const Icon = icons[status] || AlertCircle;
-    return <Icon className="h-4 w-4" />;
-  };
-
-  // Action buttons logic
   const getActionButtons = () => {
     if (!ticket || ticket.status === "closed") return [];
-
     const isProvider = userId === ticket.providerId?._id;
     const isFreelancer = userId === ticket.freelancerId?._id;
     const actions = [];
@@ -515,7 +487,7 @@ const Ticket = () => {
     if (["open", "negotiating"].includes(ticket.status)) {
       actions.push({
         id: "propose-price",
-        label: "Propose New Price",
+        label: "Propose Price",
         icon: DollarSign,
         variant: "primary",
         onClick: () => setShowPriceInput(!showPriceInput),
@@ -545,7 +517,7 @@ const Ticket = () => {
     if (ticket.status === "completed") {
       actions.push({
         id: "close-ticket",
-        label: isProvider ? "Close & Rate" : "Close Ticket",
+        label: isProvider ? "Accept & Archive" : "Close Ticket",
         icon: Shield,
         variant: "secondary",
         onClick: handleCloseTicket,
@@ -557,635 +529,334 @@ const Ticket = () => {
   const findLastPriceMessageIndex = () => {
     if (!ticket?.messages) return -1;
     for (let i = ticket.messages.length - 1; i >= 0; i--) {
-      if (ticket.messages[i].content.includes("Price of ₹")) {
-        return i;
-      }
+      if (ticket.messages[i].content.includes("Price of ₹")) return i;
     }
     return -1;
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#1A2A4F] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700 font-semibold">
-            Loading ticket...
-          </p>
-        </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin w-12 h-12 border-4 border-[#1A2A4F] border-t-transparent rounded-full"></div>
       </div>
     );
   }
 
-  if (!ticket) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center border-2 border-gray-200">
-          <div className="h-20 w-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <AlertCircle className="h-10 w-10 text-red-600" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Ticket Not Found
-          </h2>
-          <button
-            onClick={() => navigate("/gigs")}
-            className="w-full px-6 py-3 bg-[#1A2A4F] text-white rounded-xl hover:bg-[#2A3A5F] font-semibold transition-all"
-          >
-            Back to Gigs
-          </button>
-        </div>
-      </div>
-    );
-  }
+  if (!ticket) return <div className="text-center p-10">Ticket not found</div>;
 
   const isProvider = userId === ticket.providerId?._id;
   const lastPriceMsgIndex = findLastPriceMessageIndex();
 
+  // Safe gig title incase it was archived and populated field is null
+  const gigTitle = ticket.gigId?.title || "Archived Gig";
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b-2 border-gray-200 px-4 sm:px-6 py-4 flex-shrink-0 shadow-sm">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
+      <header className="bg-white border-b px-4 py-3 flex-shrink-0">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3 overflow-hidden">
             <button
               onClick={() => navigate(-1)}
-              className="p-2 text-gray-600 hover:text-[#1A2A4F] hover:bg-gray-100 rounded-xl transition-all flex-shrink-0"
+              className="p-2 hover:bg-gray-100 rounded-lg"
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-5 w-5 text-gray-600" />
             </button>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-lg sm:text-xl font-bold text-[#1A2A4F] truncate">
-                {ticket.gigId?.title || "Ticket"}
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold text-gray-900 truncate">
+                {gigTitle}
               </h1>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <div className="flex items-center gap-2">
                 <span
-                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border-2 ${getStatusColor(
+                  className={`px-2 py-0.5 text-xs rounded-full border ${getStatusColor(
                     ticket.status
                   )}`}
                 >
-                  {getStatusIcon(ticket.status)}
                   {ticket.status.replace("_", " ").toUpperCase()}
                 </span>
-                <span className="text-xs text-gray-500 font-medium">
-                  ID: {ticket._id?.slice(-8)}
+                <span className="text-xs text-gray-500">
+                  #{ticket._id.slice(-6)}
                 </span>
               </div>
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsDetailsModalOpen(true)}
-              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-gray-100 text-[#1A2A4F] rounded-xl font-semibold hover:bg-gray-200 transition-all text-sm"
-            >
-              <Info className="h-4 w-4" />
-              <span className="hidden md:inline">Details</span>
-            </button>
-            <button
-              onClick={() => setShowSidebar(!showSidebar)}
-              className="lg:hidden p-2 text-gray-600 hover:text-[#1A2A4F] hover:bg-gray-100 rounded-xl transition-all"
-            >
-              <Users className="h-5 w-5" />
-            </button>
-          </div>
+          <button
+            onClick={() => setShowSidebar(!showSidebar)}
+            className="lg:hidden p-2 text-gray-600"
+          >
+            <Info className="h-5 w-5" />
+          </button>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Main Chat Area */}
+        {/* Main Chat */}
         <div className="flex flex-col flex-1 min-w-0">
-          {/* Search Bar */}
-          <div className="px-4 sm:px-6 py-3 bg-white border-b-2 border-gray-200 flex-shrink-0">
-            <div className="relative max-w-2xl">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search messages..."
-                className="w-full pl-12 pr-12 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-[#1A2A4F] focus:ring-4 focus:ring-[#1A2A4F]/10 text-sm font-medium transition-all bg-gray-50"
-              />
-              {isSearching && (
-                <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                  <div className="w-5 h-5 border-2 border-[#1A2A4F] border-t-transparent rounded-full animate-spin"></div>
-                </div>
-              )}
-              {searchQuery && !isSearching && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Messages */}
+          {/* Chat Messages Area */}
           <div
             ref={messagesContainerRef}
-            className="flex-1 overflow-y-auto p-4 sm:p-6 bg-gray-50"
+            className="flex-1 overflow-y-auto p-4 space-y-4"
           >
-            {ticket.messages?.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <div className="h-24 w-24 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <MessageSquare className="h-12 w-12 text-gray-400" />
-                  </div>
-                  <p className="text-xl font-bold text-gray-700 mb-2">
-                    No messages yet
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4 max-w-4xl mx-auto">
-                {ticket.messages.map((msg, idx) => {
-                  const isOwn = msg.senderId === userId;
-                  const showAvatar =
-                    idx === 0 ||
-                    ticket.messages[idx - 1].senderId !== msg.senderId;
-                  const isLastPriceProposal = idx === lastPriceMsgIndex;
-                  const showPriceActions =
-                    isLastPriceProposal &&
-                    ["open", "negotiating"].includes(ticket.status);
+            {ticket.messages?.map((msg, idx) => {
+              const isOwn = msg.senderId === userId;
+              const isLastPriceProposal = idx === lastPriceMsgIndex;
+              // Only show accept button if status is open/negotiating AND user received the offer
+              const showPriceActions =
+                isLastPriceProposal &&
+                !isOwn &&
+                ["open", "negotiating"].includes(ticket.status);
 
-                  return (
-                    <motion.div
-                      key={msg._id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className={`flex gap-3 ${
-                        isOwn ? "justify-end" : "justify-start"
+              return (
+                <div
+                  key={msg._id || idx}
+                  className={`flex gap-3 ${
+                    isOwn ? "justify-end" : "justify-start"
+                  }`}
+                >
+                  {!isOwn && (
+                    <div className="h-8 w-8 rounded-full bg-[#1A2A4F] text-white flex items-center justify-center text-xs font-bold">
+                      {msg.senderName.charAt(0)}
+                    </div>
+                  )}
+                  <div
+                    className={`max-w-[85%] sm:max-w-[70%] ${
+                      isOwn ? "items-end" : "items-start"
+                    } flex flex-col`}
+                  >
+                    <div
+                      className={`px-4 py-2 rounded-2xl text-sm ${
+                        isOwn
+                          ? "bg-[#1A2A4F] text-white rounded-br-none"
+                          : "bg-white border border-gray-200 rounded-bl-none shadow-sm"
                       }`}
                     >
-                      {!isOwn && showAvatar && (
-                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#1A2A4F] to-[#2A3A5F] flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-md">
-                          {msg.senderName?.charAt(0) || "U"}
-                        </div>
-                      )}
-                      {!isOwn && !showAvatar && (
-                        <div className="w-10 flex-shrink-0" />
-                      )}
-
-                      <div
-                        className={`max-w-[85%] sm:max-w-[70%] group relative ${
-                          isOwn ? "items-end" : "items-start"
-                        } flex flex-col`}
-                      >
-                        {!isOwn && showAvatar && (
-                          <p className="text-xs font-bold text-gray-600 mb-1 ml-4">
-                            {msg.senderName}
-                          </p>
-                        )}
-                        <div
-                          className={`relative px-4 py-3 rounded-2xl shadow-md text-sm ${
-                            isOwn
-                              ? "bg-[#1A2A4F] text-white rounded-br-md"
-                              : "bg-white text-gray-800 border-2 border-gray-200 rounded-bl-md"
-                          }`}
-                        >
-                          <p
-                            dangerouslySetInnerHTML={{
-                              __html: highlightText(msg.content, searchQuery),
-                            }}
-                            className="break-words leading-relaxed whitespace-pre-wrap"
-                          />
-
-                          {msg.attachment && (
-                            <div className="mt-3">
-                              {msg.attachment.match(
-                                /\.(jpg|jpeg|png|gif|webp)$/i
-                              ) ? (
-                                <img
-                                  src={msg.attachment}
-                                  alt="Attachment"
-                                  className="max-w-full h-auto rounded-xl max-h-64 cursor-pointer border-2 border-white/20 hover:opacity-90 transition-opacity"
-                                  onClick={() =>
-                                    window.open(msg.attachment, "_blank")
-                                  }
-                                />
-                              ) : (
-                                <a
-                                  href={msg.attachment}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className={`flex items-center gap-2 text-xs underline p-3 rounded-lg font-medium transition-all ${
-                                    isOwn
-                                      ? "bg-white/10 hover:bg-white/20"
-                                      : "bg-gray-100 hover:bg-gray-200"
-                                  }`}
-                                >
-                                  <File className="h-4 w-4" />
-                                  <span className="truncate">
-                                    View Attachment
-                                  </span>
-                                </a>
-                              )}
-                            </div>
-                          )}
-
-                          <div
-                            className={`flex items-center justify-between mt-2 text-xs font-medium gap-2 ${
-                              isOwn ? "text-white/70" : "text-gray-500"
-                            }`}
+                      <p
+                        dangerouslySetInnerHTML={{
+                          __html: highlightText(msg.content, searchQuery),
+                        }}
+                        className="whitespace-pre-wrap break-words"
+                      />
+                      {msg.attachment && (
+                        <div className="mt-2">
+                          <a
+                            href={msg.attachment}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs underline flex items-center gap-1"
                           >
-                            <span>
-                              {moment(msg.timestamp).format("h:mm A")}
-                            </span>
-                            {isOwn && msg.read && (
-                              <span className="flex items-center gap-1">
-                                <CheckCircle className="h-3 w-3" /> Read
-                              </span>
-                            )}
-                          </div>
-
-                          {showPriceActions && (
-                            <div className="mt-4 pt-3 border-t border-gray-300/30 flex flex-col gap-2">
-                              {isOwn ? (
-                                <div className="text-xs italic opacity-80 flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  Waiting for response...
-                                </div>
-                              ) : (
-                                <div className="flex flex-wrap gap-2">
-                                  <button
-                                    onClick={handleAcceptPrice}
-                                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm ${
-                                      isOwn
-                                        ? "bg-white text-[#1A2A4F]"
-                                        : "bg-green-600 text-white hover:bg-green-700"
-                                    }`}
-                                  >
-                                    <Check className="h-3.5 w-3.5" />
-                                    Accept Price
-                                  </button>
-                                  <button
-                                    onClick={handleCounterOffer}
-                                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm ${
-                                      isOwn
-                                        ? "bg-white/20 text-white hover:bg-white/30"
-                                        : "bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300"
-                                    }`}
-                                  >
-                                    <RefreshCw className="h-3.5 w-3.5" />
-                                    Counter Offer
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {isOwn && showAvatar && (
-                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-600 to-purple-700 flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-md">
-                          {ticket[
-                            isProvider ? "providerId" : "freelancerId"
-                          ]?.fullName?.charAt(0) || "Y"}
+                            <Paperclip size={12} /> Attachment
+                          </a>
                         </div>
                       )}
-                      {isOwn && !showAvatar && (
-                        <div className="w-10 flex-shrink-0" />
-                      )}
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )}
 
-            {typingUser && (
-              <div className="flex items-center gap-3 text-sm text-gray-600 mt-4 max-w-4xl mx-auto">
-                <div className="flex gap-1">
-                  <div className="h-2 w-2 bg-[#1A2A4F] rounded-full animate-bounce"></div>
-                  <div
-                    className="h-2 w-2 bg-[#1A2A4F] rounded-full animate-bounce"
-                    style={{ animationDelay: "0.2s" }}
-                  ></div>
-                  <div
-                    className="h-2 w-2 bg-[#1A2A4F] rounded-full animate-bounce"
-                    style={{ animationDelay: "0.4s" }}
-                  ></div>
+                      {/* --- Price Action Buttons embedded in chat --- */}
+                      {showPriceActions && isProvider && (
+                        <div className="mt-3 pt-2 border-t border-gray-200/50 flex gap-2">
+                          <button
+                            onClick={handleAcceptPrice}
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs py-1.5 px-3 rounded font-bold flex items-center justify-center gap-1"
+                          >
+                            <Check size={12} /> Accept & Hire
+                          </button>
+                          <button
+                            onClick={handleCounterOffer}
+                            className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs py-1.5 px-3 rounded font-bold flex items-center justify-center gap-1"
+                          >
+                            <RefreshCw size={12} /> Counter
+                          </button>
+                        </div>
+                      )}
+                      {showPriceActions && !isProvider && (
+                        <div className="mt-2 text-xs italic opacity-70">
+                          Waiting for Provider to accept hire...
+                        </div>
+                      )}
+
+                      <span
+                        className={`text-[10px] block mt-1 ${
+                          isOwn ? "text-white/70" : "text-gray-400"
+                        }`}
+                      >
+                        {moment(msg.timestamp).format("h:mm A")}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <span className="italic font-medium">
-                  {typingUser} is typing...
-                </span>
+              );
+            })}
+            {typingUser && (
+              <div className="text-xs text-gray-500 italic ml-12">
+                {typingUser} is typing...
               </div>
             )}
           </div>
 
-          {/* Message Input */}
+          {/* Input Area */}
           {ticket.status !== "closed" ? (
-            <div className="border-t-2 border-gray-200 bg-white p-4 sm:p-6 flex-shrink-0">
-              <div className="max-w-4xl mx-auto">
-                {/* Price Proposal Input */}
-                {showPriceInput && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-4 bg-white rounded-xl p-4 border-2 border-[#1A2A4F] shadow-lg"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm font-bold text-[#1A2A4F]">
-                        {agreedPrice ? "Confirm Amount" : "Enter New Amount"}
-                      </label>
-                      <button
-                        onClick={() => {
-                          setShowPriceInput(false);
-                          setAgreedPrice("");
-                        }}
-                        className="text-gray-400 hover:text-gray-600"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <input
-                          type="number"
-                          value={agreedPrice}
-                          onChange={(e) => setAgreedPrice(e.target.value)}
-                          placeholder="0.00"
-                          className="w-full pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#1A2A4F] font-bold"
-                          autoFocus
-                        />
-                      </div>
-                      <button
-                        onClick={handleProposePrice}
-                        disabled={!agreedPrice || parseFloat(agreedPrice) <= 0}
-                        className="px-6 py-2 bg-[#1A2A4F] text-white rounded-lg font-bold hover:bg-[#2A3A5F] disabled:opacity-50 transition-all"
-                      >
-                        Send Offer
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-
-                {file && (
-                  <div className="mb-4 bg-gray-50 rounded-xl p-4 border-2 border-gray-200">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        {filePreview ? (
-                          <img
-                            src={filePreview}
-                            alt="Preview"
-                            className="h-14 w-14 object-cover rounded-lg border-2 border-gray-300"
-                          />
-                        ) : (
-                          <div className="h-14 w-14 bg-gray-200 rounded-lg flex items-center justify-center">
-                            <File className="h-7 w-7 text-gray-400" />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-gray-800 truncate">
-                            {file.name}
-                          </p>
-                          <p className="text-xs text-gray-500 font-medium">
-                            {(file.size / 1024).toFixed(1)} KB
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setFile(null);
-                          setFilePreview(null);
-                          if (fileInputRef.current)
-                            fileInputRef.current.value = "";
-                        }}
-                        className="ml-3 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <X className="h-5 w-5" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex items-end gap-2 sm:gap-3">
-                  <textarea
-                    ref={messageInputRef}
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
-                    placeholder="Type your message..."
-                    rows="1"
-                    className="flex-1 p-3 sm:p-4 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-[#1A2A4F] focus:ring-4 focus:ring-[#1A2A4F]/10 text-sm font-medium resize-none max-h-32 transition-all bg-white"
-                  />
-
+            <div className="bg-white border-t p-3 sm:p-4">
+              {showPriceInput && (
+                <motion.div
+                  initial={{ y: 10, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  className="mb-3 bg-gray-50 p-3 rounded-lg border border-blue-200 flex gap-2 items-center"
+                >
+                  <DollarSign className="text-gray-500" size={16} />
                   <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    className="hidden"
-                    accept="image/*,.pdf,.doc,.docx"
+                    type="number"
+                    placeholder="Enter Price Amount"
+                    value={agreedPrice}
+                    onChange={(e) => setAgreedPrice(e.target.value)}
+                    className="flex-1 bg-transparent border-none focus:ring-0 text-sm font-bold"
+                    autoFocus
                   />
-
                   <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="p-3 sm:p-4 bg-gray-100 hover:bg-gray-200 rounded-xl border-2 border-gray-300 transition-all flex-shrink-0"
+                    onClick={handleProposePrice}
+                    className="text-xs bg-[#1A2A4F] text-white px-3 py-1.5 rounded font-bold"
                   >
-                    <Paperclip className="h-5 w-5 text-gray-600" />
+                    Send Offer
                   </button>
-
                   <button
-                    onClick={handleSendMessage}
-                    disabled={isSending || (!message.trim() && !file)}
-                    className="p-3 sm:p-4 bg-[#1A2A4F] hover:bg-[#2A3A5F] text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all flex-shrink-0 shadow-lg"
+                    onClick={() => setShowPriceInput(false)}
+                    className="p-1 hover:bg-gray-200 rounded"
                   >
-                    {isSending ? (
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <Send className="h-5 w-5" />
-                    )}
+                    <X size={14} />
+                  </button>
+                </motion.div>
+              )}
+
+              {file && (
+                <div className="mb-2 flex items-center justify-between bg-blue-50 p-2 rounded text-sm">
+                  <span className="truncate flex-1">{file.name}</span>
+                  <button onClick={() => setFile(null)}>
+                    <X size={14} />
                   </button>
                 </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2 text-gray-500 hover:bg-gray-100 rounded-full"
+                >
+                  <Paperclip size={20} />
+                </button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+
+                <textarea
+                  ref={messageInputRef}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" &&
+                    !e.shiftKey &&
+                    (e.preventDefault(), handleSendMessage())
+                  }
+                  placeholder="Type a message..."
+                  className="flex-1 bg-gray-100 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-[#1A2A4F]/20 resize-none"
+                  rows={1}
+                />
+
+                <button
+                  onClick={handleSendMessage}
+                  disabled={isSending || (!message.trim() && !file)}
+                  className="p-2 bg-[#1A2A4F] text-white rounded-full disabled:opacity-50 hover:bg-[#243454]"
+                >
+                  <Send size={18} />
+                </button>
               </div>
             </div>
           ) : (
-            <div className="border-t-2 border-gray-200 bg-gray-50 p-6 text-center flex-shrink-0">
-              <p className="text-sm text-gray-600 flex items-center justify-center gap-2 font-semibold">
-                <Shield className="h-5 w-5" />
-                This ticket is closed. The gig has been archived.
-              </p>
+            <div className="p-4 bg-gray-100 text-center text-sm text-gray-500 font-medium">
+              This ticket is closed. The gig has been archived.
             </div>
           )}
         </div>
 
-        {/* Sidebar */}
+        {/* Sidebar - Details */}
         <AnimatePresence>
           {showSidebar && (
             <motion.aside
-              initial={{ x: 400, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: 400, opacity: 0 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-              className="fixed inset-y-0 right-0 w-full sm:w-96 z-40 lg:relative lg:inset-auto flex flex-col bg-white border-l-2 border-gray-200 lg:w-96 flex-shrink-0 shadow-2xl lg:shadow-none"
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              className="w-full lg:w-80 bg-white border-l shadow-xl absolute lg:relative inset-y-0 right-0 z-20 flex flex-col"
             >
-              <div className="p-6 border-b-2 border-gray-200 flex items-center justify-between flex-shrink-0 bg-gradient-to-r from-[#1A2A4F] to-[#2A3A5F] text-white">
-                <div className="flex items-center gap-3">
-                  <Briefcase className="h-6 w-6" />
-                  <h3 className="text-lg font-bold">Work Details</h3>
-                </div>
+              <div className="p-4 bg-[#1A2A4F] text-white flex justify-between items-center">
+                <span className="font-bold flex items-center gap-2">
+                  <Briefcase size={16} /> Details
+                </span>
                 <button
                   onClick={() => setShowSidebar(false)}
-                  className="lg:hidden p-2 hover:bg-white/10 rounded-lg transition-all"
+                  className="lg:hidden"
                 >
-                  <X className="h-5 w-5" />
+                  <X size={18} />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto">
-                {/* Participants */}
-                <div className="p-6 border-b-2 border-gray-200">
-                  <h4 className="text-xs font-bold text-gray-500 uppercase mb-4">
+              <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                {/* People */}
+                <div>
+                  <h3 className="text-xs font-bold text-gray-400 uppercase mb-2">
                     Participants
-                  </h4>
-                  <div className="space-y-4">
-                    {/* Provider Card */}
-                    <div className="flex items-start gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors">
-                      <div className="h-12 w-12 rounded-full bg-gradient-to-br from-[#1A2A4F] to-[#2A3A5F] flex items-center justify-center text-white font-bold flex-shrink-0 text-lg shadow-md overflow-hidden">
-                        {ticket.providerId?.profilePicture ? (
-                          <img
-                            src={ticket.providerId.profilePicture}
-                            alt="Profile"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          ticket.providerId?.fullName?.charAt(0) || "P"
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-900 text-base truncate">
-                          {ticket.providerId?.fullName || "Unknown Provider"}
-                        </p>
-                        <p className="text-xs text-gray-500 font-semibold uppercase flex items-center gap-1">
-                          <Briefcase size={12} /> Provider (Payer)
-                        </p>
-                      </div>
+                  </h3>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold">
+                      {ticket.providerId?.fullName[0]}
                     </div>
-
-                    {/* Freelancer Card */}
-                    <div className="flex items-start gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors">
-                      <div className="h-12 w-12 rounded-full bg-gradient-to-br from-purple-600 to-purple-700 flex items-center justify-center text-white font-bold flex-shrink-0 text-lg shadow-md overflow-hidden">
-                        {ticket.freelancerId?.profilePicture ? (
-                          <img
-                            src={ticket.freelancerId.profilePicture}
-                            alt="Profile"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          ticket.freelancerId?.fullName?.charAt(0) || "F"
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-900 text-base truncate">
-                          {ticket.freelancerId?.fullName ||
-                            "Unknown Freelancer"}
-                        </p>
-                        <p className="text-xs text-gray-500 font-semibold uppercase flex items-center gap-1">
-                          <Laptop size={12} /> Freelancer (Worker)
-                        </p>
-                      </div>
+                    <div>
+                      <p className="text-sm font-bold">
+                        {ticket.providerId?.fullName}
+                      </p>
+                      <p className="text-xs text-gray-500">Provider</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold">
+                      {ticket.freelancerId?.fullName[0]}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold">
+                        {ticket.freelancerId?.fullName}
+                      </p>
+                      <p className="text-xs text-gray-500">Freelancer</p>
                     </div>
                   </div>
                 </div>
 
-                {/* Ticket Details */}
-                <div className="p-6 border-b-2 border-gray-200">
-                  <h4 className="text-xs font-bold text-gray-500 uppercase mb-4">
-                    Ticket Status
-                  </h4>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-xs font-bold text-gray-500 uppercase mb-2">
-                        Current State
-                      </p>
-                      <span
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold border-2 ${getStatusColor(
-                          ticket.status
-                        )}`}
-                      >
-                        {getStatusIcon(ticket.status)}
-                        {ticket.status.replace("_", " ").toUpperCase()}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-gray-500 uppercase mb-2">
-                        Agreed Amount
-                      </p>
-                      <p className="text-2xl font-black text-[#1A2A4F]">
-                        {ticket.agreedPrice
-                          ? `₹${ticket.agreedPrice.toLocaleString("en-IN")}`
-                          : "Not set"}
-                      </p>
-                    </div>
-                    {ticket.gigId?.status && (
-                      <div>
-                        <p className="text-xs font-bold text-gray-500 uppercase mb-2">
-                          Gig Status
-                        </p>
-                        <span
-                          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold ${
-                            ticket.gigId.status === "open"
-                              ? "bg-blue-100 text-blue-800"
-                              : ticket.gigId.status === "in_progress"
-                              ? "bg-yellow-100 text-yellow-800"
-                              : ticket.gigId.status === "completed"
-                              ? "bg-green-100 text-green-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}
-                        >
-                          {ticket.gigId.status === "in_progress"
-                            ? "In Progress"
-                            : ticket.gigId.status.toUpperCase()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                {/* State */}
+                <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                  <p className="text-xs text-gray-500 uppercase font-bold mb-1">
+                    Agreed Price
+                  </p>
+                  <p className="text-xl font-black text-[#1A2A4F]">
+                    {ticket.agreedPrice
+                      ? `₹${ticket.agreedPrice.toLocaleString("en-IN")}`
+                      : "Negotiating"}
+                  </p>
                 </div>
-              </div>
 
-              {/* Actions */}
-              <div className="p-6 border-t-2 border-gray-200 bg-gray-50 flex-shrink-0">
-                <div className="space-y-3">
-                  {getActionButtons().map((action) => {
-                    const Icon = action.icon;
-                    const variantClasses = {
-                      primary: "bg-[#1A2A4F] text-white hover:bg-[#2A3A5F]",
-                      success: "bg-green-600 text-white hover:bg-green-700",
-                      secondary: "bg-gray-200 text-gray-700 hover:bg-gray-300",
-                    };
-
-                    return (
-                      <button
-                        key={action.id}
-                        onClick={action.onClick}
-                        className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all shadow-md ${
-                          variantClasses[action.variant] ||
-                          variantClasses.primary
-                        }`}
-                      >
-                        <Icon className="h-5 w-5" />
-                        {action.label}
-                      </button>
-                    );
-                  })}
-
-                  <button
-                    onClick={() => {
-                      setIsDetailsModalOpen(true);
-                      setShowSidebar(false);
-                    }}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-all"
-                  >
-                    <Info className="h-5 w-5" />
-                    Full Details
-                  </button>
+                {/* Actions List */}
+                <div className="space-y-2">
+                  {getActionButtons().map((btn) => (
+                    <button
+                      key={btn.id}
+                      onClick={btn.onClick}
+                      className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-colors ${
+                        btn.variant === "primary"
+                          ? "bg-[#1A2A4F] text-white hover:bg-[#243454]"
+                          : btn.variant === "success"
+                          ? "bg-green-600 text-white hover:bg-green-700"
+                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                      }`}
+                    >
+                      <btn.icon size={16} /> {btn.label}
+                    </button>
+                  ))}
                 </div>
               </div>
             </motion.aside>
@@ -1193,245 +864,66 @@ const Ticket = () => {
         </AnimatePresence>
       </div>
 
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        theme="light"
-      />
+      <ToastContainer position="top-center" />
 
-      {/* Confirmation Modal */}
-      <AnimatePresence>
-        {isConfirmModalOpen && confirmAction && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => {
-              setIsConfirmModalOpen(false);
-              setConfirmAction(null);
-            }}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full border-2 border-gray-200"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-black text-[#1A2A4F]">
-                  {confirmAction.title}
-                </h3>
-                <button
-                  onClick={() => {
-                    setIsConfirmModalOpen(false);
-                    setConfirmAction(null);
-                  }}
-                  className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-all"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-              <p className="text-sm text-gray-600 mb-8 leading-relaxed">
-                {confirmAction.message}
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setIsConfirmModalOpen(false);
-                    setConfirmAction(null);
-                  }}
-                  className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 font-semibold transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={async () => {
-                    await confirmAction.action();
-                    setIsConfirmModalOpen(false);
-                    setConfirmAction(null);
-                  }}
-                  className="flex-1 px-6 py-3 bg-[#1A2A4F] text-white rounded-xl hover:bg-[#2A3A5F] font-semibold transition-all"
-                >
-                  Confirm
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Confirm Modal */}
+      {isConfirmModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full">
+            <h3 className="text-lg font-bold mb-2">{confirmAction.title}</h3>
+            <p className="text-sm text-gray-600 mb-6 whitespace-pre-wrap">
+              {confirmAction.message}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setIsConfirmModalOpen(false)}
+                className="flex-1 py-2 bg-gray-100 rounded font-bold text-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  confirmAction.action();
+                  setIsConfirmModalOpen(false);
+                }}
+                className="flex-1 py-2 bg-[#1A2A4F] text-white rounded font-bold"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Rating Modal */}
-      <AnimatePresence>
-        {isRatingModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setIsRatingModalOpen(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full border-2 border-gray-200"
-              onClick={(e) => e.stopPropagation()}
+      {isRatingModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full text-center">
+            <h3 className="text-lg font-bold mb-4">Rate Freelancer</h3>
+            <div className="flex justify-center gap-2 mb-6">
+              {[1, 2, 3, 4, 5].map((s) => (
+                <Star
+                  key={s}
+                  size={32}
+                  className={`cursor-pointer ${
+                    s <= rating
+                      ? "fill-yellow-400 text-yellow-400"
+                      : "text-gray-300"
+                  }`}
+                  onClick={() => setRating(s)}
+                />
+              ))}
+            </div>
+            <button
+              onClick={handleCloseTicket}
+              disabled={rating === 0}
+              className="w-full py-2 bg-[#1A2A4F] text-white rounded font-bold disabled:opacity-50"
             >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-black text-[#1A2A4F]">
-                  Rate Your Experience
-                </h3>
-                <button
-                  onClick={() => setIsRatingModalOpen(false)}
-                  className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-all"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-              <p className="text-sm text-gray-600 mb-8 leading-relaxed">
-                Please rate the Freelancer before closing the ticket. Your
-                feedback helps improve our community.
-              </p>
-              <div className="flex justify-center gap-3 mb-8">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    onClick={() => setRating(star)}
-                    className="focus:outline-none transition-transform hover:scale-110"
-                  >
-                    <Star
-                      className={`h-12 w-12 transition-all ${
-                        star <= rating
-                          ? "fill-yellow-400 text-yellow-400"
-                          : "text-gray-300 hover:text-gray-400"
-                      }`}
-                    />
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setIsRatingModalOpen(false);
-                    setRating(0);
-                  }}
-                  className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 font-semibold transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCloseTicket}
-                  disabled={rating === 0 || isSubmittingRating}
-                  className="flex-1 px-6 py-3 bg-[#1A2A4F] text-white rounded-xl hover:bg-[#2A3A5F] font-semibold transition-all disabled:opacity-50"
-                >
-                  {isSubmittingRating ? "Submitting..." : "Submit & Close"}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Details Modal */}
-      <AnimatePresence>
-        {isDetailsModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
-            onClick={() => setIsDetailsModalOpen(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto border-2 border-gray-200 my-8"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-black text-[#1A2A4F]">
-                  Ticket Details
-                </h3>
-                <button
-                  onClick={() => setIsDetailsModalOpen(false)}
-                  className="p-2 hover:bg-gray-100 rounded-lg"
-                >
-                  <X className="h-6 w-6 text-gray-500" />
-                </button>
-              </div>
-              <div className="space-y-6">
-                <div className="bg-gray-50 p-4 rounded-xl">
-                  <p className="font-bold text-lg mb-2">
-                    Gig: {ticket.gigId?.title}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Original Budget: ₹
-                    {ticket.gigId?.price?.toLocaleString("en-IN")}
-                  </p>
-                  {ticket.gigId?.status && (
-                    <p className="text-sm text-gray-600 mt-1">
-                      Gig Status:{" "}
-                      <span className="font-semibold capitalize">
-                        {ticket.gigId.status.replace("_", " ")}
-                      </span>
-                    </p>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-blue-50 rounded-xl">
-                    <p className="font-bold text-blue-900">Provider (Payer)</p>
-                    <p className="text-sm">{ticket.providerId?.fullName}</p>
-                  </div>
-                  <div className="p-4 bg-purple-50 rounded-xl">
-                    <p className="font-bold text-purple-900">
-                      Freelancer (Worker)
-                    </p>
-                    <p className="text-sm">{ticket.freelancerId?.fullName}</p>
-                  </div>
-                </div>
-                <div className="bg-green-50 p-4 rounded-xl border-2 border-green-100">
-                  <p className="font-bold text-green-900">Current Status</p>
-                  <p className="capitalize font-medium">
-                    {ticket.status.replace("_", " ")}
-                  </p>
-                  {ticket.agreedPrice && (
-                    <p className="text-sm mt-2">
-                      Agreed Price: ₹
-                      {ticket.agreedPrice.toLocaleString("en-IN")}
-                    </p>
-                  )}
-                </div>
-                {ticket.priceHistory && ticket.priceHistory.length > 0 && (
-                  <div className="bg-yellow-50 p-4 rounded-xl border-2 border-yellow-100">
-                    <p className="font-bold text-yellow-900 mb-3">
-                      Price Negotiation History
-                    </p>
-                    <div className="space-y-2">
-                      {ticket.priceHistory.map((price, idx) => (
-                        <div
-                          key={idx}
-                          className="text-sm flex justify-between items-center"
-                        >
-                          <span className="font-medium">
-                            {price.proposedByName}
-                          </span>
-                          <span className="font-bold text-[#1A2A4F]">
-                            ₹{price.price.toLocaleString("en-IN")}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              Archive Gig
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
