@@ -88,7 +88,7 @@ if (enableCluster && cluster.isPrimary) {
   );
   app.use(express.json());
 
-  //  AUTH MIDDLEWARES 
+  //  AUTH MIDDLEWARES
   app.use(cookieParser());
   app.use(
     session({
@@ -104,7 +104,7 @@ if (enableCluster && cluster.isPrimary) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // RATE LIMITERS 
+  // RATE LIMITERS
   const limiterConfig = (windowMs, max, msg) =>
     rateLimit({
       windowMs,
@@ -131,7 +131,7 @@ if (enableCluster && cluster.isPrimary) {
     "Too many attachment uploads, please try again later."
   );
 
-  //  MONGODB SCHEMAS 
+  //  MONGODB SCHEMAS
   const userSchema = new mongoose.Schema(
     {
       _id: { type: String, required: true },
@@ -299,7 +299,7 @@ if (enableCluster && cluster.isPrimary) {
   const Application = mongoose.model("Application", applicationSchema);
   const Ticket = mongoose.model("Ticket", ticketSchema);
 
-  //  PASSPORT CONFIG 
+  //  PASSPORT CONFIG
   passport.serializeUser((user, done) => done(null, user._id));
   passport.deserializeUser(async (id, done) => {
     try {
@@ -380,7 +380,7 @@ if (enableCluster && cluster.isPrimary) {
     )
   );
 
-  //  DATABASE CONNECT 
+  //  DATABASE CONNECT
   mongoose
     .connect(process.env.MONGODB_URL, {
       useNewUrlParser: true,
@@ -389,7 +389,7 @@ if (enableCluster && cluster.isPrimary) {
     .then(() => logger.info(`[Worker ${process.pid}] MongoDB connected`))
     .catch((err) => logger.error("MongoDB connection error:", err));
 
-  //  HELPERS (Multer, Cloudinary, Email) 
+  //  HELPERS (Multer, Cloudinary, Email)
   const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
@@ -424,7 +424,7 @@ if (enableCluster && cluster.isPrimary) {
     },
   });
 
-  //  CUSTOM MIDDLEWARE 
+  //  CUSTOM MIDDLEWARE
   const authMiddleware = async (req, res, next) => {
     const authHeader = req.header("Authorization");
     if (!authHeader) {
@@ -1712,11 +1712,9 @@ if (enableCluster && cluster.isPrimary) {
           return res.status(400).json({ error: "User not found" });
         }
         if (!user.isVerified) {
-          return res
-            .status(400)
-            .json({
-              error: "Please verify your email before applying for gigs",
-            });
+          return res.status(400).json({
+            error: "Please verify your email before applying for gigs",
+          });
         }
 
         const applicationId = crypto.randomBytes(16).toString("hex");
@@ -2382,11 +2380,9 @@ if (enableCluster && cluster.isPrimary) {
             .json({ error: "Ticket must be paid to mark as completed" });
         }
         if (req.userId !== ticket.sellerId) {
-          return res
-            .status(403)
-            .json({
-              error: "Only the seller can mark the ticket as completed",
-            });
+          return res.status(403).json({
+            error: "Only the seller can mark the ticket as completed",
+          });
         }
 
         ticket.status = "completed";
@@ -2934,15 +2930,24 @@ if (enableCluster && cluster.isPrimary) {
     socket.on("markMessagesRead", async (ticketId, callback) => {
       try {
         if (!/^[0-9a-fA-F]{32}$/.test(ticketId)) {
-          return callback({ error: "Invalid ticket ID format" });
+          if (callback && typeof callback === "function") {
+            return callback({ error: "Invalid ticket ID format" });
+          }
+          return;
         }
 
         const ticket = await Ticket.findOne({ _id: ticketId });
         if (!ticket) {
-          return callback({ error: "Ticket not found" });
+          if (callback && typeof callback === "function") {
+            return callback({ error: "Ticket not found" });
+          }
+          return;
         }
         if (![ticket.sellerId, ticket.buyerId].includes(socket.userId)) {
-          return callback({ error: "Unauthorized to mark messages read" });
+          if (callback && typeof callback === "function") {
+            return callback({ error: "Unauthorized to mark messages read" });
+          }
+          return;
         }
 
         let updated = false;
@@ -2955,9 +2960,10 @@ if (enableCluster && cluster.isPrimary) {
         });
 
         if (updated) {
+          const user = await User.findOne({ _id: socket.userId }).lean();
           ticket.timeline.push({
             _id: crypto.randomBytes(16).toString("hex"),
-            action: `Messages marked as read by ${socket.user.fullName}`,
+            action: `Messages marked as read by ${user?.fullName || "User"}`,
             timestamp: new Date(),
           });
           await ticket.save();
@@ -2967,13 +2973,17 @@ if (enableCluster && cluster.isPrimary) {
           });
         }
 
-        callback({ success: true });
+        if (callback && typeof callback === "function") {
+          callback({ success: true });
+        }
       } catch (err) {
         logger.error("Socket mark messages read error:", err);
-        callback({
-          error: "Failed to mark messages as read",
-          details: err.message,
-        });
+        if (callback && typeof callback === "function") {
+          callback({
+            error: "Failed to mark messages as read",
+            details: err.message,
+          });
+        }
       }
     });
 
@@ -2982,7 +2992,7 @@ if (enableCluster && cluster.isPrimary) {
     });
   });
 
-  //  AUTOMATED CLEANUP 
+  //  AUTOMATED CLEANUP
   setInterval(async () => {
     try {
       const cutoffDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -3002,7 +3012,7 @@ if (enableCluster && cluster.isPrimary) {
 
   logger.info("Auto-cleanup job scheduled (runs every 6 hours)");
 
-  //  START SERVER 
+  //  START SERVER
   server.listen(PORT, () => {
     logger.info(`[Worker ${process.pid}] Server running on port ${PORT}`);
   });
