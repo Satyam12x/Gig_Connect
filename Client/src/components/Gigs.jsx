@@ -14,26 +14,20 @@ import {
   Briefcase,
   Sparkles,
   Zap,
-  ArrowRight,
   Grid,
   List,
-  MapPin,
-  Calendar,
-  DollarSign,
-  Eye,
-  Bookmark,
-  Award,
-  CheckCircle,
-  XCircle,
   AlertCircle,
   Ticket,
   MessageSquare,
-  Target,
   Loader2,
   RefreshCw,
-  TrendingDown,
   Package,
   PlusCircle,
+  CheckCircle,
+  XCircle,
+  Lock,
+  Bookmark,
+  Eye,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -66,14 +60,13 @@ const Gigs = () => {
 
   const getToken = () => localStorage.getItem("token");
 
-  // 1. Initial Token Decode (Fast load)
+  // 1. Initial Token Decode
   useEffect(() => {
     const token = getToken();
     if (token) {
       try {
         const payload = JSON.parse(atob(token.split(".")[1]));
         setUserId(payload.id);
-        // We set role here initially, but will overwrite it with DB data below
         setRole(payload.role);
         const saved = localStorage.getItem(`favorites_${payload.id}`);
         if (saved) setFavorites(JSON.parse(saved));
@@ -83,7 +76,7 @@ const Gigs = () => {
     }
   }, []);
 
-  // 2. Fetch Real Data from DB (Source of Truth)
+  // 2. Fetch Real Data
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
@@ -133,16 +126,13 @@ const Gigs = () => {
         setCategories(catsData.categories || []);
         setFeaturedGigs((recentData.gigs || recentData)?.slice(0, 3) || []);
 
-        // --- CRITICAL FIX: Update Role from Database ---
         if (profileData) {
           setUser(profileData);
           if (profileData.role) {
-            setRole(profileData.role); // Updates role to "Provider" based on your DB
+            setRole(profileData.role);
           }
         }
-        // -----------------------------------------------
 
-        // Map applications by gigId
         const appMap = {};
         if (Array.isArray(appsData)) {
           appsData.forEach((app) => {
@@ -152,7 +142,6 @@ const Gigs = () => {
         }
         setApplications(appMap);
 
-        // Map tickets by gigId
         const ticketMap = {};
         if (Array.isArray(ticketsData)) {
           ticketsData.forEach((ticket) => {
@@ -233,7 +222,6 @@ const Gigs = () => {
       });
     }
 
-    // Sort
     if (sortBy === "price-low") {
       list = [...list].sort((a, b) => a.price - b.price);
     } else if (sortBy === "price-high") {
@@ -293,6 +281,7 @@ const Gigs = () => {
     const isOwner = gig.providerId === userId;
     const isFavorited = favorites.includes(gig._id);
     const statusBadge = status ? getStatusBadge(status) : null;
+    const isClosed = gig.status === "closed";
 
     return (
       <div
@@ -300,7 +289,7 @@ const Gigs = () => {
           isFeatured
             ? "border-2 border-[#1A2A4F] shadow-lg"
             : "border border-gray-200 hover:border-[#1A2A4F]"
-        }`}
+        } ${isClosed ? "opacity-80 grayscale-[50%]" : ""}`}
       >
         <div className="relative h-48 sm:h-56 overflow-hidden group">
           <img
@@ -311,19 +300,22 @@ const Gigs = () => {
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
 
-          {/* Featured Badge */}
-          {isFeatured && (
+          {isFeatured && !isClosed && (
             <div className="absolute top-3 right-3 flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-full text-xs font-bold shadow-lg">
               <Sparkles className="h-3 w-3" /> Featured
             </div>
           )}
 
-          {/* Category Badge */}
+          {isClosed && (
+            <div className="absolute top-3 right-3 flex items-center gap-2 px-3 py-1.5 bg-gray-800 text-white rounded-full text-xs font-bold shadow-lg">
+              <Lock className="h-3 w-3" /> Closed
+            </div>
+          )}
+
           <div className="absolute top-3 left-3 px-3 py-1.5 bg-[#1A2A4F]/90 backdrop-blur-sm text-white rounded-full text-xs font-bold shadow-lg">
             {gig.category}
           </div>
 
-          {/* Status Badge */}
           {statusBadge && (
             <div
               className={`absolute bottom-3 left-3 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold shadow-lg border ${statusBadge.bg} ${statusBadge.text}`}
@@ -333,7 +325,6 @@ const Gigs = () => {
             </div>
           )}
 
-          {/* Favorite Button */}
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -350,12 +341,10 @@ const Gigs = () => {
         </div>
 
         <div className="p-5 sm:p-6 flex flex-col gap-3 flex-1">
-          {/* Title */}
           <h3 className="text-lg sm:text-xl font-bold text-[#1A2A4F] line-clamp-2 leading-tight">
             {gig.title}
           </h3>
 
-          {/* Provider Info */}
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <Users className="h-4 w-4 flex-shrink-0" />
             <span className="font-medium truncate">
@@ -369,12 +358,10 @@ const Gigs = () => {
             )}
           </div>
 
-          {/* Description */}
           <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed flex-1">
             {gig.description}
           </p>
 
-          {/* Price & Time */}
           <div className="flex justify-between items-center pt-3 border-t border-gray-100">
             <div className="flex flex-col">
               <span className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
@@ -394,7 +381,6 @@ const Gigs = () => {
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex gap-2 mt-4">
             {isOwner ? (
               <Link
@@ -402,9 +388,18 @@ const Gigs = () => {
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[#1A2A4F] text-white rounded-xl font-semibold hover:bg-[#152241] transition-colors"
               >
                 <Users className="h-4 w-4" />
-                <span className="hidden sm:inline">View Applicants</span>
-                <span className="sm:hidden">Applicants</span>
+                <span className="hidden sm:inline">Manage</span>
+                <span className="sm:hidden">Manage</span>
               </Link>
+            ) : isClosed ? (
+              <button
+                disabled
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-400 rounded-xl font-semibold cursor-not-allowed"
+              >
+                <Lock className="h-4 w-4" />
+                <span className="hidden sm:inline">Closed</span>
+                <span className="sm:hidden">Closed</span>
+              </button>
             ) : ticket ? (
               <Link
                 to={`/tickets/${ticket._id}`}
@@ -458,7 +453,6 @@ const Gigs = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Navbar />
-      {/* Header */}
       <div className="relative bg-gradient-to-br from-[#1A2A4F] via-[#243454] to-[#1A2A4F] pt-24 sm:pt-32 pb-16 sm:pb-20 px-4 sm:px-6 overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-10 right-10 w-72 h-72 bg-white rounded-full blur-3xl"></div>
@@ -474,7 +468,6 @@ const Gigs = () => {
             match for your skills
           </p>
 
-          {/* Quick Stats */}
           <div className="mt-8 sm:mt-10 flex flex-wrap justify-center gap-4 sm:gap-8">
             <div className="flex items-center gap-3 px-4 sm:px-6 py-3 bg-white/10 backdrop-blur-sm rounded-2xl">
               <Package className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
@@ -503,7 +496,6 @@ const Gigs = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-        {/* Search & Actions */}
         <div className="mb-6 sm:mb-8">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
             <div className="flex-1 relative">
@@ -523,12 +515,9 @@ const Gigs = () => {
               />
             </div>
 
-            {/* UPDATED: Post a Gig & Tickets Buttons */}
             {userId && (
               <>
-                {/* Desktop Buttons */}
                 <div className="hidden sm:flex gap-3">
-                  {/* Strictly Role === Provider */}
                   {role === "Provider" && (
                     <Link
                       to="/create-gig"
@@ -545,9 +534,7 @@ const Gigs = () => {
                   </Link>
                 </div>
 
-                {/* Mobile Buttons */}
                 <div className="sm:hidden flex gap-2">
-                  {/* Strictly Role === Provider */}
                   {role === "Provider" && (
                     <Link
                       to="/create-gig"
@@ -568,7 +555,6 @@ const Gigs = () => {
           </div>
         </div>
 
-        {/* Filters */}
         <div className="mb-6 sm:mb-8">
           <div className="flex items-center gap-3 mb-4">
             <button
@@ -663,7 +649,6 @@ const Gigs = () => {
           </div>
         </div>
 
-        {/* Categories */}
         <div className="mb-8 sm:mb-10">
           <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
             <button
@@ -698,7 +683,6 @@ const Gigs = () => {
           </div>
         </div>
 
-        {/* Featured Gigs */}
         {featuredGigs.length > 0 && !isFilterActive && (
           <div className="mb-10 sm:mb-12">
             <div className="flex items-center gap-3 mb-6">
@@ -721,7 +705,6 @@ const Gigs = () => {
           </div>
         )}
 
-        {/* All Gigs */}
         <div>
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-[#1A2A4F]">
@@ -802,7 +785,6 @@ const Gigs = () => {
           )}
         </div>
 
-        {/* Pagination */}
         {!isLoading && totalPages > 1 && filteredGigs.length > 0 && (
           <div className="flex flex-wrap justify-center items-center gap-2 sm:gap-3 mt-10 sm:mt-12">
             <button
@@ -816,7 +798,6 @@ const Gigs = () => {
               <ChevronLeft className="h-5 w-5" />
             </button>
 
-            {/* Page Numbers */}
             <div className="flex gap-2">
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                 let pageNum;
@@ -864,7 +845,6 @@ const Gigs = () => {
           </div>
         )}
 
-        {/* Pagination Info */}
         {!isLoading && totalPages > 1 && filteredGigs.length > 0 && (
           <div className="text-center mt-6 text-sm text-gray-600">
             <span className="font-semibold">
@@ -880,7 +860,6 @@ const Gigs = () => {
         )}
       </div>
 
-      {/* Call to Action */}
       {!isLoading && filteredGigs.length > 0 && (
         <div className="bg-gradient-to-br from-[#1A2A4F] to-[#243454] py-12 sm:py-16">
           <div className="max-w-4xl mx-auto text-center px-4 sm:px-6">
@@ -893,7 +872,6 @@ const Gigs = () => {
                 : "Apply to gigs that match your skills and start earning"}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              {/* Strictly Role === Provider */}
               {role === "Provider" ? (
                 <Link
                   to="/create-gig"
@@ -923,7 +901,6 @@ const Gigs = () => {
         </div>
       )}
 
-      {/* Scroll to Top Button */}
       {!isLoading && filteredGigs.length > 6 && (
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}

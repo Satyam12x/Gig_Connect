@@ -26,6 +26,7 @@ import {
   Filter,
   SortDesc,
   Eye,
+  Lock,
 } from "lucide-react";
 
 import Navbar from "../components/Navbar";
@@ -56,34 +57,7 @@ const formatINR = (amount) => {
   }).format(n);
 };
 
-const SkeletonCard = () => (
-  <div
-    className="p-8 rounded-2xl bg-white animate-pulse"
-    style={{ border: `2px solid ${COLORS.gray100}` }}
-  >
-    <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gray-200"></div>
-    <div className="h-6 bg-gray-200 rounded mb-3 w-3/4 mx-auto"></div>
-    <div className="h-4 bg-gray-200 rounded mb-4 w-1/2 mx-auto"></div>
-    <div className="h-8 bg-gray-200 rounded mb-4 w-2/3 mx-auto"></div>
-    <div className="h-4 bg-gray-200 rounded mb-6 w-1/2 mx-auto"></div>
-    <div className="h-12 bg-gray-200 rounded w-full"></div>
-  </div>
-);
-
-const SkeletonGig = () => (
-  <div className="bg-white rounded-3xl p-3 border border-gray-100 shadow-sm animate-pulse">
-    <div className="h-56 bg-gray-200 rounded-2xl mb-4"></div>
-    <div className="px-2 pb-2">
-      <div className="h-6 bg-gray-200 rounded mb-2"></div>
-      <div className="h-4 bg-gray-200 rounded mb-6"></div>
-      <div className="flex justify-between items-center">
-        <div className="h-8 bg-gray-200 rounded w-20"></div>
-        <div className="h-4 bg-gray-200 rounded w-16"></div>
-      </div>
-    </div>
-  </div>
-);
-
+// --- SKELETON COMPONENTS ---
 const SkeletonStat = () => (
   <div
     className="p-6 rounded-xl bg-white animate-pulse"
@@ -111,6 +85,20 @@ const SkeletonActivity = () => (
           <div className="h-3 bg-gray-200 rounded w-1/2"></div>
         </div>
       ))}
+    </div>
+  </div>
+);
+
+const SkeletonGig = () => (
+  <div className="bg-white rounded-3xl p-3 border border-gray-100 shadow-sm animate-pulse">
+    <div className="h-56 bg-gray-200 rounded-2xl mb-4"></div>
+    <div className="px-2 pb-2">
+      <div className="h-6 bg-gray-200 rounded mb-2"></div>
+      <div className="h-4 bg-gray-200 rounded mb-6"></div>
+      <div className="flex justify-between items-center">
+        <div className="h-8 bg-gray-200 rounded w-20"></div>
+        <div className="h-4 bg-gray-200 rounded w-16"></div>
+      </div>
     </div>
   </div>
 );
@@ -207,6 +195,7 @@ const Home = () => {
     fetchAll();
   }, []);
 
+  // Scroll Animation Observer
   useEffect(() => {
     const observerOptions = {
       threshold: 0.1,
@@ -244,7 +233,10 @@ const Home = () => {
 
   const filteredGigs = gigs
     .filter((gig) => {
-      if (gig.status === "closed") return false; // Filter closed gigs
+      // NOTE: We generally hide closed gigs from the Home/Featured page
+      // to keep it fresh. If you want to show them, remove this line.
+      if (gig.status === "closed") return false;
+
       if (filterCategory === "all") return true;
       return gig.category === filterCategory;
     })
@@ -365,6 +357,7 @@ const Home = () => {
 
       <Navbar user={user} onLogout={handleLogout} />
 
+      {/* --- HERO SECTION --- */}
       <section className="relative pt-32 pb-20 px-4">
         <div className="max-w-6xl mx-auto text-center relative z-10">
           <h1
@@ -518,6 +511,7 @@ const Home = () => {
         </div>
       </section>
 
+      {/* --- USER DASHBOARD SECTION --- */}
       {user && (
         <section className="py-16 px-4 relative z-10">
           <div className="max-w-6xl mx-auto">
@@ -742,6 +736,7 @@ const Home = () => {
         </section>
       )}
 
+      {/* --- CATEGORIES SECTION --- */}
       <section
         className="py-20 px-4 relative z-10"
         style={{ backgroundColor: COLORS.gray50 }}
@@ -883,12 +878,14 @@ const Home = () => {
               filteredGigs.map((gig) => {
                 const isFav = favorites.has(gig._id);
                 const status = getApplicationStatus(gig._id);
-                const closed = gig.status === "closed";
+                const isClosed = gig.status === "closed";
 
                 return (
                   <div
                     key={gig._id}
-                    className="group bg-white rounded-3xl p-3 border-2 border-gray-100 shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 flex flex-col h-full scroll-animate"
+                    className={`group bg-white rounded-3xl p-3 border-2 border-gray-100 shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 flex flex-col h-full scroll-animate ${
+                      isClosed ? "opacity-80" : ""
+                    }`}
                   >
                     {/* Image Container */}
                     <div className="relative h-56 bg-gray-100 rounded-2xl overflow-hidden mb-4">
@@ -908,6 +905,13 @@ const Home = () => {
                       <div className="absolute top-3 left-3 bg-white/90 backdrop-blur text-[#1A2A4F] text-xs font-bold px-3 py-1.5 rounded-lg">
                         {gig.category}
                       </div>
+
+                      {isClosed && (
+                        <div className="absolute top-3 right-14 bg-gray-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1">
+                          <Lock size={12} /> Closed
+                        </div>
+                      )}
+
                       <button
                         onClick={(e) => {
                           e.preventDefault();
@@ -993,8 +997,8 @@ const Home = () => {
                       </div>
 
                       <div className="mt-4">
-                        {closed ? (
-                          <span className="block w-full py-3 text-center rounded-xl font-semibold bg-gray-100 text-gray-600">
+                        {isClosed ? (
+                          <span className="block w-full py-3 text-center rounded-xl font-semibold bg-gray-100 text-gray-500 cursor-not-allowed">
                             Applications Closed
                           </span>
                         ) : status ? (

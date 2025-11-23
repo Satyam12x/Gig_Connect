@@ -18,7 +18,9 @@ import {
   Star,
   Heart,
   Clock,
-  DollarSign,
+  X,
+  Check,
+  Lock,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -27,6 +29,9 @@ const API_BASE = "http://localhost:5000/api";
 
 const GigDetails = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
+
+  // State
   const [gig, setGig] = useState(null);
   const [userApplications, setUserApplications] = useState([]);
   const [userId, setUserId] = useState(null);
@@ -38,7 +43,9 @@ const GigDetails = () => {
   const [error, setError] = useState(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
-  const navigate = useNavigate();
+
+  // Modal State
+  const [showApplicantsModal, setShowApplicantsModal] = useState(false);
 
   // Fetch user info from token
   useEffect(() => {
@@ -56,18 +63,13 @@ const GigDetails = () => {
             .then((response) => setIsVerified(response.data.isVerified))
             .catch((error) => {
               console.error("Error fetching user profile:", error);
-              toast.error("Failed to verify user status.");
             });
         } else {
-          console.error("Invalid token payload:", decoded);
           localStorage.removeItem("token");
-          toast.error("Session invalid. Please log in again.");
           navigate("/login");
         }
       } catch (error) {
-        console.error("Error decoding token:", error);
         localStorage.removeItem("token");
-        toast.error("Session expired. Please log in again.");
         navigate("/login");
       }
     }
@@ -85,20 +87,21 @@ const GigDetails = () => {
         setGig(fetchedGig);
 
         const requests = [];
-        if (userId) {
+        const token = localStorage.getItem("token");
+
+        if (userId && token) {
+          // 1. Get User's own applications
           requests.push(
             axios.get(`${API_BASE}/users/${userId}/applications`, {
-              headers: {
-                Authorization: `Bearer ${localStorage.getItem("token")}`,
-              },
+              headers: { Authorization: `Bearer ${token}` },
             })
           );
-          if (fetchedGig && fetchedGig.sellerId === userId) {
+
+          // 2. If Seller, get ALL applications for this gig
+          if (fetchedGig && fetchedGig.providerId === userId) {
             requests.push(
               axios.get(`${API_BASE}/gigs/${id}/applications`, {
-                headers: {
-                  Authorization: `Bearer ${localStorage.getItem("token")}`,
-                },
+                headers: { Authorization: `Bearer ${token}` },
               })
             );
           } else {
@@ -111,18 +114,20 @@ const GigDetails = () => {
           );
         }
 
-        const [applicationsResponse, applicantsResponse] = await Promise.all(
-          requests
-        );
+        const [userAppsRes, gigAppsRes] = await Promise.all(requests);
 
+        // Process User's applications
         setUserApplications(
-          applicationsResponse.data.map((app) => ({
-            gigId: app.gigId._id,
+          userAppsRes.data.map((app) => ({
+            gigId: app.gigId._id || app.gigId,
             status: app.status,
             _id: app._id,
           })) || []
         );
-        setApplicants(applicantsResponse.data || []);
+
+        // Process All Applicants (for provider)
+        setApplicants(gigAppsRes.data || []);
+
         setLoading(false);
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -131,21 +136,22 @@ const GigDetails = () => {
       }
     };
 
-    if (userId !== null) {
+    if (userId !== null || !localStorage.getItem("token")) {
       fetchData();
     }
   }, [id, userId]);
 
+  // --- HANDLERS ---
+
   const handleApply = async () => {
     if (!userId) {
       toast.error("Please log in to apply for gigs.");
-      navigate("/login", { state: { from: `/gigs/${id}` } });
+      navigate("/login");
       return;
     }
 
     if (!isVerified) {
-      toast.error("Please verify your email before applying for gigs.");
-      navigate("/profile");
+      toast.error("Please verify your email before applying.");
       return;
     }
 
@@ -159,165 +165,111 @@ const GigDetails = () => {
         }
       );
       toast.success("Application submitted! Redirecting to ticket...");
+
+      // Update local state
       setUserApplications([
         ...userApplications,
         { gigId: id, status: "pending", _id: response.data.application._id },
       ]);
+
+      // Go to ticket
       navigate(`/tickets/${response.data.ticketId}`);
     } catch (error) {
-      console.error("Error applying for gig:", error);
-      const errorMsg =
-        error.response?.data?.error || "Failed to apply for gig.";
-      toast.error(errorMsg);
+      console.error("Error applying:", error);
+      toast.error(error.response?.data?.error || "Failed to apply.");
       setIsApplying(false);
     }
   };
 
   const handleApplicationStatus = async (applicationId, status) => {
+    const token = localStorage.getItem("token");
     try {
+      // 1. Update Application Status
       await axios.patch(
         `${API_BASE}/gigs/${id}/applications/${applicationId}`,
         { status },
         {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          headers: { Authorization: `Bearer ${token}` },
         }
       );
+
       toast.success(`Application ${status}!`);
+
+      // 2. Update Local Applicants State
       setApplicants((prev) =>
         prev.map((app) =>
           app._id === applicationId ? { ...app, status } : app
         )
       );
-      if (userId) {
-        const applicationsResponse = await axios.get(
-          `${API_BASE}/users/${userId}/applications`,
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
-            },
-          }
-        );
-        setUserApplications(
-          applicationsResponse.data.map((app) => ({
-            gigId: app.gigId._id,
-            status: app.status,
-            _id: app._id,
-          })) || []
-        );
+
+      // --- LOGIC TO CLOSE GIG IF ACCEPTED ---
+      if (status === "accepted") {
+        try {
+          // Update Gig Status to 'closed'
+          await axios.put(
+            `${API_BASE}/gigs/${id}`,
+            { status: "closed" },
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
+
+          // Update Local Gig State
+          setGig((prev) => ({ ...prev, status: "closed" }));
+          toast.success("Gig has been marked as Closed.");
+        } catch (updateError) {
+          console.error("Failed to close gig:", updateError);
+          toast.error(
+            "Applicant accepted, but failed to close gig automatically."
+          );
+        }
       }
     } catch (error) {
-      console.error("Error updating application status:", error);
-      toast.error(
-        error.response?.data?.error || "Failed to update application."
-      );
+      console.error("Error updating status:", error);
+      toast.error(error.response?.data?.error || "Failed to update.");
     }
   };
 
   const handleShare = async () => {
-    try {
-      const shareData = {
-        title: gig.title,
-        text: `Check out this gig: ${gig.title} on our platform!`,
-        url: `${window.location.origin}/gigs/${id}`,
-      };
-
-      if (navigator.share) {
-        await navigator.share(shareData);
-        toast.success("Gig shared successfully!");
-      } else {
-        navigator.clipboard.writeText(shareData.url);
-        toast.success("Gig link copied to clipboard!");
+    const url = `${window.location.origin}/gigs/${id}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: gig.title, url });
+        toast.success("Shared successfully!");
+      } catch (err) {
+        // Ignore abort errors
       }
-    } catch (error) {
-      console.error("Error sharing gig:", error);
-      navigator.clipboard.writeText(`${window.location.origin}/gigs/${id}`);
-      toast.success("Gig link copied to clipboard!");
+    } else {
+      navigator.clipboard.writeText(url);
+      toast.success("Link copied to clipboard!");
     }
   };
 
-  const handleRetry = () => {
-    setError(null);
-    setLoading(true);
-    const fetchData = async () => {
-      try {
-        const gigResponse = await axios.get(`${API_BASE}/gigs/${id}`);
-        const fetchedGig = gigResponse.data || null;
-        setGig(fetchedGig);
-
-        const requests = [];
-        if (userId) {
-          requests.push(
-            axios.get(`${API_BASE}/users/${userId}/applications`, {
-              headers: {
-                Authorization: `Bearer ${localStorage.getItem("token")}`,
-              },
-            })
-          );
-          if (fetchedGig && fetchedGig.sellerId === userId) {
-            requests.push(
-              axios.get(`${API_BASE}/gigs/${id}/applications`, {
-                headers: {
-                  Authorization: `Bearer ${localStorage.getItem("token")}`,
-                },
-              })
-            );
-          } else {
-            requests.push(Promise.resolve({ data: [] }));
-          }
-        } else {
-          requests.push(
-            Promise.resolve({ data: [] }),
-            Promise.resolve({ data: [] })
-          );
-        }
-
-        const [applicationsResponse, applicantsResponse] = await Promise.all(
-          requests
-        );
-
-        setUserApplications(
-          applicationsResponse.data.map((app) => ({
-            gigId: app.gigId._id,
-            status: app.status,
-            _id: app._id,
-          })) || []
-        );
-        setApplicants(applicantsResponse.data || []);
-        setLoading(false);
-      } catch (error) {
-        console.error("Error retrying fetch:", error);
-        setError(error.response?.data?.error || "Failed to load gig details.");
-        setLoading(false);
-      }
-    };
-    fetchData();
-  };
-
+  // Image Navigation
   const images = gig?.thumbnail
     ? [gig.thumbnail, ...(gig.additionalImages || []).slice(0, 3)]
     : [];
-  const goToPreviousImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
-  };
-  const goToNextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % images.length);
-  };
+
+  const nextImage = () => setCurrentImageIndex((p) => (p + 1) % images.length);
+  const prevImage = () =>
+    setCurrentImageIndex((p) => (p - 1 + images.length) % images.length);
+
+  // --- RENDER HELPERS ---
 
   if (loading) {
     return (
       <div className="min-h-screen bg-white flex flex-col">
         <Navbar />
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 flex-1">
-          <div className="max-w-6xl mx-auto space-y-8">
-            <div className="h-8 bg-gray-200 rounded w-1/3 animate-pulse"></div>
-            <div className="h-96 sm:h-[500px] bg-gray-200 rounded-lg animate-pulse"></div>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 space-y-4">
-                <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-4 bg-gray-200 rounded w-5/6 animate-pulse"></div>
-                <div className="h-4 bg-gray-200 rounded w-4/6 animate-pulse"></div>
+        <div className="container mx-auto pt-24 pb-12 px-4 flex justify-center">
+          <div className="w-full max-w-4xl space-y-8">
+            <div className="h-8 bg-gray-200 animate-pulse w-1/2 rounded"></div>
+            <div className="h-96 bg-gray-200 animate-pulse rounded-xl"></div>
+            <div className="grid grid-cols-3 gap-8">
+              <div className="col-span-2 space-y-4">
+                <div className="h-4 bg-gray-200 animate-pulse w-full rounded"></div>
+                <div className="h-4 bg-gray-200 animate-pulse w-3/4 rounded"></div>
               </div>
-              <div className="h-80 bg-gray-200 rounded-lg animate-pulse"></div>
+              <div className="h-64 bg-gray-200 animate-pulse rounded-xl"></div>
             </div>
           </div>
         </div>
@@ -326,42 +278,22 @@ const GigDetails = () => {
     );
   }
 
-  if (error) {
+  if (error || !gig) {
     return (
       <div className="min-h-screen bg-white flex flex-col">
         <Navbar />
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 flex-1 flex items-center justify-center">
-          <div className="bg-white border border-gray-200 rounded-lg p-8 max-w-md w-full text-center shadow-sm">
-            <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <p className="text-gray-700 mb-6 font-medium">{error}</p>
-            <button
-              onClick={handleRetry}
-              className="w-full px-6 py-3 bg-[#1A2A4F] text-white rounded-lg hover:bg-[#0f1a35] transition-colors font-medium"
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
-
-  if (!gig) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col">
-        <Navbar />
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 flex-1 flex items-center justify-center">
-          <div className="bg-white border border-gray-200 rounded-lg p-8 max-w-md w-full text-center shadow-sm">
-            <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-            <p className="text-gray-700 font-medium mb-6">Gig not found.</p>
-            <button
-              onClick={() => navigate("/gigs")}
-              className="w-full px-6 py-3 bg-[#1A2A4F] text-white rounded-lg hover:bg-[#0f1a35] transition-colors font-medium"
-            >
-              Back to Gigs
-            </button>
-          </div>
+        <div className="container mx-auto pt-32 pb-12 px-4 text-center">
+          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 mb-2">
+            Error Loading Gig
+          </h2>
+          <p className="text-gray-600 mb-6">{error || "Gig not found"}</p>
+          <button
+            onClick={() => navigate("/gigs")}
+            className="px-6 py-2 bg-[#1A2A4F] text-white rounded-lg"
+          >
+            Back to Gigs
+          </button>
         </div>
         <Footer />
       </div>
@@ -371,152 +303,105 @@ const GigDetails = () => {
   const userApplication = userApplications.find((app) => app.gigId === id);
   const hasApplied = !!userApplication;
   const isClosed = gig.status === "closed";
-  const isSeller = gig.sellerId === userId;
+  const isOwner = gig.providerId === userId;
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        
-        .fade-in {
-          animation: fadeIn 0.6s ease-out;
-        }
-        
-        .hover-lift {
-          transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        
-        .hover-lift:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 16px rgba(26, 42, 79, 0.12);
-        }
-        
-        .status-badge {
-          display: inline-block;
-          padding: 0.375rem 0.875rem;
-          border-radius: 0.375rem;
-          font-weight: 500;
-          font-size: 0.875rem;
-        }
-        
-        .status-pending {
-          background-color: #fef3c7;
-          color: #92400e;
-        }
-        
-        .status-accepted {
-          background-color: #dcfce7;
-          color: #166534;
-        }
-        
-        .status-rejected {
-          background-color: #fee2e2;
-          color: #991b1b;
-        }
-        
-        .status-closed {
-          background-color: #f3f4f6;
-          color: #374151;
-        }
-      `}</style>
-
+    <div className="min-h-screen bg-white flex flex-col font-sans text-gray-900">
       <Navbar />
 
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-16 flex-1">
         <div className="max-w-6xl mx-auto">
-          {/* Breadcrumb */}
+          {/* Back Button */}
           <button
             onClick={() => navigate("/gigs")}
-            className="flex items-center gap-2 text-[#1A2A4F] hover:text-[#0f1a35] mb-8 font-medium transition-colors fade-in"
+            className="group flex items-center gap-2 text-gray-500 hover:text-[#1A2A4F] mb-6 transition-colors"
           >
-            <ChevronLeft className="h-5 w-5" />
-            Back to Gigs
+            <ChevronLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
+            Back to Listings
           </button>
 
-          {/* Header Section */}
-          <div className="mb-10 fade-in">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-              <div>
-                <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-3 leading-tight">
-                  {gig.title}
-                </h1>
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="status-badge status-closed">
-                    {gig.status.charAt(0).toUpperCase() + gig.status.slice(1)}
+          {/* Header */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+            <div>
+              <div className="flex flex-wrap items-center gap-3 mb-2">
+                <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-bold uppercase tracking-wider rounded-full">
+                  {gig.category}
+                </span>
+                {isClosed && (
+                  <span className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-bold uppercase tracking-wider rounded-full border border-gray-200 flex items-center gap-1">
+                    <Lock className="h-3 w-3" /> Closed
                   </span>
-                  <span className="flex items-center gap-1 text-gray-600 text-sm font-medium">
-                    <MapPin className="h-4 w-4" />
-                    {gig.category}
-                  </span>
-                </div>
+                )}
               </div>
+              <h1 className="text-3xl md:text-4xl font-extrabold text-[#1A2A4F] leading-tight">
+                {gig.title}
+              </h1>
+              <div className="flex items-center gap-2 mt-2 text-gray-500">
+                <MapPin className="h-4 w-4" />
+                <span>Remote / Online</span>
+                <span className="mx-2">•</span>
+                <Clock className="h-4 w-4" />
+                <span>
+                  Posted {new Date(gig.createdAt).toLocaleDateString()}
+                </span>
+              </div>
+            </div>
 
-              <div className="flex items-center gap-3 flex-wrap">
-                <button
-                  onClick={() => setIsFavorite(!isFavorite)}
-                  className="p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors hover-lift"
-                  title="Add to favorites"
-                >
-                  <Heart
-                    className={`h-5 w-5 ${
-                      isFavorite ? "fill-red-500 text-red-500" : "text-gray-600"
-                    }`}
-                  />
-                </button>
-                <button
-                  onClick={handleShare}
-                  className="flex items-center gap-2 px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors font-medium text-gray-700 hover-lift"
-                  title="Share this gig"
-                >
-                  <Share2 className="h-5 w-5" />
-                  <span className="hidden sm:inline">Share</span>
-                </button>
-              </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsFavorite(!isFavorite)}
+                className="p-3 rounded-full border border-gray-200 hover:bg-gray-50 transition-colors"
+              >
+                <Heart
+                  className={`h-5 w-5 ${
+                    isFavorite ? "fill-red-500 text-red-500" : "text-gray-400"
+                  }`}
+                />
+              </button>
+              <button
+                onClick={handleShare}
+                className="p-3 rounded-full border border-gray-200 hover:bg-gray-50 transition-colors"
+              >
+                <Share2 className="h-5 w-5 text-gray-600" />
+              </button>
             </div>
           </div>
 
-          {/* Main Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-            {/* Left Column - Gig Details */}
+            {/* LEFT COLUMN (Images & Description) */}
             <div className="lg:col-span-2 space-y-8">
-              {/* Image Gallery */}
+              {/* Gallery */}
               {images.length > 0 && (
-                <div className="relative rounded-lg overflow-hidden shadow-sm border border-gray-100 group fade-in">
+                <div className="relative rounded-2xl overflow-hidden shadow-lg group bg-gray-100 h-[400px] md:h-[500px]">
                   <img
-                    src={images[currentImageIndex] || "/placeholder.svg"}
-                    alt={`${gig.title} - Image ${currentImageIndex + 1}`}
-                    className="w-full h-80 sm:h-[500px] object-cover transition-transform duration-500 group-hover:scale-105"
+                    src={images[currentImageIndex]}
+                    alt="Gig thumbnail"
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                   />
                   {images.length > 1 && (
                     <>
                       <button
-                        onClick={goToPreviousImage}
-                        className="absolute left-4 top-1/2 -translate-y-1/2 bg-[#1A2A4F]/80 hover:bg-[#1A2A4F] text-white p-2 rounded-full transition-all opacity-0 group-hover:opacity-100"
-                        aria-label="Previous image"
+                        onClick={prevImage}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-white/90 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white"
                       >
-                        <ChevronLeft className="h-5 w-5" />
+                        <ChevronLeft className="h-6 w-6 text-gray-800" />
                       </button>
                       <button
-                        onClick={goToNextImage}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 bg-[#1A2A4F]/80 hover:bg-[#1A2A4F] text-white p-2 rounded-full transition-all opacity-0 group-hover:opacity-100"
-                        aria-label="Next image"
+                        onClick={nextImage}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-white/90 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white"
                       >
-                        <ChevronRight className="h-5 w-5" />
+                        <ChevronRight className="h-6 w-6 text-gray-800" />
                       </button>
-                      <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-1.5">
-                        {images.map((_, index) => (
-                          <button
-                            key={index}
-                            onClick={() => setCurrentImageIndex(index)}
-                            className={`h-2 rounded-full transition-all ${
-                              index === currentImageIndex
-                                ? "bg-white w-6"
-                                : "bg-white/50 hover:bg-white/70 w-2"
+                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                        {images.map((_, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => setCurrentImageIndex(idx)}
+                            className={`h-2 rounded-full cursor-pointer transition-all ${
+                              idx === currentImageIndex
+                                ? "w-6 bg-white"
+                                : "w-2 bg-white/60"
                             }`}
-                            aria-label={`Go to image ${index + 1}`}
                           />
                         ))}
                       </div>
@@ -525,62 +410,37 @@ const GigDetails = () => {
                 </div>
               )}
 
-              {/* Description Section */}
-              <div className="fade-in">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                  About this gig
-                </h2>
-                <p className="text-gray-700 leading-relaxed text-lg">
+              {/* About */}
+              <div>
+                <h3 className="text-2xl font-bold text-[#1A2A4F] mb-4">
+                  About this Gig
+                </h3>
+                <div className="prose prose-lg text-gray-600 max-w-none whitespace-pre-wrap">
                   {gig.description}
-                </p>
-              </div>
-
-              {/* Details Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 p-6 bg-gray-50 rounded-lg fade-in">
-                <div>
-                  <p className="text-sm text-gray-600 font-medium mb-2">
-                    Category
-                  </p>
-                  <p className="text-lg font-semibold text-gray-900">
-                    {gig.category}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 font-medium mb-2">
-                    Price
-                  </p>
-                  <p className="text-lg font-semibold text-[#1A2A4F]">
-                    ₹{gig.price.toLocaleString("en-IN")}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 font-medium mb-2">
-                    Status
-                  </p>
-                  <span className="status-badge status-closed">
-                    {gig.status.charAt(0).toUpperCase() + gig.status.slice(1)}
-                  </span>
                 </div>
               </div>
 
-              {/* Seller Card */}
-              <div className="border border-gray-200 rounded-lg p-6 fade-in hover-lift">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">
-                  About the seller
-                </h2>
-                <div className="flex items-center justify-between">
+              {/* Provider Card */}
+              <div className="border-t border-gray-100 pt-8">
+                <h3 className="text-lg font-bold text-[#1A2A4F] mb-4">
+                  About the Provider
+                </h3>
+                <div className="flex items-center gap-4 p-4 border border-gray-200 rounded-xl bg-gray-50">
+                  <div className="h-14 w-14 rounded-full bg-[#1A2A4F] flex items-center justify-center text-white text-xl font-bold">
+                    {gig.providerName?.[0] || "P"}
+                  </div>
                   <div>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {gig.sellerName}
-                    </p>
-                    <div className="flex items-center gap-1 mt-2 text-sm text-gray-600">
-                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      <span>4.9 (128 reviews)</span>
+                    <h4 className="font-bold text-gray-900 text-lg">
+                      {gig.providerName}
+                    </h4>
+                    <div className="flex items-center gap-1 text-sm text-gray-500">
+                      <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
+                      <span>4.9 (Verified)</span>
                     </div>
                   </div>
                   <button
-                    onClick={() => navigate(`/profile/${gig.sellerId}`)}
-                    className="px-4 py-2 bg-[#1A2A4F] text-white rounded-lg hover:bg-[#0f1a35] transition-colors font-medium"
+                    onClick={() => navigate(`/profile/${gig.providerId}`)}
+                    className="ml-auto text-sm font-semibold text-[#1A2A4F] hover:underline"
                   >
                     View Profile
                   </button>
@@ -588,163 +448,254 @@ const GigDetails = () => {
               </div>
             </div>
 
-            {/* Right Column - Actions or Applicants */}
+            {/* RIGHT COLUMN (Action Card) */}
             <div className="lg:col-span-1">
-              {isSeller ? (
-                // Seller View - Applicants Panel
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 sticky top-24 fade-in">
-                  <h2 className="text-lg font-bold text-gray-900 mb-5">
-                    Applicants ({applicants.length})
-                  </h2>
+              <div className="sticky top-24">
+                <div className="bg-white border border-gray-200 shadow-xl rounded-2xl p-6">
+                  <div className="mb-6">
+                    <p className="text-gray-500 text-sm font-medium mb-1">
+                      Fixed Price
+                    </p>
+                    <p className="text-4xl font-black text-[#1A2A4F]">
+                      ₹{gig.price.toLocaleString("en-IN")}
+                    </p>
+                  </div>
 
-                  {applicants.length > 0 ? (
-                    <div className="space-y-3 max-h-96 overflow-y-auto">
-                      {applicants.map((app) => (
-                        <div
-                          key={app._id}
-                          className="bg-white border border-gray-200 rounded-lg p-4 hover-lift"
-                        >
-                          <div className="flex items-start justify-between mb-3">
-                            <div>
-                              <p className="font-semibold text-gray-900">
-                                {app.applicantName}
-                              </p>
-                              <span
-                                className={`status-badge inline-block mt-2 ${
-                                  app.status === "pending"
-                                    ? "status-pending"
-                                    : app.status === "accepted"
-                                    ? "status-accepted"
-                                    : "status-rejected"
-                                }`}
-                              >
-                                {app.status.charAt(0).toUpperCase() +
-                                  app.status.slice(1)}
-                              </span>
-                            </div>
-                            <button
-                              onClick={() =>
-                                navigate(
-                                  `/users/${
-                                    app.applicantId._id || app.applicantId
-                                  }`
-                                )
-                              }
-                              className="text-[#1A2A4F] hover:text-[#0f1a35] transition-colors"
-                              title="View profile"
-                            >
-                              <User className="h-5 w-5" />
-                            </button>
-                          </div>
+                  {isOwner ? (
+                    // --- PROVIDER VIEW ---
+                    <div className="space-y-3">
+                      <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-4">
+                        <p className="text-sm text-blue-800 font-medium flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          {applicants.length}{" "}
+                          {applicants.length === 1 ? "Applicant" : "Applicants"}
+                        </p>
+                      </div>
 
-                          {app.status === "pending" && (
-                            <div className="flex gap-2 pt-3 border-t border-gray-200">
-                              <button
-                                onClick={() =>
-                                  handleApplicationStatus(app._id, "accepted")
-                                }
-                                className="flex-1 px-3 py-2 bg-green-50 text-green-700 rounded hover:bg-green-100 transition-colors font-medium text-sm"
-                              >
-                                Accept
-                              </button>
-                              <button
-                                onClick={() =>
-                                  handleApplicationStatus(app._id, "rejected")
-                                }
-                                className="flex-1 px-3 py-2 bg-red-50 text-red-700 rounded hover:bg-red-100 transition-colors font-medium text-sm"
-                              >
-                                Reject
-                              </button>
-                            </div>
-                          )}
+                      {isClosed ? (
+                        <div className="w-full py-3 bg-gray-100 border border-gray-200 text-gray-600 rounded-xl font-bold text-center flex items-center justify-center gap-2">
+                          <Lock className="h-5 w-5" /> Gig Closed
                         </div>
-                      ))}
+                      ) : (
+                        <button
+                          onClick={() => setShowApplicantsModal(true)}
+                          className="w-full py-4 bg-[#1A2A4F] text-white rounded-xl font-bold text-lg hover:bg-[#0f1a35] transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                        >
+                          <Users className="h-5 w-5" />
+                          Manage Applicants
+                        </button>
+                      )}
+
+                      {/* Even if closed, allow managing so they can find the accepted one */}
+                      {isClosed && (
+                        <button
+                          onClick={() => setShowApplicantsModal(true)}
+                          className="w-full py-3 text-[#1A2A4F] hover:underline text-sm"
+                        >
+                          View Accepted Applicant
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => navigate(`/gigs/edit/${id}`)}
+                        className="w-full py-3 bg-white border-2 border-gray-200 text-gray-700 rounded-xl font-bold hover:border-gray-300 transition-colors"
+                      >
+                        Edit Gig
+                      </button>
                     </div>
                   ) : (
-                    <div className="text-center py-8">
-                      <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                      <p className="text-gray-500 font-medium">
-                        No applicants yet
-                      </p>
+                    // --- FREELANCER VIEW ---
+                    <div className="space-y-4">
+                      {hasApplied ? (
+                        <div
+                          className={`p-4 rounded-xl border text-center ${
+                            userApplication.status === "accepted"
+                              ? "bg-green-50 border-green-200 text-green-700"
+                              : userApplication.status === "rejected"
+                              ? "bg-red-50 border-red-200 text-red-700"
+                              : "bg-yellow-50 border-yellow-200 text-yellow-700"
+                          }`}
+                        >
+                          <p className="font-bold flex items-center justify-center gap-2">
+                            {userApplication.status === "accepted" ? (
+                              <Check className="h-5 w-5" />
+                            ) : userApplication.status === "rejected" ? (
+                              <X className="h-5 w-5" />
+                            ) : (
+                              <Clock className="h-5 w-5" />
+                            )}
+                            Application {userApplication.status}
+                          </p>
+                          <p className="text-xs mt-1 opacity-80">
+                            Check your tickets for details
+                          </p>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={handleApply}
+                          disabled={isClosed || isApplying || !isVerified}
+                          className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg flex items-center justify-center gap-2 ${
+                            isClosed || !isVerified
+                              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                              : "bg-[#1A2A4F] text-white hover:bg-[#0f1a35] hover:shadow-xl"
+                          }`}
+                        >
+                          {isApplying
+                            ? "Applying..."
+                            : isClosed
+                            ? "Gig Closed"
+                            : "Apply Now"}
+                          {!isApplying && !isClosed && (
+                            <Briefcase className="h-5 w-5" />
+                          )}
+                        </button>
+                      )}
+
+                      {!hasApplied && (
+                        <p className="text-xs text-center text-gray-400">
+                          By applying, you agree to our Terms of Service.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
-              ) : (
-                // Buyer View - Action Panel
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 sticky top-24 fade-in">
-                  <div className="space-y-4">
-                    {/* Price Display */}
-                    <div className="bg-white border-2 border-[#1A2A4F] rounded-lg p-5">
-                      <p className="text-sm text-gray-600 mb-2 font-medium">
-                        Total Price
-                      </p>
-                      <p className="text-4xl font-bold text-[#1A2A4F]">
-                        ₹{gig.price.toLocaleString("en-IN")}
-                      </p>
-                    </div>
-
-                    {/* Apply Button or Status */}
-                    {hasApplied ? (
-                      <div
-                        className={`px-4 py-4 rounded-lg text-center font-semibold status-badge ${
-                          userApplication.status === "pending"
-                            ? "status-pending"
-                            : userApplication.status === "accepted"
-                            ? "status-accepted"
-                            : "status-rejected"
-                        }`}
-                      >
-                        Application{" "}
-                        {userApplication.status.charAt(0).toUpperCase() +
-                          userApplication.status.slice(1)}
-                      </div>
-                    ) : (
-                      <button
-                        onClick={handleApply}
-                        disabled={
-                          isClosed || hasApplied || isApplying || !isVerified
-                        }
-                        className={`w-full px-6 py-4 rounded-lg font-bold transition-all flex items-center justify-center gap-2 text-base ${
-                          isClosed || hasApplied || isApplying || !isVerified
-                            ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                            : "bg-[#1A2A4F] text-white hover:bg-[#0f1a35] shadow-md hover:shadow-lg"
-                        }`}
-                      >
-                        <Briefcase className="h-5 w-5" />
-                        {isApplying
-                          ? "Applying..."
-                          : !isVerified
-                          ? "Verify Email"
-                          : isClosed
-                          ? "Closed"
-                          : "Apply Now"}
-                      </button>
-                    )}
-
-                    {/* Message Button */}
-                    <button className="w-full px-6 py-3 bg-white border border-gray-200 text-gray-900 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center justify-center gap-2 hover-lift">
-                      <MessageSquare className="h-5 w-5" />
-                      Message Seller
-                    </button>
-
-                    {/* Info Messages */}
-                    {!isVerified && (
-                      <p className="text-sm text-amber-700 bg-amber-50 p-3 rounded-lg border border-amber-200">
-                        Verify your email to apply for gigs
-                      </p>
-                    )}
-                    {isClosed && (
-                      <p className="text-sm text-gray-700 bg-gray-100 p-3 rounded-lg border border-gray-200">
-                        This gig is no longer accepting applications
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* --- APPLICANTS MODAL --- */}
+      {showApplicantsModal && isOwner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col animate-in fade-in zoom-in duration-200">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold text-[#1A2A4F]">
+                  Manage Applicants
+                </h2>
+                <p className="text-sm text-gray-500">
+                  Review and accept freelancers for "{gig.title}"
+                </p>
+              </div>
+              <button
+                onClick={() => setShowApplicantsModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="h-6 w-6 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {applicants.length === 0 ? (
+                <div className="text-center py-10">
+                  <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">No applicants yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {applicants.map((app) => (
+                    <div
+                      key={app._id}
+                      className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 border border-gray-200 rounded-xl hover:border-gray-300 transition-colors bg-gray-50/50"
+                    >
+                      {/* Avatar/Name */}
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-700 font-bold text-lg">
+                          {app.applicantId?.fullName?.[0] ||
+                            app.applicantName?.[0] ||
+                            "U"}
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-gray-900">
+                            {app.applicantId?.fullName || app.applicantName}
+                          </h4>
+                          <button
+                            onClick={() =>
+                              navigate(
+                                `/profile/${
+                                  app.applicantId?._id || app.applicantId
+                                }`
+                              )
+                            }
+                            className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                          >
+                            <User className="h-3 w-3" /> View Profile
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Status & Actions */}
+                      <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                        {app.status === "pending" && !isClosed ? (
+                          <>
+                            <button
+                              onClick={() =>
+                                handleApplicationStatus(app._id, "accepted")
+                              }
+                              className="px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1"
+                            >
+                              <Check className="h-4 w-4" /> Accept
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleApplicationStatus(app._id, "rejected")
+                              }
+                              className="px-4 py-2 bg-white border border-red-200 text-red-600 text-sm font-bold rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1"
+                            >
+                              <X className="h-4 w-4" /> Reject
+                            </button>
+                          </>
+                        ) : (
+                          <div
+                            className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 ${
+                              app.status === "accepted"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-red-100 text-red-800"
+                            }`}
+                          >
+                            {app.status === "accepted" ? (
+                              <Check className="h-4 w-4" />
+                            ) : (
+                              <X className="h-4 w-4" />
+                            )}
+                            {app.status.charAt(0).toUpperCase() +
+                              app.status.slice(1)}
+                          </div>
+                        )}
+
+                        {/* Link to Ticket/Chat */}
+                        <button
+                          onClick={() => {
+                            navigate("/tickets");
+                            toast("Check your tickets", { icon: "💬" });
+                          }}
+                          className="p-2 text-gray-500 hover:bg-gray-200 rounded-lg"
+                          title="Go to Chat"
+                        >
+                          <MessageSquare className="h-5 w-5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end">
+              <button
+                onClick={() => setShowApplicantsModal(false)}
+                className="px-6 py-2 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>
