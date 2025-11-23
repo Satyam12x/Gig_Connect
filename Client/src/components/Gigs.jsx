@@ -33,6 +33,7 @@ import {
   RefreshCw,
   TrendingDown,
   Package,
+  PlusCircle,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -65,13 +66,14 @@ const Gigs = () => {
 
   const getToken = () => localStorage.getItem("token");
 
-  // Decode JWT
+  // 1. Initial Token Decode (Fast load)
   useEffect(() => {
     const token = getToken();
     if (token) {
       try {
         const payload = JSON.parse(atob(token.split(".")[1]));
         setUserId(payload.id);
+        // We set role here initially, but will overwrite it with DB data below
         setRole(payload.role);
         const saved = localStorage.getItem(`favorites_${payload.id}`);
         if (saved) setFavorites(JSON.parse(saved));
@@ -81,7 +83,7 @@ const Gigs = () => {
     }
   }, []);
 
-  // Fetch all data
+  // 2. Fetch Real Data from DB (Source of Truth)
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
@@ -130,7 +132,15 @@ const Gigs = () => {
         setTotalPages(gigsData.pages || 1);
         setCategories(catsData.categories || []);
         setFeaturedGigs((recentData.gigs || recentData)?.slice(0, 3) || []);
-        if (profileData) setUser(profileData);
+
+        // --- CRITICAL FIX: Update Role from Database ---
+        if (profileData) {
+          setUser(profileData);
+          if (profileData.role) {
+            setRole(profileData.role); // Updates role to "Provider" based on your DB
+          }
+        }
+        // -----------------------------------------------
 
         // Map applications by gigId
         const appMap = {};
@@ -512,20 +522,47 @@ const Gigs = () => {
                 className="w-full pl-12 sm:pl-14 pr-4 sm:pr-6 py-3 sm:py-4 text-sm sm:text-base border-2 border-gray-200 rounded-xl sm:rounded-2xl bg-white focus:outline-none focus:border-[#1A2A4F] focus:ring-4 focus:ring-[#1A2A4F]/10 transition-all"
               />
             </div>
+
+            {/* UPDATED: Post a Gig & Tickets Buttons */}
             {userId && (
               <>
-                <Link
-                  to="/tickets"
-                  className="hidden sm:flex items-center justify-center gap-2 px-5 py-4 bg-[#1A2A4F] text-white rounded-2xl font-semibold hover:bg-[#152241] transition-colors"
-                >
-                  <Ticket className="h-5 w-5" /> My Tickets
-                </Link>
-                <Link
-                  to="/tickets"
-                  className="sm:hidden flex items-center justify-center gap-2 px-4 py-3 bg-[#1A2A4F] text-white rounded-xl font-semibold"
-                >
-                  <Ticket className="h-5 w-5" /> Tickets
-                </Link>
+                {/* Desktop Buttons */}
+                <div className="hidden sm:flex gap-3">
+                  {/* Strictly Role === Provider */}
+                  {role === "Provider" && (
+                    <Link
+                      to="/create-gig"
+                      className="flex items-center justify-center gap-2 px-5 py-4 bg-green-600 text-white rounded-2xl font-semibold hover:bg-green-700 transition-colors shadow-sm"
+                    >
+                      <PlusCircle className="h-5 w-5" /> Post a Gig
+                    </Link>
+                  )}
+                  <Link
+                    to="/tickets"
+                    className="flex items-center justify-center gap-2 px-5 py-4 bg-[#1A2A4F] text-white rounded-2xl font-semibold hover:bg-[#152241] transition-colors shadow-sm"
+                  >
+                    <Ticket className="h-5 w-5" /> My Tickets
+                  </Link>
+                </div>
+
+                {/* Mobile Buttons */}
+                <div className="sm:hidden flex gap-2">
+                  {/* Strictly Role === Provider */}
+                  {role === "Provider" && (
+                    <Link
+                      to="/create-gig"
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-xl font-semibold"
+                    >
+                      <PlusCircle className="h-5 w-5" /> Post
+                    </Link>
+                  )}
+                  <Link
+                    to="/tickets"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[#1A2A4F] text-white rounded-xl font-semibold"
+                  >
+                    <Ticket className="h-5 w-5" /> Tickets
+                  </Link>
+                </div>
               </>
             )}
           </div>
@@ -856,6 +893,7 @@ const Gigs = () => {
                 : "Apply to gigs that match your skills and start earning"}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              {/* Strictly Role === Provider */}
               {role === "Provider" ? (
                 <Link
                   to="/create-gig"
