@@ -8,12 +8,13 @@ import {
   Bot,
   Check,
   AlertCircle,
-  X,
-  Eye,
-  EyeOff,
+  ArrowLeft,
+  Loader2,
 } from "lucide-react";
+import Navbar from "../components/Navbar";
+import Footer from "../components/Footer";
 
-const API_BASE = "http://localhost:5000/api";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 // Progress Step Component
 const ProgressStep = ({ step, activeStep, title }) => (
@@ -37,7 +38,7 @@ const ProgressStep = ({ step, activeStep, title }) => (
   </div>
 );
 
-// Input Field Component with validation
+// Input Field Component
 const InputField = ({
   label,
   name,
@@ -48,11 +49,9 @@ const InputField = ({
   required = false,
   error = null,
   helperText = null,
-  icon: Icon = null,
 }) => (
   <div className="space-y-2">
     <label className="flex items-center gap-2 text-sm font-semibold text-[#1A2A4F]">
-      {Icon && <Icon className="w-4 h-4" />}
       <span>
         {label}
         {required && <span className="text-red-500 ml-1">*</span>}
@@ -85,7 +84,6 @@ const InputField = ({
   </div>
 );
 
-// Main CreateGig Component
 const CreateGig = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
@@ -93,8 +91,6 @@ const CreateGig = () => {
     description: "",
     category: "",
     price: "",
-    deliveryTime: "7",
-    revisions: "unlimited",
   });
   const [thumbnail, setThumbnail] = useState(null);
   const [thumbnailPreview, setThumbnailPreview] = useState(null);
@@ -117,6 +113,10 @@ const CreateGig = () => {
       toast.error("Thumbnail must be less than 5MB");
       return;
     }
+    if (file && !file.type.match(/^image\/(jpeg|jpg|png)$/)) {
+      toast.error("Only JPEG and PNG images are allowed");
+      return;
+    }
     setThumbnail(file);
     if (file) {
       const reader = new FileReader();
@@ -131,24 +131,32 @@ const CreateGig = () => {
     const newErrors = {};
 
     if (step === 1) {
-      if (!formData.title.trim()) newErrors.title = "Title is required";
-      if (!formData.category) newErrors.category = "Category is required";
+      if (!formData.title.trim()) {
+        newErrors.title = "Title is required";
+      } else if (formData.title.length < 5 || formData.title.length > 100) {
+        newErrors.title = "Title must be between 5 and 100 characters";
+      }
+      if (!formData.category) {
+        newErrors.category = "Category is required";
+      }
     }
 
     if (step === 2) {
-      if (!formData.description.trim())
+      if (!formData.description.trim()) {
         newErrors.description = "Description is required";
-      if (formData.description.trim().length < 20)
+      } else if (formData.description.length < 20) {
         newErrors.description = "Description must be at least 20 characters";
+      } else if (formData.description.length > 1000) {
+        newErrors.description = "Description must be less than 1000 characters";
+      }
     }
 
     if (step === 3) {
-      if (
-        !formData.price ||
-        isNaN(formData.price) ||
-        Number(formData.price) <= 0
-      )
-        newErrors.price = "Please enter a valid price";
+      if (!formData.price) {
+        newErrors.price = "Price is required";
+      } else if (isNaN(formData.price) || Number(formData.price) <= 0) {
+        newErrors.price = "Please enter a valid price greater than 0";
+      }
     }
 
     setErrors(newErrors);
@@ -158,14 +166,17 @@ const CreateGig = () => {
   const handleNextStep = () => {
     if (validateStep(currentStep)) {
       setCurrentStep(currentStep + 1);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      toast.error("Please fix the errors before continuing");
     }
   };
 
   const handlePrevStep = () => {
     setCurrentStep(currentStep - 1);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Fixed: Use /api/ai/chat instead of non-existent /ai/generate-description
   const handleGenerateDescription = async () => {
     if (!formData.title.trim()) {
       toast.error("Please enter a title before generating a description");
@@ -174,7 +185,12 @@ const CreateGig = () => {
     setAiLoading(true);
     try {
       const token = localStorage.getItem("token");
-      const prompt = `Generate a detailed, professional gig description for the following title: "${formData.title}". Include what the service offers, deliverables, process, and why buyers should choose this gig. Keep it under 1000 characters.`;
+      if (!token) {
+        toast.error("Please login to use AI features");
+        return;
+      }
+
+      const prompt = `Generate a detailed, professional gig description for: "${formData.title}". Include what the service offers, deliverables, process, and why buyers should choose this gig. Keep it under 1000 characters and make it compelling.`;
 
       const response = await axios.post(
         `${API_BASE}/ai/chat`,
@@ -184,9 +200,14 @@ const CreateGig = () => {
         }
       );
 
-      setFormData({ ...formData, description: response.data.response });
-      toast.success("Description generated successfully!");
+      if (response.data.success && response.data.response) {
+        setFormData({ ...formData, description: response.data.response });
+        toast.success("Description generated successfully!");
+      } else {
+        toast.error("Failed to generate description");
+      }
     } catch (err) {
+      console.error("AI generation error:", err);
       toast.error(
         err.response?.data?.error || "Failed to generate description"
       );
@@ -200,6 +221,7 @@ const CreateGig = () => {
 
     if (!validateStep(1) || !validateStep(2) || !validateStep(3)) {
       toast.error("Please fill in all required fields correctly");
+      setCurrentStep(1);
       return;
     }
 
@@ -210,21 +232,38 @@ const CreateGig = () => {
     data.append("description", formData.description.trim());
     data.append("category", formData.category);
     data.append("price", formData.price);
-    if (thumbnail) data.append("thumbnail", thumbnail);
+    if (thumbnail) {
+      data.append("thumbnail", thumbnail);
+    }
 
     try {
       const token = localStorage.getItem("token");
-      await axios.post(`${API_BASE}/gigs`, data, {
+      if (!token) {
+        toast.error("Please login to create a gig");
+        navigate("/login");
+        return;
+      }
+
+      const response = await axios.post(`${API_BASE}/gigs`, data, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data",
         },
       });
-      toast.success("Gig created successfully!");
-      navigate("/gigs");
+
+      if (response.data.success) {
+        toast.success("Gig created successfully!");
+        setTimeout(() => {
+          navigate("/gigs");
+        }, 1500);
+      }
     } catch (err) {
-      console.error("Error creating gig:", err.response?.data);
-      toast.error(err.response?.data?.error || "Failed to create gig");
+      console.error("Error creating gig:", err.response?.data || err);
+      const errorMessage =
+        err.response?.data?.error ||
+        err.response?.data?.errors?.[0]?.msg ||
+        "Failed to create gig";
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -237,7 +276,7 @@ const CreateGig = () => {
           <div className="space-y-6">
             <div className="bg-gradient-to-r from-[#1A2A4F]/5 to-transparent p-4 rounded-lg border border-[#1A2A4F]/10">
               <h3 className="font-semibold text-[#1A2A4F] text-sm mb-2">
-                Pro Tip
+                💡 Pro Tip
               </h3>
               <p className="text-xs text-gray-600">
                 Use clear, descriptive titles that help buyers understand
@@ -281,6 +320,10 @@ const CreateGig = () => {
                 <option value="Digital Marketing">Digital Marketing</option>
                 <option value="Writing">Writing</option>
                 <option value="Video Editing">Video Editing</option>
+                <option value="Photography">Photography</option>
+                <option value="Music & Audio">Music & Audio</option>
+                <option value="Programming">Programming</option>
+                <option value="Business">Business</option>
               </select>
               {errors.category && (
                 <p className="text-xs text-red-500">{errors.category}</p>
@@ -294,7 +337,7 @@ const CreateGig = () => {
           <div className="space-y-6">
             <div className="bg-gradient-to-r from-[#1A2A4F]/5 to-transparent p-4 rounded-lg border border-[#1A2A4F]/10">
               <h3 className="font-semibold text-[#1A2A4F] text-sm mb-2">
-                Description Guide
+                📝 Description Guide
               </h3>
               <p className="text-xs text-gray-600">
                 Include deliverables, timeline, process, and any other relevant
@@ -320,49 +363,33 @@ const CreateGig = () => {
                       ? "border-red-500 focus:border-red-500 bg-red-50"
                       : "border-gray-300 focus:border-[#1A2A4F] focus:ring-2 focus:ring-[#1A2A4F]/10"
                   } placeholder-gray-400`}
-                  rows="6"
+                  rows="8"
                   placeholder="Describe your service in detail..."
+                  maxLength={1000}
                 />
                 <div className="absolute bottom-3 right-3 text-xs text-gray-400">
                   {formData.description.length}/1000
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleGenerateDescription}
-                  disabled={aiLoading || !formData.title.trim()}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#1A2A4F] to-[#2d3d63] text-white font-medium text-sm rounded-lg hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {aiLoading ? (
-                    <>
-                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                          fill="none"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        />
-                      </svg>
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Bot className="w-4 h-4" />
-                      Generate with AI
-                    </>
-                  )}
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleGenerateDescription}
+                disabled={aiLoading || !formData.title.trim()}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#1A2A4F] to-[#2d3d63] text-white font-medium text-sm rounded-lg hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {aiLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Bot className="w-4 h-4" />
+                    Generate with AI
+                  </>
+                )}
+              </button>
 
               {errors.description && (
                 <p className="text-xs text-red-500">{errors.description}</p>
@@ -376,7 +403,7 @@ const CreateGig = () => {
           <div className="space-y-6">
             <div className="bg-gradient-to-r from-[#1A2A4F]/5 to-transparent p-4 rounded-lg border border-[#1A2A4F]/10">
               <h3 className="font-semibold text-[#1A2A4F] text-sm mb-2">
-                Pricing Strategy
+                💰 Pricing Strategy
               </h3>
               <p className="text-xs text-gray-600">
                 Set competitive pricing based on your expertise and market rates
@@ -384,7 +411,7 @@ const CreateGig = () => {
             </div>
 
             <InputField
-              label="Starting Price"
+              label="Starting Price (₹)"
               name="price"
               value={formData.price}
               onChange={handleInputChange}
@@ -392,8 +419,23 @@ const CreateGig = () => {
               type="number"
               required
               error={errors.price}
-              helperText="Price in INR (₹)"
+              helperText="Enter the base price for your service in Indian Rupees"
             />
+
+            {formData.price && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm font-semibold text-blue-900 mb-1">
+                  Estimated Earnings
+                </p>
+                <p className="text-2xl font-bold text-blue-600">
+                  ₹{Number(formData.price).toLocaleString("en-IN")}
+                </p>
+                <p className="text-xs text-blue-700 mt-1">
+                  This will be your base rate. You can negotiate final pricing
+                  with clients.
+                </p>
+              </div>
+            )}
           </div>
         );
 
@@ -402,7 +444,7 @@ const CreateGig = () => {
           <div className="space-y-6">
             <div className="bg-gradient-to-r from-[#1A2A4F]/5 to-transparent p-4 rounded-lg border border-[#1A2A4F]/10">
               <h3 className="font-semibold text-[#1A2A4F] text-sm mb-2">
-                Gig Thumbnail
+                🖼️ Gig Thumbnail
               </h3>
               <p className="text-xs text-gray-600">
                 High-quality thumbnails get more views. Use clear images that
@@ -412,21 +454,21 @@ const CreateGig = () => {
 
             <div className="space-y-2">
               <label className="text-sm font-semibold text-[#1A2A4F]">
-                Upload Thumbnail (Optional)
+                Upload Thumbnail (Optional but Recommended)
               </label>
               <input
                 type="file"
-                accept="image/jpeg,image/png"
+                accept="image/jpeg,image/png,image/jpg"
                 onChange={handleFileChange}
                 className="hidden"
                 id="thumbnail-upload"
               />
               <label
                 htmlFor="thumbnail-upload"
-                className="block w-full rounded-lg border-2 border-dashed border-gray-300 cursor-pointer hover:border-[#1A2A4F] transition-all duration-200 group bg-blue-50 hover:bg-blue-100"
+                className="block w-full rounded-lg border-2 border-dashed border-gray-300 cursor-pointer hover:border-[#1A2A4F] transition-all duration-200 group bg-gray-50 hover:bg-gray-100"
               >
                 {thumbnailPreview ? (
-                  <div className="relative w-full h-56 rounded-lg overflow-hidden">
+                  <div className="relative w-full h-64 rounded-lg overflow-hidden">
                     <img
                       src={thumbnailPreview}
                       alt="Preview"
@@ -445,10 +487,10 @@ const CreateGig = () => {
                   <div className="flex flex-col items-center justify-center py-12 px-4">
                     <Upload className="w-10 h-10 text-[#1A2A4F] mb-3 group-hover:scale-110 transition-transform duration-200" />
                     <p className="text-[#1A2A4F] font-medium text-sm">
-                      Drag and drop or click to upload
+                      Click to upload or drag and drop
                     </p>
-                    <p className="text-xs text-[#1A2A4F]/60 mt-1">
-                      JPEG or PNG • Max 5MB
+                    <p className="text-xs text-gray-500 mt-1">
+                      JPEG, JPG or PNG • Max 5MB
                     </p>
                   </div>
                 )}
@@ -460,51 +502,66 @@ const CreateGig = () => {
       case 5:
         return (
           <div className="space-y-6">
-            <h2 className="text-xl font-bold text-[#1A2A4F]">
-              Review Your Gig
+            <h2 className="text-2xl font-bold text-[#1A2A4F]">
+              📋 Review Your Gig
             </h2>
 
             <div className="space-y-4">
               <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <p className="text-xs text-gray-500 mb-1">TITLE</p>
-                <p className="text-[#1A2A4F] font-semibold">{formData.title}</p>
-              </div>
-
-              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <p className="text-xs text-gray-500 mb-1">CATEGORY</p>
-                <p className="text-[#1A2A4F] font-semibold">
-                  {formData.category}
+                <p className="text-xs text-gray-500 mb-1 uppercase font-semibold">
+                  Title
+                </p>
+                <p className="text-[#1A2A4F] font-semibold text-lg">
+                  {formData.title}
                 </p>
               </div>
 
-              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <p className="text-xs text-gray-500 mb-1">PRICE</p>
-                <p className="text-[#1A2A4F] font-semibold">
-                  ₹{formData.price}
-                </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-xs text-gray-500 mb-1 uppercase font-semibold">
+                    Category
+                  </p>
+                  <p className="text-[#1A2A4F] font-semibold">
+                    {formData.category}
+                  </p>
+                </div>
+
+                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-xs text-gray-500 mb-1 uppercase font-semibold">
+                    Starting Price
+                  </p>
+                  <p className="text-[#1A2A4F] font-semibold text-lg">
+                    ₹{Number(formData.price).toLocaleString("en-IN")}
+                  </p>
+                </div>
               </div>
 
               <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <p className="text-xs text-gray-500 mb-2">DESCRIPTION</p>
-                <p className="text-[#1A2A4F] text-sm line-clamp-3">
+                <p className="text-xs text-gray-500 mb-2 uppercase font-semibold">
+                  Description
+                </p>
+                <p className="text-[#1A2A4F] text-sm leading-relaxed whitespace-pre-wrap">
                   {formData.description}
                 </p>
               </div>
 
               {thumbnailPreview && (
                 <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <p className="text-xs text-gray-500 mb-2">THUMBNAIL</p>
+                  <p className="text-xs text-gray-500 mb-2 uppercase font-semibold">
+                    Thumbnail
+                  </p>
                   <img
                     src={thumbnailPreview}
                     alt="Thumbnail preview"
-                    className="w-full h-40 object-cover rounded"
+                    className="w-full h-48 object-cover rounded-lg"
                   />
                 </div>
               )}
             </div>
 
             <div className="bg-gradient-to-r from-green-50 to-transparent p-4 rounded-lg border border-green-200">
-              <p className="text-xs text-green-700">
+              <p className="text-sm text-green-700 flex items-center gap-2">
+                <Check className="w-5 h-5" />
                 Everything looks good! Click Publish Gig to go live.
               </p>
             </div>
@@ -517,33 +574,38 @@ const CreateGig = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 font-sans">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
       <Toaster position="top-right" />
+      <Navbar />
 
-      {/* Navigation Bar */}
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl sm:text-2xl font-bold text-[#1A2A4F]">
-              Create Gig
-            </h1>
-            {currentStep > 1 && (
-              <button
-                onClick={() => setCurrentStep(1)}
-                className="text-sm text-gray-600 hover:text-[#1A2A4F] transition-colors"
-              >
-                Start Over
-              </button>
-            )}
-          </div>
+      {/* Hero Section */}
+      <div className="relative bg-gradient-to-br from-[#1A2A4F] via-[#243454] to-[#1A2A4F] pt-24 sm:pt-32 pb-12 sm:pb-16 px-4 sm:px-6">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-10 right-10 w-72 h-72 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute bottom-10 left-10 w-96 h-96 bg-white rounded-full blur-3xl"></div>
         </div>
-      </nav>
+        <div className="max-w-4xl mx-auto relative z-10">
+          <button
+            onClick={() => navigate("/gigs")}
+            className="flex items-center gap-2 text-white/80 hover:text-white mb-6 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span className="text-sm font-medium">Back to Gigs</span>
+          </button>
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white mb-4 leading-tight">
+            Create Your Gig
+          </h1>
+          <p className="text-base sm:text-lg text-white/90 leading-relaxed">
+            Share your skills and start earning by creating a professional gig
+          </p>
+        </div>
+      </div>
 
       {/* Main Content */}
-      <div className="relative py-8 px-4 sm:px-6 lg:px-8">
+      <div className="flex-1 py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto">
           {/* Progress Bar */}
-          <div className="mb-8 bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+          <div className="mb-8 bg-white rounded-xl p-6 shadow-sm border border-gray-200">
             <div className="flex items-center justify-between gap-2 sm:gap-4 overflow-x-auto pb-2">
               <ProgressStep
                 step={1}
@@ -570,7 +632,7 @@ const CreateGig = () => {
           </div>
 
           {/* Form Content */}
-          <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 sm:p-8">
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 sm:p-8">
             <form onSubmit={handleSubmit} className="space-y-8">
               {renderStepContent()}
 
@@ -580,7 +642,7 @@ const CreateGig = () => {
                   <button
                     type="button"
                     onClick={handlePrevStep}
-                    className="flex-1 px-6 py-3 border-2 border-gray-300 text-[#1A2A4F] font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200"
+                    className="flex-1 px-6 py-3 border-2 border-gray-300 text-[#1A2A4F] font-semibold rounded-xl hover:bg-gray-50 transition-all duration-200"
                   >
                     Previous
                   </button>
@@ -590,7 +652,7 @@ const CreateGig = () => {
                   <button
                     type="button"
                     onClick={handleNextStep}
-                    className="flex-1 px-6 py-3 bg-gradient-to-r from-[#1A2A4F] to-[#2d3d63] text-white font-semibold rounded-lg hover:shadow-lg transition-all duration-200"
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-[#1A2A4F] to-[#2d3d63] text-white font-semibold rounded-xl hover:shadow-lg transition-all duration-200"
                   >
                     Next
                   </button>
@@ -598,29 +660,11 @@ const CreateGig = () => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white font-semibold rounded-lg hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white font-semibold rounded-xl hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {loading ? (
                       <>
-                        <svg
-                          className="animate-spin h-5 w-5"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                            fill="none"
-                          />
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          />
-                        </svg>
+                        <Loader2 className="w-5 h-5 animate-spin" />
                         Creating Gig...
                       </>
                     ) : (
@@ -636,21 +680,23 @@ const CreateGig = () => {
           </div>
 
           {/* Help Section */}
-          <div className="mt-8 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="font-semibold text-[#1A2A4F] mb-3">Need Help?</h3>
+          <div className="mt-8 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h3 className="font-semibold text-[#1A2A4F] mb-3">💡 Need Help?</h3>
             <p className="text-sm text-gray-600 mb-2">
               Create compelling gigs by being specific about deliverables,
               following platform guidelines, and setting fair pricing.
             </p>
-            <a
-              href="#"
+            <button
+              onClick={() => navigate("/gigs")}
               className="text-sm font-medium text-[#1A2A4F] hover:underline"
             >
-              View gig creation guide →
-            </a>
+              Browse other gigs for inspiration →
+            </button>
           </div>
         </div>
       </div>
+
+      <Footer />
     </div>
   );
 };

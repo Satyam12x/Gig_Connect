@@ -7,7 +7,6 @@ import {
   Ticket,
   Search,
   ArrowUpDown,
-  User,
   ArrowLeft,
   Clock,
   DollarSign,
@@ -22,10 +21,10 @@ import {
   CheckSquare,
   XCircle,
 } from "lucide-react";
-import Navbar from "../components/Navbar";
-import Footer from "../components/Footer";
+import Navbar from "./Navbar";
+import Footer from "./Footer";
 
-const API_BASE = "http://localhost:5000/api";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
 
 const Tickets = () => {
   const [tickets, setTickets] = useState([]);
@@ -42,41 +41,29 @@ const Tickets = () => {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (token) {
-      try {
-        const decoded = jwtDecode(token);
-        if (decoded.id) {
-          setUserId(decoded.id);
-        } else {
-          console.error("Invalid token payload:", decoded);
-          localStorage.removeItem("token");
-          toast.error("Session invalid. Please log in again.");
-          navigate("/login");
-        }
-      } catch (error) {
-        console.error("Error decoding token:", error);
-        localStorage.removeItem("token");
-        toast.error("Session expired. Please log in again.");
-        navigate("/login");
-      }
-    } else {
-      toast.error("Please log in to view tickets.");
-      navigate("/login", { state: { from: "/tickets" } });
+    if (!token) {
+      toast.error("Please log in to view your tickets.");
+      navigate("/login");
+      return;
+    }
+
+    try {
+      const decoded = jwtDecode(token);
+      setUserId(decoded.id);
+    } catch (err) {
+      localStorage.removeItem("token");
+      toast.error("Session expired. Please log in again.");
+      navigate("/login");
     }
   }, [navigate]);
 
   useEffect(() => {
+    if (!userId) return;
+
     const fetchTickets = async () => {
       try {
         setLoading(true);
         setError(null);
-
-        const params = {
-          ...(statusFilter && { status: statusFilter }),
-          ...(sortBy && { sortBy }),
-          ...(sortOrder && { sortOrder }),
-          ...(searchQuery && { search: searchQuery }),
-        };
 
         const response = await axios.get(
           `${API_BASE}/users/${userId}/tickets`,
@@ -84,72 +71,87 @@ const Tickets = () => {
             headers: {
               Authorization: `Bearer ${localStorage.getItem("token")}`,
             },
-            params,
+            params: {
+              status: statusFilter || undefined,
+              sortBy,
+              sortOrder,
+              search: searchQuery || undefined,
+            },
           }
         );
 
         const fetchedTickets = response.data || [];
         setTickets(fetchedTickets);
 
+        // Extract unique IDs
         const sellerIds = [
-          ...new Set(fetchedTickets.map((t) => t.sellerId._id)),
+          ...new Set(
+            fetchedTickets.map((t) => t.sellerId?._id).filter(Boolean)
+          ),
         ];
-        const buyerIds = [...new Set(fetchedTickets.map((t) => t.buyerId._id))];
-        const profilePromises = [
-          ...sellerIds.map((id) =>
-            axios.get(`${API_BASE}/users/${id}`, {
-              headers: {
-                Authorization: `Bearer ${localStorage.getItem("token")}`,
-              },
-            })
-          ),
-          ...buyerIds.map((id) =>
-            axios.get(`${API_BASE}/users/${id}`, {
-              headers: {
-                Authorization: `Bearer ${localStorage.getItem("token")}`,
-              },
-            })
-          ),
+        const buyerIds = [
+          ...new Set(fetchedTickets.map((t) => t.buyerId?._id).filter(Boolean)),
         ];
 
-        const profileResponses = await Promise.all(profilePromises);
-        const sellerProfilesData = {};
-        const buyerProfilesData = {};
-        profileResponses.forEach((res) => {
-          const user = res.data;
-          if (sellerIds.includes(user._id)) {
-            sellerProfilesData[user._id] = user;
-          }
-          if (buyerIds.includes(user._id)) {
-            buyerProfilesData[user._id] = user;
-          }
+        // Fetch profiles in parallel
+        const sellerPromises = sellerIds.map((id) =>
+          axios.get(`${API_BASE}/users/${id}`, {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+          })
+        );
+        const buyerPromises = buyerIds.map((id) =>
+          axios.get(`${API_BASE}/users/${id}`, {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+          })
+        );
+
+        const [sellerRes, buyerRes] = await Promise.all([
+          Promise.allSettled(sellerPromises),
+          Promise.allSettled(buyerPromises),
+        ]);
+
+        const sellerMap = {};
+        const buyerMap = {};
+
+        sellerRes.forEach((result, i) => {
+          if (result.status === "fulfilled")
+            sellerMap[sellerIds[i]] = result.value.data;
+        });
+        buyerRes.forEach((result, i) => {
+          if (result.status === "fulfilled")
+            buyerMap[buyerIds[i]] = result.value.data;
         });
 
-        setSellerProfiles(sellerProfilesData);
-        setBuyerProfiles(buyerProfilesData);
-        setLoading(false);
-      } catch (error) {
-        console.error("Error fetching tickets:", error);
-        setError(error.response?.data?.error || "Failed to load tickets.");
-        if (error.response?.status === 403 || error.response?.status === 401) {
+        setSellerProfiles(sellerMap);
+        setBuyerProfiles(buyerMap);
+      } catch (err) {
+        console.error("Failed to fetch tickets:", err);
+        const msg = err.response?.data?.error || "Failed to load tickets";
+        setError(msg);
+        toast.error(msg);
+
+        if (err.response?.status === 401 || err.response?.status === 403) {
           localStorage.removeItem("token");
           navigate("/login");
         }
+      } finally {
         setLoading(false);
       }
     };
 
-    if (userId) {
-      fetchTickets();
-    }
-  }, [userId, navigate, statusFilter, sortBy, sortOrder, searchQuery]);
+    fetchTickets();
+  }, [userId, statusFilter, sortBy, sortOrder, searchQuery, navigate]);
 
   const handleSortToggle = () => {
-    setSortOrder(sortOrder === "desc" ? "asc" : "desc");
+    setSortOrder((prev) => (prev === "desc" ? "asc" : "desc"));
   };
 
-  const getStatusColor = (status) => {
-    const colors = {
+  const getStatusStyle = (status) => {
+    const styles = {
       open: "bg-blue-100 text-blue-800 border-blue-200",
       negotiating: "bg-purple-100 text-purple-800 border-purple-200",
       accepted: "bg-green-100 text-green-800 border-green-200",
@@ -158,7 +160,7 @@ const Tickets = () => {
       completed: "bg-emerald-100 text-emerald-800 border-emerald-200",
       closed: "bg-gray-100 text-gray-800 border-gray-200",
     };
-    return colors[status] || "bg-gray-100 text-gray-800 border-gray-200";
+    return styles[status] || "bg-gray-100 text-gray-800 border-gray-200";
   };
 
   const getStatusIcon = (status) => {
@@ -172,46 +174,26 @@ const Tickets = () => {
       closed: Shield,
     };
     const Icon = icons[status] || AlertCircle;
-    return <Icon className="h-4 w-4" />;
+    return <Icon className="w-4 h-4" />;
   };
 
   // Stats
-  const totalTickets = tickets.length;
-  const activeTickets = tickets.filter((t) =>
+  const total = tickets.length;
+  const active = tickets.filter((t) =>
     ["open", "negotiating", "accepted", "paid", "pending_completion"].includes(
       t.status
     )
   ).length;
-  const completedTickets = tickets.filter(
-    (t) => t.status === "completed"
-  ).length;
-  const closedTickets = tickets.filter((t) => t.status === "closed").length;
+  const completed = tickets.filter((t) => t.status === "completed").length;
+  const closed = tickets.filter((t) => t.status === "closed").length;
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex flex-col">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white flex flex-col">
         <Navbar />
-        <div className="max-w-7xl mx-auto px-6 py-12 flex-1">
-          <div className="space-y-8">
-            <div className="h-12 bg-gray-200 rounded-2xl w-1/4 animate-pulse"></div>
-            <div className="flex gap-4 mb-8">
-              <div className="h-12 bg-gray-200 rounded-xl w-full animate-pulse"></div>
-              <div className="h-12 bg-gray-200 rounded-xl w-48 animate-pulse"></div>
-              <div className="h-12 bg-gray-200 rounded-xl w-32 animate-pulse"></div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[...Array(6)].map((_, i) => (
-                <div
-                  key={i}
-                  className="bg-white border-2 border-gray-200 rounded-2xl p-6 space-y-4"
-                >
-                  <div className="h-6 bg-gray-200 rounded animate-pulse w-3/4"></div>
-                  <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2"></div>
-                  <div className="h-4 bg-gray-200 rounded animate-pulse w-1/3"></div>
-                  <div className="h-12 bg-gray-200 rounded-xl animate-pulse"></div>
-                </div>
-              ))}
-            </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-2xl font-bold text-[#1A2A4F]">
+            Loading your tickets...
           </div>
         </div>
         <Footer />
@@ -221,20 +203,20 @@ const Tickets = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-white flex flex-col">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white flex flex-col">
         <Navbar />
-        <div className="max-w-7xl mx-auto px-6 py-12 flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="h-20 w-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <AlertCircle className="h-10 w-10 text-red-600" />
+        <div className="flex-1 flex items-center justify-center text-center px-6">
+          <div>
+            <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <AlertCircle className="w-12 h-12 text-red-600" />
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">
+            <h2 className="text-3xl font-bold text-[#1A2A4F] mb-4">
               Error Loading Tickets
-            </h3>
-            <p className="text-gray-600 mb-6">{error}</p>
+            </h2>
+            <p className="text-gray-600 mb-8">{error}</p>
             <button
               onClick={() => window.location.reload()}
-              className="px-6 py-3 bg-[#1A2A4F] text-white rounded-xl hover:opacity-90 font-semibold transition-all"
+              className="px-8 py-4 bg-[#1A2A4F] text-white rounded-xl font-bold hover:bg-[#2A3A5F] transition-all"
             >
               Retry
             </button>
@@ -246,241 +228,246 @@ const Tickets = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
       <Navbar />
 
       {/* Hero */}
-      <div className="relative bg-[#1A2A4F] pt-32 pb-20 px-6 overflow-hidden">
+      <div className="bg-[#1A2A4F] pt-32 pb-20 px-6">
         <div className="max-w-7xl mx-auto text-center">
           <h1 className="text-5xl md:text-6xl font-black text-white mb-6">
             My Tickets
           </h1>
           <p className="text-xl text-white/90 max-w-2xl mx-auto">
-            Manage your active and past gig engagements
+            Track all your gig applications and posted gigs in one place
           </p>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-12 flex-1">
-        {/* Search & Filters */}
-        <div className="mb-8 space-y-4">
-          <div className="flex flex-col sm:flex-row gap-3">
+      <div className="max-w-7xl mx-auto px-6 py-12 -mt-10">
+        {/* Filters */}
+        <div className="bg-white rounded-3xl shadow-xl p-8 mb-10 border border-[#1A2A4F]/10">
+          <div className="flex flex-col lg:flex-row gap-6">
             <div className="flex-1 relative">
               <Search
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                size={20}
+                className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400"
+                size={22}
               />
               <input
                 type="text"
-                placeholder="Search by gig title or user..."
+                placeholder="Search by gig title, provider, or freelancer..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-[#1A2A4F] transition-all"
+                className="w-full pl-14 pr-6 py-4 rounded-2xl border-2 border-gray-200 focus:border-[#1A2A4F] focus:outline-none text-lg"
               />
             </div>
-            <button
-              onClick={() => navigate("/gigs")}
-              className="sm:hidden flex items-center justify-center gap-2 px-5 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200"
-            >
-              <ArrowLeft className="h-4 w-4" /> Back
-            </button>
-          </div>
 
-          <div className="flex flex-wrap gap-2">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 border-2 border-gray-300 rounded-lg text-sm font-medium focus:border-[#1A2A4F] focus:outline-none"
-            >
-              <option value="">All Status</option>
-              <option value="open">Open</option>
-              <option value="negotiating">Negotiating</option>
-              <option value="accepted">Accepted</option>
-              <option value="paid">Paid</option>
-              <option value="pending_completion">Pending</option>
-              <option value="completed">Completed</option>
-              <option value="closed">Closed</option>
-            </select>
+            <div className="flex flex-wrap gap-4">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-6 py-4 rounded-2xl border-2 border-gray-200 focus:border-[#1A2A4F] focus:outline-none font-medium"
+              >
+                <option value="">All Status</option>
+                <option value="open">Open</option>
+                <option value="negotiating">Negotiating</option>
+                <option value="accepted">Accepted</option>
+                <option value="paid">Paid</option>
+                <option value="pending_completion">Pending Completion</option>
+                <option value="completed">Completed</option>
+                <option value="closed">Closed</option>
+              </select>
 
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="px-4 py-2 border-2 border-gray-300 rounded-lg text-sm font-medium focus:border-[#1A2A4F] focus:outline-none"
-            >
-              <option value="createdAt">Date</option>
-              <option value="agreedPrice">Price</option>
-            </select>
-
-            <button
-              onClick={handleSortToggle}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[#1A2A4F] text-white rounded-lg text-sm font-medium hover:opacity-90"
-            >
-              <ArrowUpDown size={16} />
-              <span className="hidden xs:inline">
-                {sortOrder === "desc" ? "New" : "Old"}
-              </span>
-            </button>
-
-            <button
-              onClick={() => navigate("/gigs")}
-              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
-            >
-              <ArrowLeft className="h-4 w-4" /> Back to Gigs
-            </button>
+              <button
+                onClick={handleSortToggle}
+                className="px-6 py-4 bg-[#1A2A4F] text-white rounded-2xl font-bold hover:bg-[#2A3A5F] transition-all flex items-center gap-3"
+              >
+                <ArrowUpDown size={20} />
+                {sortOrder === "desc" ? "Newest First" : "Oldest First"}
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Tickets Grid */}
         {tickets.length === 0 ? (
-          <div className="text-center py-20 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300">
-            <Ticket className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-gray-700 mb-2">
-              No tickets yet
+          <div className="text-center py-24 bg-white rounded-3xl shadow-xl border-2 border-dashed border-gray-300">
+            <Ticket className="w-20 h-20 text-gray-300 mx-auto mb-6" />
+            <h3 className="text-3xl font-bold text-[#1A2A4F] mb-4">
+              No Tickets Yet
             </h3>
-            <p className="text-gray-500 mb-6">Apply to gigs to get started!</p>
+            <p className="text-xl text-gray-600 mb-8">
+              Start applying to gigs or post your own!
+            </p>
             <button
               onClick={() => navigate("/gigs")}
-              className="px-6 py-2 bg-[#1A2A4F] text-white rounded-lg font-medium hover:opacity-90"
+              className="px-10 py-5 bg-[#1A2A4F] text-white text-xl font-bold rounded-2xl hover:bg-[#2A3A5F] transition-all"
             >
               Browse Gigs
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {tickets.map((ticket) => (
-              <div
-                key={ticket._id}
-                className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-lg transition-all hover:border-[#1A2A4F] flex flex-col"
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <h3 className="font-bold text-[#1A2A4F] text-lg line-clamp-2 flex-1 pr-2">
-                    {ticket.gigId.title}
-                  </h3>
-                  <Ticket className="h-5 w-5 text-[#1A2A4F] flex-shrink-0" />
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+            {tickets.map((ticket) => {
+              const seller =
+                sellerProfiles[ticket.sellerId?._id] || ticket.sellerId;
+              const buyer =
+                buyerProfiles[ticket.buyerId?._id] || ticket.buyerId;
 
-                <div className="mb-4">
-                  <span
-                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold border ${getStatusColor(
-                      ticket.status
-                    )}`}
-                  >
-                    {getStatusIcon(ticket.status)}
-                    {ticket.status.replace("_", " ").toUpperCase()}
-                  </span>
-                </div>
+              const isCurrentUserSeller = ticket.sellerId?._id === userId;
+              const roleLabel = isCurrentUserSeller
+                ? "You posted this gig"
+                : "You applied to this gig";
 
-                <div className="space-y-3 flex-1">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#1A2A4F] flex items-center justify-center text-white text-xs font-bold">
-                      {sellerProfiles[ticket.sellerId._id]?.profilePicture ? (
-                        <img
-                          src={
-                            sellerProfiles[ticket.sellerId._id].profilePicture
-                          }
-                          alt=""
-                          className="w-8 h-8 rounded-full object-cover"
-                        />
-                      ) : (
-                        ticket.sellerId.fullName[0]
-                      )}
+              return (
+                <div
+                  key={ticket._id}
+                  className="bg-white rounded-3xl shadow-xl border border-[#1A2A4F]/10 overflow-hidden hover:shadow-2xl transition-all"
+                >
+                  <div className="p-8">
+                    <div className="flex justify-between items-start mb-6">
+                      <h3 className="text-2xl font-bold text-[#1A2A4F] line-clamp-2 flex-1 pr-4">
+                        {ticket.gigId?.title || "Untitled Gig"}
+                      </h3>
+                      <Ticket className="w-8 h-8 text-[#1A2A4F] flex-shrink-0" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-500">Seller</p>
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {ticket.sellerId.fullName}
-                      </p>
-                    </div>
-                  </div>
 
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs font-bold">
-                      {buyerProfiles[ticket.buyerId._id]?.profilePicture ? (
-                        <img
-                          src={buyerProfiles[ticket.buyerId._id].profilePicture}
-                          alt=""
-                          className="w-8 h-8 rounded-full object-cover"
-                        />
-                      ) : (
-                        ticket.buyerId.fullName[0]
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-500">Buyer</p>
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {ticket.buyerId.fullName}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {ticket.agreedPrice && (
-                  <div className="mt-4 pt-3 border-t border-gray-100">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Price</span>
-                      <span className="font-bold text-[#1A2A4F]">
-                        ₹{ticket.agreedPrice.toLocaleString("en-IN")}
+                    <div className="mb-6">
+                      <span
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border ${getStatusStyle(
+                          ticket.status
+                        )}`}
+                      >
+                        {getStatusIcon(ticket.status)}
+                        {ticket.status.replace(/_/g, " ").toUpperCase()}
                       </span>
                     </div>
-                  </div>
-                )}
 
-                <button
-                  onClick={() => navigate(`/tickets/${ticket._id}`)}
-                  className="mt-4 w-full py-2.5 bg-[#1A2A4F] text-white rounded-lg text-sm font-medium hover:opacity-90 transition-all flex items-center justify-center gap-1.5"
-                >
-                  View <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
+                    <div className="space-y-6 mb-6">
+                      {/* Provider (Seller) */}
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#1A2A4F] to-[#2A3A5F] flex items-center justify-center text-white font-bold text-xl">
+                          {seller?.profilePicture ? (
+                            <img
+                              src={seller.profilePicture}
+                              alt=""
+                              className="w-full h-full rounded-2xl object-cover"
+                            />
+                          ) : (
+                            seller?.fullName?.[0] || "P"
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500 font-medium">
+                            Provider
+                          </p>
+                          <p className="font-bold text-[#1A2A4F]">
+                            {seller?.fullName || "Unknown"}
+                          </p>
+                        </div>
+                        {isCurrentUserSeller && (
+                          <span className="ml-auto bg-[#1A2A4F] text-white text-xs px-3 py-1 rounded-full font-bold">
+                            YOU
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Freelancer (Buyer) */}
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-purple-600 flex items-center justify-center text-white font-bold text-xl">
+                          {buyer?.profilePicture ? (
+                            <img
+                              src={buyer.profilePicture}
+                              alt=""
+                              className="w-full h-full rounded-2xl object-cover"
+                            />
+                          ) : (
+                            buyer?.fullName?.[0] || "F"
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500 font-medium">
+                            Freelancer
+                          </p>
+                          <p className="font-bold text-[#1A2A4F]">
+                            {buyer?.fullName || "Unknown"}
+                          </p>
+                        </div>
+                        {!isCurrentUserSeller && (
+                          <span className="ml-auto bg-purple-600 text-white text-xs px-3 py-1 rounded-full font-bold">
+                            YOU
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {ticket.agreedPrice && (
+                      <div className="pt-6 border-t border-gray-200">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600 font-medium">
+                            Agreed Price
+                          </span>
+                          <span className="text-3xl font-black text-[#1A2A4F]">
+                            ₹{ticket.agreedPrice.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="mt-6 pt-6 border-t border-gray-100 text-center">
+                      <p className="text-sm text-gray-500 italic mb-4">
+                        {roleLabel}
+                      </p>
+                      <button
+                        onClick={() => navigate(`/tickets/${ticket._id}`)}
+                        className="w-full py-4 bg-[#1A2A4F] text-white font-bold rounded-2xl hover:bg-[#2A3A5F] transition-all flex items-center justify-center gap-3 text-lg"
+                      >
+                        Open Ticket <ChevronRight size={24} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
-        {/* === COMPACT, RESPONSIVE STATS BAR === */}
+        {/* Stats */}
         {tickets.length > 0 && (
-          <div className="mt-10 bg-gray-50 rounded-xl p-5 border border-gray-200">
-            <h3 className="text-lg font-bold text-[#1A2A4F] mb-4">Overview</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-              <div className="bg-white rounded-lg p-3 border border-gray-200">
-                <div className="flex justify-center mb-1">
-                  <Ticket className="h-5 w-5 text-[#1A2A4F]" />
+          <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6">
+            {[
+              { label: "Total", value: total, icon: Ticket, color: "#1A2A4F" },
+              { label: "Active", value: active, icon: Users, color: "#10b981" },
+              {
+                label: "Completed",
+                value: completed,
+                icon: CheckSquare,
+                color: "#059669",
+              },
+              {
+                label: "Closed",
+                value: closed,
+                icon: XCircle,
+                color: "#ef4444",
+              },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="bg-white rounded-3xl shadow-xl p-8 text-center border border-[#1A2A4F]/10"
+              >
+                <div
+                  className="w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center"
+                  style={{ backgroundColor: `${stat.color}20` }}
+                >
+                  <stat.icon size={32} style={{ color: stat.color }} />
                 </div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {totalTickets}
+                <div className="text-5xl font-black text-[#1A2A4F]">
+                  {stat.value}
                 </div>
-                <div className="text-xs text-gray-600 mt-1">Total</div>
+                <p className="text-xl font-bold text-gray-700 mt-2">
+                  {stat.label}
+                </p>
               </div>
-
-              <div className="bg-white rounded-lg p-3 border border-gray-200">
-                <div className="flex justify-center mb-1">
-                  <Users className="h-5 w-5 text-emerald-600" />
-                </div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {activeTickets}
-                </div>
-                <div className="text-xs text-gray-600 mt-1">Active</div>
-              </div>
-
-              <div className="bg-white rounded-lg p-3 border border-gray-200">
-                <div className="flex justify-center mb-1">
-                  <CheckSquare className="h-5 w-5 text-green-600" />
-                </div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {completedTickets}
-                </div>
-                <div className="text-xs text-gray-600 mt-1">Completed</div>
-              </div>
-
-              <div className="bg-white rounded-lg p-3 border border-gray-200">
-                <div className="flex justify-center mb-1">
-                  <XCircle className="h-5 w-5 text-red-600" />
-                </div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {closedTickets}
-                </div>
-                <div className="text-xs text-gray-600 mt-1">Closed</div>
-              </div>
-            </div>
+            ))}
           </div>
         )}
       </div>
