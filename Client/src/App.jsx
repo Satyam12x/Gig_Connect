@@ -8,8 +8,9 @@ import {
   useLocation,
 } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
-import axios from 'axios';
+import axios from "axios";
 import PageWrapper from "./components/PageWrapper";
+import EnhancedPageWrapper from "./components/EnhancedPageWrapper";
 
 // Pages
 import LandingPage from "./Pages/LandingPage";
@@ -31,7 +32,9 @@ import GigDetails from "./components/GigDetails";
 import Ticket from "./components/Ticket";
 import Tickets from "./components/Tickets";
 import UserProfile from "./components/UserProfile";
-import EnhancedPageWrapper from "./components/EnhancedPageWrapper";
+
+// Configure axios base URL (adjust according to your backend)
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 // Protected Route
 const ProtectedRoute = ({ children }) => {
@@ -43,6 +46,68 @@ const ProtectedRoute = ({ children }) => {
   }
 
   return children;
+};
+
+// Title resolver functions
+const gigTitleResolver = async (params) => {
+  try {
+    const token = localStorage.getItem("token");
+    const response = await axios.get(`${API_BASE_URL}/api/gigs/${params.id}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    // Make sure we have a valid title
+    if (response.data && response.data.title) {
+      return `${response.data.title} | Gig Details`;
+    }
+    return "Gig Details";
+  } catch (error) {
+    console.error("Error fetching gig:", error);
+    return "Gig Details";
+  }
+};
+
+const ticketTitleResolver = async (params) => {
+  try {
+    const token = localStorage.getItem("token");
+    const response = await axios.get(
+      `${API_BASE_URL}/api/tickets/${params.id}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.data && response.data.title) {
+      return `${response.data.title} | Ticket`;
+    }
+    return `Ticket #${params.id}`;
+  } catch (error) {
+    console.error("Error fetching ticket:", error);
+    return `Ticket #${params.id}`;
+  }
+};
+
+const userTitleResolver = async (params) => {
+  try {
+    const token = localStorage.getItem("token");
+    const response = await axios.get(`${API_BASE_URL}/api/users/${params.id}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (response.data && response.data.name) {
+      return `${response.data.name} | Profile`;
+    }
+    return "User Profile";
+  } catch (error) {
+    console.error("Error fetching user:", error);
+    return "User Profile";
+  }
 };
 
 // Main App
@@ -162,23 +227,17 @@ const App = () => {
           }
         />
 
-        {/* Dynamic route with custom title */}
+        {/* Dynamic route for Gig Details */}
         <Route
           path="/gigs/:id"
           element={
             <ProtectedRoute>
-              <EnhancedPageWrapper 
-        titleResolver={async (params) => {
-          try {
-            const response = await axios.get(`/api/gigs/${params.id}`);
-            return `${response.data.title} - Gig`;
-          } catch {
-            return 'Gig Details';
-          }
-        }}
-      >
-        <GigDetails />
-      </EnhancedPageWrapper>
+              <EnhancedPageWrapper
+                titleResolver={gigTitleResolver}
+                fallbackTitle="Gig Details"
+              >
+                <GigDetails />
+              </EnhancedPageWrapper>
             </ProtectedRoute>
           }
         />
@@ -194,26 +253,32 @@ const App = () => {
           }
         />
 
-        {/* Dynamic route with custom title */}
+        {/* Dynamic route for Ticket Details */}
         <Route
           path="/tickets/:id"
           element={
             <ProtectedRoute>
-              <PageWrapper dynamicTitle="Ticket #:id">
+              <EnhancedPageWrapper
+                titleResolver={ticketTitleResolver}
+                fallbackTitle="Ticket Details"
+              >
                 <Ticket />
-              </PageWrapper>
+              </EnhancedPageWrapper>
             </ProtectedRoute>
           }
         />
 
-        {/* Dynamic route with custom title */}
+        {/* Dynamic route for User Profile */}
         <Route
           path="/users/:id"
           element={
             <ProtectedRoute>
-              <PageWrapper dynamicTitle="User Profile">
+              <EnhancedPageWrapper
+                titleResolver={userTitleResolver}
+                fallbackTitle="User Profile"
+              >
                 <UserProfile />
-              </PageWrapper>
+              </EnhancedPageWrapper>
             </ProtectedRoute>
           }
         />
