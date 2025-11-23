@@ -23,9 +23,9 @@ import {
   Shield,
   Users,
   Search,
-  Image as ImageIcon,
   Check,
-  XCircle,
+  RefreshCw,
+  Briefcase,
 } from "lucide-react";
 import io from "socket.io-client";
 import { debounce } from "lodash";
@@ -151,14 +151,11 @@ const Ticket = () => {
       } catch (error) {
         const status = error.response?.status;
         const message = error.response?.data?.error || "Failed to load ticket";
-
         toast.error(message);
-
         if (status === 401 || status === 403) {
           localStorage.removeItem("token");
           navigate("/login", { state: { from: `/tickets/${id}` } });
         }
-
         setLoading(false);
       }
     };
@@ -169,7 +166,6 @@ const Ticket = () => {
   // Mark messages as read
   useEffect(() => {
     if (!ticket || !userId) return;
-
     const markAsRead = async () => {
       try {
         await axios.patch(
@@ -183,10 +179,9 @@ const Ticket = () => {
         );
         socketRef.current?.emit("markMessagesRead", id);
       } catch (error) {
-        // Silent fail - not critical
+        // Silent fail
       }
     };
-
     markAsRead();
   }, [ticket, userId, id]);
 
@@ -194,9 +189,9 @@ const Ticket = () => {
   useEffect(() => {
     if (message && socketRef.current && ticket) {
       const userName =
-        userId === ticket.sellerId._id
-          ? ticket.sellerId.fullName
-          : ticket.buyerId.fullName;
+        userId === ticket.freelancerId._id
+          ? ticket.freelancerId.fullName
+          : ticket.providerId.fullName;
 
       socketRef.current.emit("typing", {
         ticketId: id,
@@ -210,7 +205,6 @@ const Ticket = () => {
   const debouncedSearch = useCallback(
     debounce(async (query) => {
       if (!query) return;
-
       setIsSearching(true);
       try {
         const { data } = await axios.get(
@@ -222,7 +216,6 @@ const Ticket = () => {
             },
           }
         );
-
         setTicket((prev) => ({ ...prev, messages: data.messages }));
         toast.success(`Found ${data.messages.length} message(s)`);
       } catch (error) {
@@ -238,7 +231,6 @@ const Ticket = () => {
     if (searchQuery) {
       debouncedSearch(searchQuery);
     } else if (ticket) {
-      // Reset to full messages when search is cleared
       const refetchTicket = async () => {
         try {
           const { data } = await axios.get(`${API_BASE}/tickets/${id}`, {
@@ -260,7 +252,6 @@ const Ticket = () => {
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current);
     }
-
     scrollTimeoutRef.current = setTimeout(() => {
       if (messagesContainerRef.current) {
         messagesContainerRef.current.scrollTo({
@@ -286,7 +277,6 @@ const Ticket = () => {
       toast.error("Please enter a message or attach a file.");
       return;
     }
-
     setIsSending(true);
     try {
       const endpoint = file
@@ -307,13 +297,11 @@ const Ticket = () => {
           },
         }
       );
-
       setTicket(data.ticket);
       setMessage("");
       setFile(null);
       setFilePreview(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
-
       scrollToBottom(true);
       toast.success("Message sent!");
     } catch (error) {
@@ -326,12 +314,10 @@ const Ticket = () => {
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (!selectedFile) return;
-
     if (selectedFile.size > 5 * 1024 * 1024) {
       toast.error("File size must be 5MB or less");
       return;
     }
-
     setFile(selectedFile);
     setFilePreview(
       selectedFile.type.startsWith("image/")
@@ -346,7 +332,6 @@ const Ticket = () => {
       toast.error("Please enter a valid price amount");
       return;
     }
-
     try {
       const { data } = await axios.patch(
         `${API_BASE}/tickets/${id}/price`,
@@ -355,7 +340,6 @@ const Ticket = () => {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
-
       setTicket(data.ticket);
       setAgreedPrice("");
       setShowPriceInput(false);
@@ -383,7 +367,9 @@ const Ticket = () => {
             }
           );
           setTicket(data.ticket);
-          toast.success("Price accepted! You can now proceed with payment.");
+          toast.success(
+            "Price accepted! Provider can now proceed with payment."
+          );
         } catch (error) {
           toast.error(error.response?.data?.error || "Failed to accept price");
         }
@@ -392,13 +378,21 @@ const Ticket = () => {
     setIsConfirmModalOpen(true);
   };
 
-  // Payment handler
+  const handleCounterOffer = () => {
+    setShowPriceInput(true);
+    setTimeout(() => {
+      const inputElement = document.querySelector('input[type="number"]');
+      if (inputElement) inputElement.focus();
+    }, 100);
+  };
+
+  // Payment handler (Provider pays Freelancer)
   const handleConfirmPayment = async () => {
     setConfirmAction({
       title: "Confirm Payment",
       message: `Please confirm that you have paid ₹${ticket.agreedPrice?.toLocaleString(
         "en-IN"
-      )} to the seller.`,
+      )} to the Freelancer.`,
       action: async () => {
         try {
           const { data } = await axios.patch(
@@ -411,7 +405,7 @@ const Ticket = () => {
             }
           );
           setTicket(data.ticket);
-          toast.success("Payment confirmed! Waiting for work completion.");
+          toast.success("Payment confirmed! Freelancer can start the work.");
         } catch (error) {
           toast.error(
             error.response?.data?.error || "Failed to confirm payment"
@@ -422,12 +416,12 @@ const Ticket = () => {
     setIsConfirmModalOpen(true);
   };
 
-  // Completion handler
+  // Completion handler (Freelancer marks work as done)
   const handleMarkComplete = async () => {
     setConfirmAction({
       title: "Mark as Complete",
       message:
-        "Are you sure the work is complete? This will notify the buyer for final review.",
+        "Are you sure the work is complete? This will notify the Provider for final review.",
       action: async () => {
         try {
           const { data } = await axios.patch(
@@ -441,7 +435,7 @@ const Ticket = () => {
           );
           setTicket(data.ticket);
           toast.success(
-            "Work marked as complete! Waiting for buyer confirmation."
+            "Work marked as complete! Waiting for Provider confirmation."
           );
         } catch (error) {
           toast.error(
@@ -453,18 +447,16 @@ const Ticket = () => {
     setIsConfirmModalOpen(true);
   };
 
-  // Close ticket handler
+  // Close ticket handler (Provider rates Freelancer)
   const handleCloseTicket = async () => {
-    const isBuyer = userId === ticket.buyerId?._id;
-
-    if (isBuyer && ticket.status === "completed" && rating === 0) {
+    const isProvider = userId === ticket.providerId?._id;
+    if (isProvider && ticket.status === "completed" && rating === 0) {
       setIsRatingModalOpen(true);
       return;
     }
-
     setIsSubmittingRating(true);
     try {
-      const payload = isBuyer && rating ? { rating } : {};
+      const payload = isProvider && rating ? { rating } : {};
       const { data } = await axios.patch(
         `${API_BASE}/tickets/${id}/close`,
         payload,
@@ -472,7 +464,6 @@ const Ticket = () => {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
-
       setTicket(data.ticket);
       setIsRatingModalOpen(false);
       setRating(0);
@@ -510,48 +501,27 @@ const Ticket = () => {
     return <Icon className="h-4 w-4" />;
   };
 
-  // Action buttons logic
+  // Action buttons logic (Sidebar)
   const getActionButtons = () => {
     if (!ticket || ticket.status === "closed") return [];
 
-    const isBuyer = userId === ticket.buyerId?._id;
-    const isSeller = userId === ticket.sellerId?._id;
+    const isProvider = userId === ticket.providerId?._id; // Payer
+    const isFreelancer = userId === ticket.freelancerId?._id; // Worker
     const actions = [];
 
-    // Price negotiation phase
+    // Negotiation phase (Both can propose)
     if (["open", "negotiating"].includes(ticket.status)) {
       actions.push({
         id: "propose-price",
-        label: "Propose Price",
+        label: "Propose New Price",
         icon: DollarSign,
         variant: "primary",
         onClick: () => setShowPriceInput(!showPriceInput),
       });
     }
 
-    // Price acceptance (only for the party who didn't propose)
-    if (ticket.status === "negotiating" && ticket.agreedPrice) {
-      // Simple logic: buyer accepts seller's price, seller accepts buyer's price
-      const lastPriceMessage = ticket.messages
-        .filter((m) => m.content.includes("Price of ₹"))
-        .pop();
-
-      if (lastPriceMessage) {
-        const proposerId = lastPriceMessage.senderId;
-        if (proposerId !== userId) {
-          actions.push({
-            id: "accept-price",
-            label: "Accept Price",
-            icon: Check,
-            variant: "success",
-            onClick: handleAcceptPrice,
-          });
-        }
-      }
-    }
-
-    // Payment confirmation (buyer only, after price accepted)
-    if (ticket.status === "accepted" && isBuyer) {
+    // Payment confirmation (Provider only, after price accepted)
+    if (ticket.status === "accepted" && isProvider) {
       actions.push({
         id: "confirm-payment",
         label: "Confirm Payment",
@@ -561,8 +531,8 @@ const Ticket = () => {
       });
     }
 
-    // Mark complete (seller only, after payment)
-    if (ticket.status === "paid" && isSeller) {
+    // Mark complete (Freelancer only, after payment)
+    if (ticket.status === "paid" && isFreelancer) {
       actions.push({
         id: "mark-complete",
         label: "Mark as Complete",
@@ -572,21 +542,30 @@ const Ticket = () => {
       });
     }
 
-    // Close ticket (both parties can close after completion)
+    // Close ticket (Both can close, Provider rates)
     if (ticket.status === "completed") {
       actions.push({
         id: "close-ticket",
-        label: isBuyer ? "Close & Rate" : "Close Ticket",
+        label: isProvider ? "Close & Rate" : "Close Ticket",
         icon: Shield,
         variant: "secondary",
         onClick: handleCloseTicket,
       });
     }
-
     return actions;
   };
 
-  // Loading state
+  // Helper to identify if a message is the latest price proposal
+  const findLastPriceMessageIndex = () => {
+    if (!ticket?.messages) return -1;
+    for (let i = ticket.messages.length - 1; i >= 0; i--) {
+      if (ticket.messages[i].content.includes("Price of ₹")) {
+        return i;
+      }
+    }
+    return -1;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
@@ -600,38 +579,30 @@ const Ticket = () => {
     );
   }
 
-  // Error state
   if (!ticket) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center border-2 border-gray-200"
-        >
+        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center border-2 border-gray-200">
           <div className="h-20 w-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="h-10 w-10 text-red-600" />
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
             Ticket Not Found
           </h2>
-          <p className="text-gray-600 mb-6">
-            The ticket you're looking for doesn't exist or you don't have access
-            to it.
-          </p>
           <button
             onClick={() => navigate("/gigs")}
             className="w-full px-6 py-3 bg-[#1A2A4F] text-white rounded-xl hover:bg-[#2A3A5F] font-semibold transition-all"
           >
             Back to Gigs
           </button>
-        </motion.div>
+        </div>
       </div>
     );
   }
 
-  const isBuyer = userId === ticket.buyerId?._id;
-  const isSeller = userId === ticket.sellerId?._id;
+  const isProvider = userId === ticket.providerId?._id;
+  const isFreelancer = userId === ticket.freelancerId?._id;
+  const lastPriceMsgIndex = findLastPriceMessageIndex();
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
@@ -642,7 +613,6 @@ const Ticket = () => {
             <button
               onClick={() => navigate(-1)}
               className="p-2 text-gray-600 hover:text-[#1A2A4F] hover:bg-gray-100 rounded-xl transition-all flex-shrink-0"
-              title="Go back"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
@@ -677,7 +647,6 @@ const Ticket = () => {
             <button
               onClick={() => setShowSidebar(!showSidebar)}
               className="lg:hidden p-2 text-gray-600 hover:text-[#1A2A4F] hover:bg-gray-100 rounded-xl transition-all"
-              title="Toggle sidebar"
             >
               <Users className="h-5 w-5" />
             </button>
@@ -708,7 +677,6 @@ const Ticket = () => {
                 <button
                   onClick={() => setSearchQuery("")}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
-                  title="Clear search"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -730,9 +698,6 @@ const Ticket = () => {
                   <p className="text-xl font-bold text-gray-700 mb-2">
                     No messages yet
                   </p>
-                  <p className="text-sm text-gray-500">
-                    Start the conversation below
-                  </p>
                 </div>
               </div>
             ) : (
@@ -742,6 +707,10 @@ const Ticket = () => {
                   const showAvatar =
                     idx === 0 ||
                     ticket.messages[idx - 1].senderId !== msg.senderId;
+                  const isLastPriceProposal = idx === lastPriceMsgIndex;
+                  const showPriceActions =
+                    isLastPriceProposal &&
+                    ["open", "negotiating"].includes(ticket.status);
 
                   return (
                     <motion.div
@@ -763,7 +732,7 @@ const Ticket = () => {
                       )}
 
                       <div
-                        className={`max-w-[70%] group relative ${
+                        className={`max-w-[85%] sm:max-w-[70%] group relative ${
                           isOwn ? "items-end" : "items-start"
                         } flex flex-col`}
                       >
@@ -785,6 +754,8 @@ const Ticket = () => {
                             }}
                             className="break-words leading-relaxed whitespace-pre-wrap"
                           />
+
+                          {/* Attachment */}
                           {msg.attachment && (
                             <div className="mt-3">
                               {msg.attachment.match(
@@ -817,6 +788,7 @@ const Ticket = () => {
                               )}
                             </div>
                           )}
+
                           <div
                             className={`flex items-center justify-between mt-2 text-xs font-medium gap-2 ${
                               isOwn ? "text-white/70" : "text-gray-500"
@@ -831,13 +803,50 @@ const Ticket = () => {
                               </span>
                             )}
                           </div>
+
+                          {/* Price Action Hooks */}
+                          {showPriceActions && (
+                            <div className="mt-4 pt-3 border-t border-gray-300/30 flex flex-col gap-2">
+                              {isOwn ? (
+                                <div className="text-xs italic opacity-80 flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  Waiting for response...
+                                </div>
+                              ) : (
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    onClick={handleAcceptPrice}
+                                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm ${
+                                      isOwn
+                                        ? "bg-white text-[#1A2A4F]"
+                                        : "bg-green-600 text-white hover:bg-green-700"
+                                    }`}
+                                  >
+                                    <Check className="h-3.5 w-3.5" />
+                                    Accept Price
+                                  </button>
+                                  <button
+                                    onClick={handleCounterOffer}
+                                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm ${
+                                      isOwn
+                                        ? "bg-white/20 text-white hover:bg-white/30"
+                                        : "bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300"
+                                    }`}
+                                  >
+                                    <RefreshCw className="h-3.5 w-3.5" />
+                                    Counter Offer
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
 
                       {isOwn && showAvatar && (
                         <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-600 to-purple-700 flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-md">
                           {ticket[
-                            isBuyer ? "buyerId" : "sellerId"
+                            isProvider ? "providerId" : "freelancerId"
                           ]?.fullName?.charAt(0) || "Y"}
                         </div>
                       )}
@@ -874,6 +883,50 @@ const Ticket = () => {
           {ticket.status !== "closed" ? (
             <div className="border-t-2 border-gray-200 bg-white p-4 sm:p-6 flex-shrink-0">
               <div className="max-w-4xl mx-auto">
+                {/* Price Proposal Input */}
+                {showPriceInput && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-4 bg-white rounded-xl p-4 border-2 border-[#1A2A4F] shadow-lg"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-bold text-[#1A2A4F]">
+                        {agreedPrice ? "Confirm Amount" : "Enter New Amount"}
+                      </label>
+                      <button
+                        onClick={() => {
+                          setShowPriceInput(false);
+                          setAgreedPrice("");
+                        }}
+                        className="text-gray-400 hover:text-gray-600"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <input
+                          type="number"
+                          value={agreedPrice}
+                          onChange={(e) => setAgreedPrice(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#1A2A4F] font-bold"
+                          autoFocus
+                        />
+                      </div>
+                      <button
+                        onClick={handleProposePrice}
+                        disabled={!agreedPrice || parseFloat(agreedPrice) <= 0}
+                        className="px-6 py-2 bg-[#1A2A4F] text-white rounded-lg font-bold hover:bg-[#2A3A5F] disabled:opacity-50 transition-all"
+                      >
+                        Send Offer
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
                 {file && (
                   <div className="mb-4 bg-gray-50 rounded-xl p-4 border-2 border-gray-200">
                     <div className="flex items-center justify-between">
@@ -906,7 +959,6 @@ const Ticket = () => {
                             fileInputRef.current.value = "";
                         }}
                         className="ml-3 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Remove file"
                       >
                         <X className="h-5 w-5" />
                       </button>
@@ -941,7 +993,6 @@ const Ticket = () => {
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     className="p-3 sm:p-4 bg-gray-100 hover:bg-gray-200 rounded-xl border-2 border-gray-300 transition-all flex-shrink-0"
-                    title="Attach file"
                   >
                     <Paperclip className="h-5 w-5 text-gray-600" />
                   </button>
@@ -950,7 +1001,6 @@ const Ticket = () => {
                     onClick={handleSendMessage}
                     disabled={isSending || (!message.trim() && !file)}
                     className="p-3 sm:p-4 bg-[#1A2A4F] hover:bg-[#2A3A5F] text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all flex-shrink-0 shadow-lg"
-                    title="Send message"
                   >
                     {isSending ? (
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -983,8 +1033,8 @@ const Ticket = () => {
             >
               <div className="p-6 border-b-2 border-gray-200 flex items-center justify-between flex-shrink-0 bg-gradient-to-r from-[#1A2A4F] to-[#2A3A5F] text-white">
                 <div className="flex items-center gap-3">
-                  <Users className="h-6 w-6" />
-                  <h3 className="text-lg font-bold">Ticket Info</h3>
+                  <Briefcase className="h-6 w-6" />
+                  <h3 className="text-lg font-bold">Work Details</h3>
                 </div>
                 <button
                   onClick={() => setShowSidebar(false)}
@@ -1001,41 +1051,33 @@ const Ticket = () => {
                     Participants
                   </h4>
                   <div className="space-y-4">
+                    {/* Provider (The one who posted the gig) */}
                     <div className="flex items-start gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors">
                       <div className="h-12 w-12 rounded-full bg-gradient-to-br from-[#1A2A4F] to-[#2A3A5F] flex items-center justify-center text-white font-bold flex-shrink-0 text-lg shadow-md">
-                        {ticket.buyerId?.fullName?.charAt(0) || "B"}
+                        {ticket.providerId?.fullName?.charAt(0) || "P"}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-bold text-gray-900 text-base">
-                          {ticket.buyerId?.fullName || "Buyer"}
+                          {ticket.providerId?.fullName || "Provider"}
                         </p>
                         <p className="text-xs text-gray-500 font-semibold uppercase">
-                          Buyer
+                          Provider (Payer)
                         </p>
-                        {isBuyer && (
-                          <span className="inline-block mt-2 px-3 py-1 bg-[#1A2A4F] text-white rounded-lg text-xs font-bold">
-                            You
-                          </span>
-                        )}
                       </div>
                     </div>
 
+                    {/* Freelancer (The one doing the work) */}
                     <div className="flex items-start gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors">
                       <div className="h-12 w-12 rounded-full bg-gradient-to-br from-purple-600 to-purple-700 flex items-center justify-center text-white font-bold flex-shrink-0 text-lg shadow-md">
-                        {ticket.sellerId?.fullName?.charAt(0) || "S"}
+                        {ticket.freelancerId?.fullName?.charAt(0) || "F"}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-bold text-gray-900 text-base">
-                          {ticket.sellerId?.fullName || "Seller"}
+                          {ticket.freelancerId?.fullName || "Freelancer"}
                         </p>
                         <p className="text-xs text-gray-500 font-semibold uppercase">
-                          Seller
+                          Freelancer (Worker)
                         </p>
-                        {isSeller && (
-                          <span className="inline-block mt-2 px-3 py-1 bg-purple-600 text-white rounded-lg text-xs font-bold">
-                            You
-                          </span>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -1044,12 +1086,12 @@ const Ticket = () => {
                 {/* Ticket Details */}
                 <div className="p-6 border-b-2 border-gray-200">
                   <h4 className="text-xs font-bold text-gray-500 uppercase mb-4">
-                    Ticket Details
+                    Ticket Status
                   </h4>
                   <div className="space-y-4">
                     <div>
                       <p className="text-xs font-bold text-gray-500 uppercase mb-2">
-                        Status
+                        Current State
                       </p>
                       <span
                         className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold border-2 ${getStatusColor(
@@ -1062,22 +1104,12 @@ const Ticket = () => {
                     </div>
                     <div>
                       <p className="text-xs font-bold text-gray-500 uppercase mb-2">
-                        Agreed Price
+                        Agreed Amount
                       </p>
                       <p className="text-2xl font-black text-[#1A2A4F]">
                         {ticket.agreedPrice
                           ? `₹${ticket.agreedPrice.toLocaleString("en-IN")}`
                           : "Not set"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-gray-500 uppercase mb-2">
-                        Created
-                      </p>
-                      <p className="text-gray-700 font-semibold">
-                        {moment(ticket.createdAt).format(
-                          "MMM D, YYYY · h:mm A"
-                        )}
                       </p>
                     </div>
                   </div>
@@ -1087,46 +1119,6 @@ const Ticket = () => {
               {/* Actions */}
               <div className="p-6 border-t-2 border-gray-200 bg-gray-50 flex-shrink-0">
                 <div className="space-y-3">
-                  {showPriceInput && (
-                    <div className="bg-white rounded-xl p-4 border-2 border-[#1A2A4F] mb-4">
-                      <label className="block text-sm font-bold text-gray-700 mb-2">
-                        Propose Price
-                      </label>
-                      <div className="relative mb-3">
-                        <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                        <input
-                          type="number"
-                          value={agreedPrice}
-                          onChange={(e) => setAgreedPrice(e.target.value)}
-                          placeholder="Enter amount"
-                          className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-[#1A2A4F] focus:ring-4 focus:ring-[#1A2A4F]/10 text-sm font-medium transition-all"
-                          min="0"
-                          step="0.01"
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                            setShowPriceInput(false);
-                            setAgreedPrice("");
-                          }}
-                          className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold transition-all text-sm"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={handleProposePrice}
-                          disabled={
-                            !agreedPrice || parseFloat(agreedPrice) <= 0
-                          }
-                          className="flex-1 px-4 py-2 bg-[#1A2A4F] text-white rounded-lg hover:bg-[#2A3A5F] font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                        >
-                          Submit
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
                   {getActionButtons().map((action) => {
                     const Icon = action.icon;
                     const variantClasses = {
@@ -1266,8 +1258,8 @@ const Ticket = () => {
                 </button>
               </div>
               <p className="text-sm text-gray-600 mb-8 leading-relaxed">
-                Please rate the seller before closing the ticket. Your feedback
-                helps improve our community.
+                Please rate the Freelancer before closing the ticket. Your
+                feedback helps improve our community.
               </p>
               <div className="flex justify-center gap-3 mb-8">
                 {[1, 2, 3, 4, 5].map((star) => (
@@ -1286,11 +1278,6 @@ const Ticket = () => {
                   </button>
                 ))}
               </div>
-              {rating > 0 && (
-                <p className="text-center text-sm font-semibold text-gray-700 mb-6">
-                  You selected {rating} star{rating !== 1 ? "s" : ""}
-                </p>
-              )}
               <div className="flex gap-3">
                 <button
                   onClick={() => {
@@ -1304,16 +1291,9 @@ const Ticket = () => {
                 <button
                   onClick={handleCloseTicket}
                   disabled={rating === 0 || isSubmittingRating}
-                  className="flex-1 px-6 py-3 bg-[#1A2A4F] text-white rounded-xl hover:bg-[#2A3A5F] font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="flex-1 px-6 py-3 bg-[#1A2A4F] text-white rounded-xl hover:bg-[#2A3A5F] font-semibold transition-all disabled:opacity-50"
                 >
-                  {isSubmittingRating ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Submitting...
-                    </>
-                  ) : (
-                    <>Submit & Close</>
-                  )}
+                  {isSubmittingRating ? "Submitting..." : "Submit & Close"}
                 </button>
               </div>
             </motion.div>
@@ -1344,226 +1324,33 @@ const Ticket = () => {
                 </h3>
                 <button
                   onClick={() => setIsDetailsModalOpen(false)}
-                  className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-all"
+                  className="p-2 hover:bg-gray-100 rounded-lg"
                 >
-                  <X className="h-6 w-6" />
+                  <X className="h-6 w-6 text-gray-500" />
                 </button>
               </div>
               <div className="space-y-6">
-                {/* Gig Information */}
-                <div>
-                  <h4 className="font-bold text-gray-900 mb-3 text-lg flex items-center gap-2">
-                    <Package className="h-5 w-5" />
-                    Gig Information
-                  </h4>
-                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-5 border-2 border-gray-200">
-                    <p className="font-bold text-gray-900 text-base mb-2">
-                      {ticket.gigId?.title || "N/A"}
-                    </p>
-                    {ticket.gigId?.price && (
-                      <p className="text-sm text-gray-600 mb-3">
-                        Original Price: ₹
-                        {ticket.gigId.price.toLocaleString("en-IN")}
-                      </p>
-                    )}
-                  </div>
+                <div className="bg-gray-50 p-4 rounded-xl">
+                  <p className="font-bold">Gig: {ticket.gigId?.title}</p>
+                  <p>Original Budget: ₹{ticket.gigId?.price}</p>
                 </div>
-
-                {/* Participants */}
-                <div>
-                  <h4 className="font-bold text-gray-900 mb-3 text-lg flex items-center gap-2">
-                    <Users className="h-5 w-5" />
-                    Participants
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-5 border-2 border-blue-200">
-                      <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-[#1A2A4F] to-[#2A3A5F] flex items-center justify-center text-white font-bold text-lg shadow-md">
-                          {ticket.buyerId?.fullName?.charAt(0) || "B"}
-                        </div>
-                        <div>
-                          <p className="font-bold text-gray-900">Buyer</p>
-                          <p className="text-sm text-gray-700 font-medium">
-                            {ticket.buyerId?.fullName || "N/A"}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-5 border-2 border-purple-200">
-                      <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-purple-600 to-purple-700 flex items-center justify-center text-white font-bold text-lg shadow-md">
-                          {ticket.sellerId?.fullName?.charAt(0) || "S"}
-                        </div>
-                        <div>
-                          <p className="font-bold text-gray-900">Seller</p>
-                          <p className="text-sm text-gray-700 font-medium">
-                            {ticket.sellerId?.fullName || "N/A"}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Price & Status */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-5 border-2 border-green-200">
-                    <h4 className="font-bold text-gray-900 mb-2 text-sm">
-                      Agreed Price
-                    </h4>
-                    <p className="text-3xl font-black text-green-700">
-                      {ticket.agreedPrice
-                        ? `₹${ticket.agreedPrice.toLocaleString("en-IN")}`
-                        : "Not set"}
+                  <div className="p-4 bg-blue-50 rounded-xl">
+                    <p className="font-bold text-blue-900">Provider (Payer)</p>
+                    <p>{ticket.providerId?.fullName}</p>
+                  </div>
+                  <div className="p-4 bg-purple-50 rounded-xl">
+                    <p className="font-bold text-purple-900">
+                      Freelancer (Worker)
                     </p>
-                  </div>
-                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-5 border-2 border-gray-200">
-                    <h4 className="font-bold text-gray-900 mb-2 text-sm">
-                      Status
-                    </h4>
-                    <span
-                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border-2 ${getStatusColor(
-                        ticket.status
-                      )}`}
-                    >
-                      {getStatusIcon(ticket.status)}
-                      {ticket.status.replace("_", " ").toUpperCase()}
-                    </span>
+                    <p>{ticket.freelancerId?.fullName}</p>
                   </div>
                 </div>
-
-                {/* Timeline */}
-                <div>
-                  <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-                    <Clock className="h-5 w-5" />
-                    Timeline
-                  </h4>
-                  <div className="space-y-3 text-sm">
-                    <div className="flex justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border-2 border-gray-200">
-                      <span className="text-gray-600 font-semibold">
-                        Created:
-                      </span>
-                      <span className="font-bold text-gray-900">
-                        {moment(ticket.createdAt).format(
-                          "MMM D, YYYY · h:mm A"
-                        )}
-                      </span>
-                    </div>
-                    {ticket.updatedAt &&
-                      ticket.updatedAt !== ticket.createdAt && (
-                        <div className="flex justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border-2 border-gray-200">
-                          <span className="text-gray-600 font-semibold">
-                            Last Updated:
-                          </span>
-                          <span className="font-bold text-gray-900">
-                            {moment(ticket.updatedAt).format(
-                              "MMM D, YYYY · h:mm A"
-                            )}
-                          </span>
-                        </div>
-                      )}
-                  </div>
-                </div>
-
-                {/* Workflow Progress */}
-                <div>
-                  <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5" />
-                    Workflow Progress
-                  </h4>
-                  <div className="relative">
-                    <div className="space-y-4">
-                      {[
-                        { status: "open", label: "Ticket Created" },
-                        { status: "negotiating", label: "Price Negotiation" },
-                        { status: "accepted", label: "Price Accepted" },
-                        { status: "paid", label: "Payment Confirmed" },
-                        { status: "completed", label: "Work Completed" },
-                        { status: "closed", label: "Ticket Closed" },
-                      ].map((step, idx) => {
-                        const isActive = ticket.status === step.status;
-                        const isPast =
-                          [
-                            "open",
-                            "negotiating",
-                            "accepted",
-                            "paid",
-                            "completed",
-                            "closed",
-                          ].indexOf(ticket.status) > idx;
-                        const isCompleted = isPast || isActive;
-
-                        return (
-                          <div
-                            key={step.status}
-                            className="flex items-center gap-4"
-                          >
-                            <div
-                              className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm transition-all ${
-                                isCompleted
-                                  ? "bg-[#1A2A4F] text-white shadow-lg"
-                                  : "bg-gray-200 text-gray-400"
-                              }`}
-                            >
-                              {isCompleted ? (
-                                <CheckCircle className="h-5 w-5" />
-                              ) : (
-                                idx + 1
-                              )}
-                            </div>
-                            <div className="flex-1">
-                              <p
-                                className={`font-semibold ${
-                                  isActive
-                                    ? "text-[#1A2A4F]"
-                                    : isCompleted
-                                    ? "text-gray-700"
-                                    : "text-gray-400"
-                                }`}
-                              >
-                                {step.label}
-                              </p>
-                              {isActive && (
-                                <p className="text-xs text-[#1A2A4F] font-bold">
-                                  Current Step
-                                </p>
-                              )}
-                            </div>
-                            {isActive && (
-                              <div className="px-3 py-1 bg-[#1A2A4F] text-white rounded-full text-xs font-bold">
-                                Active
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Messages Count */}
-                <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-5 border-2 border-blue-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <MessageSquare className="h-8 w-8 text-[#1A2A4F]" />
-                      <div>
-                        <p className="text-sm text-gray-600 font-semibold">
-                          Total Messages
-                        </p>
-                        <p className="text-2xl font-black text-[#1A2A4F]">
-                          {ticket.messages?.length || 0}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                <div className="bg-green-50 p-4 rounded-xl border-2 border-green-100">
+                  <p className="font-bold text-green-900">Current Status</p>
+                  <p className="capitalize font-medium">{ticket.status}</p>
                 </div>
               </div>
-              <button
-                onClick={() => setIsDetailsModalOpen(false)}
-                className="mt-8 w-full px-6 py-3 bg-[#1A2A4F] text-white rounded-xl hover:bg-[#2A3A5F] font-semibold transition-all shadow-lg"
-              >
-                Close Details
-              </button>
             </motion.div>
           </motion.div>
         )}
