@@ -1,15 +1,15 @@
 // src/App.jsx
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   BrowserRouter as Router,
   Routes,
   Route,
   Navigate,
   useLocation,
-  useNavigate,
 } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
-import PageWrapper from './components/PageWrapper';
+import axios from 'axios';
+import PageWrapper from "./components/PageWrapper";
 
 // Pages
 import LandingPage from "./Pages/LandingPage";
@@ -31,6 +31,7 @@ import GigDetails from "./components/GigDetails";
 import Ticket from "./components/Ticket";
 import Tickets from "./components/Tickets";
 import UserProfile from "./components/UserProfile";
+import EnhancedPageWrapper from "./components/EnhancedPageWrapper";
 
 // Protected Route
 const ProtectedRoute = ({ children }) => {
@@ -52,20 +53,69 @@ const App = () => {
       <Toaster position="top-right" />
 
       <Routes>
-        {/* Public Routes */}
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<Login />} />
+        {/* === PUBLIC ROUTES === */}
+        <Route
+          path="/"
+          element={
+            <PageWrapper>
+              <LandingPage />
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/login"
+          element={
+            <PageWrapper>
+              <Login />
+            </PageWrapper>
+          }
+        />
 
         {/* === AUTH FLOW === */}
-        <Route path="/signup" element={<SignupEmail />} />
-        <Route path="/signup/otp" element={<OtpVerify />} />
-        <Route path="/signup/onboard" element={<OnboardProfile />} />
+        <Route
+          path="/signup"
+          element={
+            <PageWrapper>
+              <SignupEmail />
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/signup/otp"
+          element={
+            <PageWrapper>
+              <OtpVerify />
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/signup/onboard"
+          element={
+            <PageWrapper>
+              <OnboardProfile />
+            </PageWrapper>
+          }
+        />
 
-        {/* Onboard alias routes - both should work */}
-        <Route path="/onboard" element={<OnboardProfile />} />
+        {/* Onboard alias route */}
+        <Route
+          path="/onboard"
+          element={
+            <PageWrapper>
+              <OnboardProfile />
+            </PageWrapper>
+          }
+        />
 
         {/* Google OAuth Callback */}
-        <Route path="/auth/google/callback" element={<GoogleCallback />} />
+        <Route
+          path="/auth/google/callback"
+          element={
+            <PageWrapper>
+              <GoogleCallback />
+            </PageWrapper>
+          }
+        />
 
         {/* === PROTECTED ROUTES === */}
         <Route
@@ -73,91 +123,121 @@ const App = () => {
           element={
             <ProtectedRoute>
               <PageWrapper>
-              <Home />
-              </PageWrapper>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/profile"
-          element={
-            <ProtectedRoute>
-              <PageWrapper>
-              <Profile />
-              </PageWrapper>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/create-gig"
-          element={
-            
-            <ProtectedRoute>
-              <PageWrapper>
-              <CreateGig />
-              </PageWrapper>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/gigs"
-          element={
-            <ProtectedRoute>
-              <PageWrapper>
-              <Gigs />
-              </PageWrapper>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/gigs/:id"
-          element={
-            <ProtectedRoute>
-              <GigDetails />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/tickets"
-          element={
-            <ProtectedRoute>
-              <PageWrapper>
-              <Tickets />
-              </PageWrapper>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/tickets/:id"
-          element={
-            <ProtectedRoute>
-              <Ticket />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/users/:id"
-          element={
-            <ProtectedRoute>
-              <PageWrapper>
-              <UserProfile />
-              </PageWrapper>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/global-chat"
-          element={
-            <ProtectedRoute>
-              <PageWrapper>
-              <GlobalChat />
+                <Home />
               </PageWrapper>
             </ProtectedRoute>
           }
         />
 
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <Profile />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/create-gig"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <CreateGig />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/gigs"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <Gigs />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Dynamic route with custom title */}
+        <Route
+          path="/gigs/:id"
+          element={
+            <ProtectedRoute>
+              <EnhancedPageWrapper 
+        titleResolver={async (params) => {
+          try {
+            const response = await axios.get(`/api/gigs/${params.id}`);
+            return `${response.data.title} - Gig`;
+          } catch {
+            return 'Gig Details';
+          }
+        }}
+      >
+        <GigDetails />
+      </EnhancedPageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/tickets"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <Tickets />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Dynamic route with custom title */}
+        <Route
+          path="/tickets/:id"
+          element={
+            <ProtectedRoute>
+              <PageWrapper dynamicTitle="Ticket #:id">
+                <Ticket />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Dynamic route with custom title */}
+        <Route
+          path="/users/:id"
+          element={
+            <ProtectedRoute>
+              <PageWrapper dynamicTitle="User Profile">
+                <UserProfile />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/global-chat"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <GlobalChat />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Fallback with PageWrapper */}
+        <Route
+          path="*"
+          element={
+            <PageWrapper customTitle="404 - Not Found">
+              <Navigate to="/" replace />
+            </PageWrapper>
+          }
+        />
       </Routes>
     </Router>
   );
