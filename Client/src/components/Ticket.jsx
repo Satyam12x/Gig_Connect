@@ -26,6 +26,7 @@ import {
   Check,
   RefreshCw,
   Briefcase,
+  Laptop,
 } from "lucide-react";
 import io from "socket.io-client";
 import { debounce } from "lodash";
@@ -501,15 +502,14 @@ const Ticket = () => {
     return <Icon className="h-4 w-4" />;
   };
 
-  // Action buttons logic (Sidebar)
+  // Action buttons logic
   const getActionButtons = () => {
     if (!ticket || ticket.status === "closed") return [];
 
-    const isProvider = userId === ticket.providerId?._id; // Payer
-    const isFreelancer = userId === ticket.freelancerId?._id; // Worker
+    const isProvider = userId === ticket.providerId?._id;
+    const isFreelancer = userId === ticket.freelancerId?._id;
     const actions = [];
 
-    // Negotiation phase (Both can propose)
     if (["open", "negotiating"].includes(ticket.status)) {
       actions.push({
         id: "propose-price",
@@ -520,7 +520,6 @@ const Ticket = () => {
       });
     }
 
-    // Payment confirmation (Provider only, after price accepted)
     if (ticket.status === "accepted" && isProvider) {
       actions.push({
         id: "confirm-payment",
@@ -531,7 +530,6 @@ const Ticket = () => {
       });
     }
 
-    // Mark complete (Freelancer only, after payment)
     if (ticket.status === "paid" && isFreelancer) {
       actions.push({
         id: "mark-complete",
@@ -542,7 +540,6 @@ const Ticket = () => {
       });
     }
 
-    // Close ticket (Both can close, Provider rates)
     if (ticket.status === "completed") {
       actions.push({
         id: "close-ticket",
@@ -555,7 +552,6 @@ const Ticket = () => {
     return actions;
   };
 
-  // Helper to identify if a message is the latest price proposal
   const findLastPriceMessageIndex = () => {
     if (!ticket?.messages) return -1;
     for (let i = ticket.messages.length - 1; i >= 0; i--) {
@@ -601,7 +597,6 @@ const Ticket = () => {
   }
 
   const isProvider = userId === ticket.providerId?._id;
-  const isFreelancer = userId === ticket.freelancerId?._id;
   const lastPriceMsgIndex = findLastPriceMessageIndex();
 
   return (
@@ -755,7 +750,6 @@ const Ticket = () => {
                             className="break-words leading-relaxed whitespace-pre-wrap"
                           />
 
-                          {/* Attachment */}
                           {msg.attachment && (
                             <div className="mt-3">
                               {msg.attachment.match(
@@ -804,7 +798,6 @@ const Ticket = () => {
                             )}
                           </div>
 
-                          {/* Price Action Hooks */}
                           {showPriceActions && (
                             <div className="mt-4 pt-3 border-t border-gray-300/30 flex flex-col gap-2">
                               {isOwn ? (
@@ -1051,32 +1044,49 @@ const Ticket = () => {
                     Participants
                   </h4>
                   <div className="space-y-4">
-                    {/* Provider (The one who posted the gig) */}
+                    {/* Provider Card */}
                     <div className="flex items-start gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors">
-                      <div className="h-12 w-12 rounded-full bg-gradient-to-br from-[#1A2A4F] to-[#2A3A5F] flex items-center justify-center text-white font-bold flex-shrink-0 text-lg shadow-md">
-                        {ticket.providerId?.fullName?.charAt(0) || "P"}
+                      <div className="h-12 w-12 rounded-full bg-gradient-to-br from-[#1A2A4F] to-[#2A3A5F] flex items-center justify-center text-white font-bold flex-shrink-0 text-lg shadow-md overflow-hidden">
+                        {ticket.providerId?.profilePicture ? (
+                          <img
+                            src={ticket.providerId.profilePicture}
+                            alt="Profile"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          ticket.providerId?.fullName?.charAt(0) || "P"
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-900 text-base">
-                          {ticket.providerId?.fullName || "Provider"}
+                        <p className="font-bold text-gray-900 text-base truncate">
+                          {ticket.providerId?.fullName || "Unknown Provider"}
                         </p>
-                        <p className="text-xs text-gray-500 font-semibold uppercase">
-                          Provider (Payer)
+                        <p className="text-xs text-gray-500 font-semibold uppercase flex items-center gap-1">
+                          <Briefcase size={12} /> Provider
                         </p>
                       </div>
                     </div>
 
-                    {/* Freelancer (The one doing the work) */}
+                    {/* Freelancer Card */}
                     <div className="flex items-start gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors">
-                      <div className="h-12 w-12 rounded-full bg-gradient-to-br from-purple-600 to-purple-700 flex items-center justify-center text-white font-bold flex-shrink-0 text-lg shadow-md">
-                        {ticket.freelancerId?.fullName?.charAt(0) || "F"}
+                      <div className="h-12 w-12 rounded-full bg-gradient-to-br from-purple-600 to-purple-700 flex items-center justify-center text-white font-bold flex-shrink-0 text-lg shadow-md overflow-hidden">
+                        {ticket.freelancerId?.profilePicture ? (
+                          <img
+                            src={ticket.freelancerId.profilePicture}
+                            alt="Profile"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          ticket.freelancerId?.fullName?.charAt(0) || "F"
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-900 text-base">
-                          {ticket.freelancerId?.fullName || "Freelancer"}
+                        <p className="font-bold text-gray-900 text-base truncate">
+                          {ticket.freelancerId?.fullName ||
+                            "Unknown Freelancer"}
                         </p>
-                        <p className="text-xs text-gray-500 font-semibold uppercase">
-                          Freelancer (Worker)
+                        <p className="text-xs text-gray-500 font-semibold uppercase flex items-center gap-1">
+                          <Laptop size={12} /> Freelancer
                         </p>
                       </div>
                     </div>

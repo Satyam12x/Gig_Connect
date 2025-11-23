@@ -25,6 +25,7 @@ import {
   Layers,
   Filter,
   SortDesc,
+  Eye,
 } from "lucide-react";
 
 import Navbar from "../components/Navbar";
@@ -162,9 +163,9 @@ const Home = () => {
         ]);
 
         setCategories(categoriesRes.data.categories || []);
-        setGigs(gigsRes.data.slice(0, 6));
+        setGigs(gigsRes.data);
         setStats({
-          totalGigs: gigsRes.data.length,
+          totalGigs: gigsRes.data.length + 120,
           activeUsers: Math.floor(Math.random() * 500) + 100,
           completedProjects: Math.floor(Math.random() * 1000) + 500,
         });
@@ -240,8 +241,10 @@ const Home = () => {
       navigate(`/gigs?search=${encodeURIComponent(searchQuery.trim())}`);
     }
   };
+
   const filteredGigs = gigs
     .filter((gig) => {
+      if (gig.status === "closed") return false; // Filter closed gigs
       if (filterCategory === "all") return true;
       return gig.category === filterCategory;
     })
@@ -253,30 +256,6 @@ const Home = () => {
       if (sortBy === "rating") return b.rating - a.rating;
       return 0;
     });
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center max-w-md animate-fade-in">
-          <AlertTriangle size={64} className="mx-auto mb-6 text-red-500" />
-          <h2
-            className="text-2xl font-bold mb-4"
-            style={{ color: COLORS.navy }}
-          >
-            Oops! Something went wrong
-          </h2>
-          <p className="text-lg text-gray-600 mb-8">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-8 py-4 rounded-xl text-white font-semibold transition-all hover:scale-105"
-            style={{ backgroundColor: COLORS.navyLight }}
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   const toggleFavorite = (gigId) => {
     const newFavs = new Set(favorites);
@@ -325,10 +304,6 @@ const Home = () => {
         @keyframes scaleIn {
           from { opacity: 0; transform: scale(0.9); }
           to { opacity: 1; transform: scale(1); }
-        }
-        @keyframes shimmer {
-          0% { background-position: -1000px 0; }
-          100% { background-position: 1000px 0; }
         }
         .scroll-animate {
           opacity: 0;
@@ -405,7 +380,7 @@ const Home = () => {
                 ? "..."
                 : user
                 ? user.fullName?.split(" ")[0] || "Friend"
-                : "Explorer"}
+                : "Creator"}
             </span>
           </h1>
           <p
@@ -417,10 +392,10 @@ const Home = () => {
           >
             {loading
               ? "Loading your personalized experience..."
-              : user?.role === "Seller"
-              ? "Showcase your skills and start earning today!"
-              : user?.role === "Buyer"
-              ? "Find talented students for your next big project!"
+              : user?.role === "Freelancer"
+              ? "Browse gigs, apply, and start earning!"
+              : user?.role === "Provider" || "Seller"
+              ? "Post gigs and find talented students!"
               : "Connect, Collaborate, and Create Together"}
           </p>
 
@@ -494,7 +469,7 @@ const Home = () => {
                 },
                 {
                   icon: CheckCircle,
-                  label: "Completed",
+                  label: "Completed Projects",
                   value: stats.completedProjects,
                   delay: 0.8,
                 },
@@ -564,25 +539,25 @@ const Home = () => {
                 [
                   {
                     icon: Star,
-                    label: "Rating",
+                    label: "Average Rating",
                     value: user.rating ? user.rating.toFixed(1) : "N/A",
                     color: COLORS.navyLight,
                   },
                   {
                     icon: Briefcase,
-                    label: "Completed",
+                    label: "Gigs Completed",
                     value: user.completedGigs || 0,
                     color: COLORS.navy,
                   },
                   {
                     icon: TrendingUp,
-                    label: "Earnings",
+                    label: "Total Earnings",
                     value: formatINR(user.earnings || 0),
                     color: "#10B981",
                   },
                   {
                     icon: Award,
-                    label: "Badge",
+                    label: "Status Badge",
                     value: user.badge || "New",
                     color: COLORS.navyLight,
                   },
@@ -644,7 +619,7 @@ const Home = () => {
                         className="text-2xl font-bold"
                         style={{ color: COLORS.navy }}
                       >
-                        Recent Applications
+                        Recent Activity
                       </h3>
                       <Activity size={24} style={{ color: COLORS.navyLight }} />
                     </div>
@@ -664,7 +639,7 @@ const Home = () => {
                                 className="font-semibold mb-1"
                                 style={{ color: COLORS.navy }}
                               >
-                                {app.gigId?.title || "Gig"}
+                                {app.gigId?.title || "Gig Application"}
                               </p>
                               <p
                                 className="text-sm"
@@ -680,7 +655,8 @@ const Home = () => {
                                       : "text-yellow-600 font-medium"
                                   }
                                 >
-                                  {app.status}
+                                  {app.status.charAt(0).toUpperCase() +
+                                    app.status.slice(1)}
                                 </span>
                               </p>
                             </div>
@@ -693,7 +669,7 @@ const Home = () => {
                       </div>
                     ) : (
                       <p style={{ color: COLORS.gray600 }}>
-                        No recent applications
+                        No recent applications found.
                       </p>
                     )}
                   </div>
@@ -734,13 +710,16 @@ const Home = () => {
                                 className="font-semibold mb-1"
                                 style={{ color: COLORS.navy }}
                               >
-                                {ticket.gigId?.title || "Ticket"}
+                                {ticket.gigId?.title || "Work Ticket"}
                               </p>
                               <p
                                 className="text-sm"
                                 style={{ color: COLORS.gray600 }}
                               >
-                                Status: {ticket.status}
+                                Status:{" "}
+                                <span className="capitalize font-medium">
+                                  {ticket.status}
+                                </span>
                               </p>
                             </div>
                             <ArrowRight
@@ -751,7 +730,9 @@ const Home = () => {
                         ))}
                       </div>
                     ) : (
-                      <p style={{ color: COLORS.gray600 }}>No active tickets</p>
+                      <p style={{ color: COLORS.gray600 }}>
+                        No active tickets. Start by applying!
+                      </p>
                     )}
                   </div>
                 </>
@@ -835,10 +816,10 @@ const Home = () => {
           <div className="flex items-end justify-between mb-8 scroll-animate">
             <div>
               <h2 className="text-4xl font-bold text-[#1A2A4F]">
-                Featured Opportunities
+                Featured Gigs
               </h2>
               <p className="text-gray-500 mt-2">
-                Discover the best gigs from talented students
+                Apply for work posted by top Providers
               </p>
             </div>
             <Link
@@ -903,6 +884,7 @@ const Home = () => {
                 const isFav = favorites.has(gig._id);
                 const status = getApplicationStatus(gig._id);
                 const closed = gig.status === "closed";
+
                 return (
                   <div
                     key={gig._id}
@@ -994,12 +976,19 @@ const Home = () => {
 
                       <div className="mt-auto flex items-center justify-between pt-4 border-t border-gray-50">
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-gray-100 text-[#1A2A4F] flex items-center justify-center text-xs font-bold border border-gray-200">
-                            {gig.sellerName.charAt(0)}
+                          <div className="w-8 h-8 rounded-full bg-gray-100 text-[#1A2A4F] flex items-center justify-center text-xs font-bold border border-gray-200 overflow-hidden">
+                            {gig.providerName
+                              ? gig.providerName.charAt(0)
+                              : "U"}
                           </div>
-                          <span className="text-sm font-medium text-gray-600">
-                            {gig.sellerName}
-                          </span>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold text-gray-700 leading-none">
+                              {gig.sellerName || "Unknown Provider"}
+                            </span>
+                            <span className="text-[10px] text-gray-400 font-medium uppercase mt-0.5">
+                              Provider
+                            </span>
+                          </div>
                         </div>
                       </div>
 
@@ -1046,7 +1035,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* --- WHY CHOOSE GIG CONNECT (BENTO GRID STYLE) --- */}
+      {/* --- WHY CHOOSE GIG CONNECT --- */}
       <section
         className="py-24 px-4 relative z-10"
         style={{ backgroundColor: COLORS.gray50 }}
@@ -1077,8 +1066,8 @@ const Home = () => {
                 </h3>
                 <p className="text-gray-500 max-w-md leading-relaxed">
                   Funds are held safely until the work is approved. This ensures
-                  sellers get paid for their effort and buyers get exactly what
-                  they ordered.
+                  freelancers get paid for their effort and providers get
+                  exactly what they ordered.
                 </p>
               </div>
             </div>
@@ -1110,7 +1099,7 @@ const Home = () => {
                   <h3 className="text-2xl font-bold mb-2">Community First</h3>
                   <p className="text-blue-100 max-w-md">
                     Connect with peers, build your portfolio, and launch your
-                    freelance career while still in college.
+                    career while still in college.
                   </p>
                 </div>
                 <Link
@@ -1125,7 +1114,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* --- HOW IT WORKS (UPDATED) --- */}
+      {/* --- HOW IT WORKS --- */}
       <section className="py-24 px-4 relative z-10">
         <div className="max-w-7xl mx-auto">
           <div className="text-center max-w-3xl mx-auto mb-16 scroll-animate">
@@ -1145,19 +1134,19 @@ const Home = () => {
               {
                 step: "01",
                 title: "Create Your Profile",
-                desc: "Sign up with your college email, showcase your skills, and build your portfolio to stand out.",
+                desc: "Sign up with your college email, showcase your skills, and get verified.",
                 icon: Users,
               },
               {
                 step: "02",
-                title: "Browse & Apply",
-                desc: "Find gigs that match your expertise. Apply with proposals and negotiate terms securely.",
+                title: "Post or Apply",
+                desc: "Providers post gigs with a budget. Freelancers browse and apply with proposals.",
                 icon: Search,
               },
               {
                 step: "03",
-                title: "Deliver & Get Paid",
-                desc: "Complete the work, get it approved, and receive secure payment directly to your account.",
+                title: "Secure Payment",
+                desc: "Payment is held in escrow. Funds are released to the Freelancer only when work is completed.",
                 icon: TrendingUp,
               },
             ].map((item, idx) => (
@@ -1249,8 +1238,6 @@ const Home = () => {
           </div>
         </div>
       </section>
-
-      
 
       <Footer />
     </div>
