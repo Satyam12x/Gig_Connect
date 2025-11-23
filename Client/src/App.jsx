@@ -1,4 +1,3 @@
-// src/App.jsx
 import React from "react";
 import {
   BrowserRouter as Router,
@@ -12,20 +11,20 @@ import axios from "axios";
 import PageWrapper from "./components/PageWrapper";
 import EnhancedPageWrapper from "./components/EnhancedPageWrapper";
 
-// Pages
+// === PAGES ===
 import LandingPage from "./Pages/LandingPage";
 import Login from "./Pages/Onbaording/Login";
 import Profile from "./Pages/Profile";
 import Home from "./Pages/Home";
 import GlobalChat from "./Pages/GlobalChat";
 
-// Auth Pages
+// === AUTH FLOW ===
 import SignupEmail from "./Pages/Onbaording/SignupEmail";
 import OtpVerify from "./Pages/Onbaording/OtpVerify";
 import OnboardProfile from "./Pages/Onbaording/OnboardProfile";
 import GoogleCallback from "./Pages/Onbaording/GoogleCallback";
 
-// Components
+// === COMPONENTS ===
 import CreateGig from "./components/CreateGig";
 import Gigs from "./components/Gigs";
 import GigDetails from "./components/GigDetails";
@@ -33,10 +32,10 @@ import Ticket from "./components/Ticket";
 import Tickets from "./components/Tickets";
 import UserProfile from "./components/UserProfile";
 
-// Configure axios base URL (adjust according to your backend)
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+// === API BASE ===
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
 
-// Protected Route
+// === PROTECTED ROUTE WITH ONBOARDING CHECK ===
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem("token");
   const location = useLocation();
@@ -45,77 +44,36 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Optional: Check onboarding status via /auth/check
+  // But for now, let backend redirect if needed
   return children;
 };
 
-// Title resolver functions
+// === GIG TITLE RESOLVER (for dynamic page titles) ===
 const gigTitleResolver = async (params) => {
   try {
-    const token = localStorage.getItem("token");
-    const response = await axios.get(`${API_BASE_URL}/api/gigs/${params.id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    // Make sure we have a valid title
-    if (response.data && response.data.title) {
-      return `${response.data.title} | Gig Details`;
-    }
-    return "Gig Details";
-  } catch (error) {
-    console.error("Error fetching gig:", error);
+    const response = await axios.get(`${API_BASE}/gigs/${params.id}`);
+    return `${response.data.title} - Gig Connect`;
+  } catch {
     return "Gig Details";
   }
 };
 
-const ticketTitleResolver = async (params) => {
-  try {
-    const token = localStorage.getItem("token");
-    const response = await axios.get(
-      `${API_BASE_URL}/api/tickets/${params.id}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
-
-    if (response.data && response.data.title) {
-      return `${response.data.title} | Ticket`;
-    }
-    return `Ticket #${params.id}`;
-  } catch (error) {
-    console.error("Error fetching ticket:", error);
-    return `Ticket #${params.id}`;
-  }
-};
-
-const userTitleResolver = async (params) => {
-  try {
-    const token = localStorage.getItem("token");
-    const response = await axios.get(`${API_BASE_URL}/api/users/${params.id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (response.data && response.data.name) {
-      return `${response.data.name} | Profile`;
-    }
-    return "User Profile";
-  } catch (error) {
-    console.error("Error fetching user:", error);
-    return "User Profile";
-  }
-};
-
-// Main App
+// === MAIN APP ===
 const App = () => {
   return (
     <Router>
-      {/* Show toast notifications */}
-      <Toaster position="top-right" />
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: "#1A2A4F",
+            color: "#fff",
+            fontWeight: "500",
+          },
+        }}
+      />
 
       <Routes>
         {/* === PUBLIC ROUTES === */}
@@ -127,6 +85,7 @@ const App = () => {
             </PageWrapper>
           }
         />
+
         <Route
           path="/login"
           element={
@@ -145,30 +104,38 @@ const App = () => {
             </PageWrapper>
           }
         />
+
         <Route
           path="/signup/otp"
           element={
-            <PageWrapper>
-              <OtpVerify />
-            </PageWrapper>
-          }
-        />
-        <Route
-          path="/signup/onboard"
-          element={
-            <PageWrapper>
-              <OnboardProfile />
-            </PageWrapper>
+            <ProtectedRoute>
+              <PageWrapper>
+                <OtpVerify />
+              </PageWrapper>
+            </ProtectedRoute>
           }
         />
 
-        {/* Onboard alias route */}
+        <Route
+          path="/signup/onboard"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <OnboardProfile />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Alias for onboarding */}
         <Route
           path="/onboard"
           element={
-            <PageWrapper>
-              <OnboardProfile />
-            </PageWrapper>
+            <ProtectedRoute>
+              <PageWrapper>
+                <OnboardProfile />
+              </PageWrapper>
+            </ProtectedRoute>
           }
         />
 
@@ -227,15 +194,12 @@ const App = () => {
           }
         />
 
-        {/* Dynamic route for Gig Details */}
+        {/* Dynamic Gig Page with Title */}
         <Route
           path="/gigs/:id"
           element={
             <ProtectedRoute>
-              <EnhancedPageWrapper
-                titleResolver={gigTitleResolver}
-                fallbackTitle="Gig Details"
-              >
+              <EnhancedPageWrapper titleResolver={gigTitleResolver}>
                 <GigDetails />
               </EnhancedPageWrapper>
             </ProtectedRoute>
@@ -253,7 +217,6 @@ const App = () => {
           }
         />
 
-        {/* Dynamic route for Ticket Details */}
         <Route
           path="/tickets/:id"
           element={
@@ -268,7 +231,6 @@ const App = () => {
           }
         />
 
-        {/* Dynamic route for User Profile */}
         <Route
           path="/users/:id"
           element={
@@ -294,7 +256,7 @@ const App = () => {
           }
         />
 
-        {/* Fallback with PageWrapper */}
+        {/* === 404 FALLBACK === */}
         <Route
           path="*"
           element={
