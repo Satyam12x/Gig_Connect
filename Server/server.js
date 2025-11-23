@@ -2229,6 +2229,7 @@ if (enableCluster && cluster.isPrimary) {
   );
 
   // Accept Ticket Price
+  // Accept Ticket Price
   app.patch(
     "/api/tickets/:id/accept-price",
     authMiddleware,
@@ -2242,13 +2243,28 @@ if (enableCluster && cluster.isPrimary) {
             error: "Ticket must be in negotiating status to accept price",
           });
         }
-        if (req.userId !== ticket.buyerId) {
-          return res
-            .status(403)
-            .json({ error: "Only the buyer can accept the price" });
-        }
         if (!ticket.agreedPrice) {
           return res.status(400).json({ error: "No agreed price set" });
+        }
+
+        // Find who proposed the last price by checking messages
+        const priceMessages = ticket.messages.filter(
+          (m) =>
+            m.content.includes("Price of ₹") && m.content.includes("proposed")
+        );
+
+        if (priceMessages.length === 0) {
+          return res.status(400).json({ error: "No price proposal found" });
+        }
+
+        const lastPriceMessage = priceMessages[priceMessages.length - 1];
+
+        // Check if user is trying to accept their own price
+        if (lastPriceMessage.senderId === req.userId) {
+          return res.status(400).json({
+            error:
+              "You cannot accept your own price proposal. Wait for the other party to respond.",
+          });
         }
 
         ticket.status = "accepted";
@@ -2271,14 +2287,17 @@ if (enableCluster && cluster.isPrimary) {
         });
         await ticket.save();
 
-        const seller = await User.findOne({ _id: ticket.sellerId }).lean();
-        if (seller) {
+        const otherUserId =
+          ticket.sellerId === req.userId ? ticket.buyerId : ticket.sellerId;
+        const otherUser = await User.findOne({ _id: otherUserId }).lean();
+
+        if (otherUser) {
           const mailOptions = {
             from: process.env.EMAIL_USER,
-            to: seller.email,
+            to: otherUser.email,
             subject: `Price Accepted for Gig "${ticket.gigId.title}"`,
             html: `<p>Dear ${
-              seller.fullName
+              otherUser.fullName
             },</p><p>The price of ₹${ticket.agreedPrice.toLocaleString(
               "en-IN"
             )} for "${ticket.gigId.title}" has been accepted by ${
