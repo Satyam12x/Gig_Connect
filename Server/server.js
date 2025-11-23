@@ -226,20 +226,53 @@ if (enableCluster && cluster.isPrimary) {
   const Review = mongoose.model("Review", reviewSchema);
 
   // Gig Schema - Posted by Provider
+  // Update the gigSchema to include status field
   const gigSchema = new mongoose.Schema({
     _id: { type: String, required: true },
     title: { type: String, required: true, trim: true },
-    providerName: { type: String, required: true, trim: true }, // Changed from sellerName
-    providerId: { type: String, ref: "User", required: true }, // Changed from sellerId
+    providerName: { type: String, required: true, trim: true },
+    providerId: { type: String, ref: "User", required: true },
     thumbnail: { type: String, default: "" },
     description: { type: String, required: true, trim: true },
     category: { type: String, required: true, trim: true },
     price: { type: Number, required: true, min: 0 },
     rating: { type: Number, default: 0, min: 0, max: 5 },
-    status: { type: String, enum: ["open", "closed"], default: "open" },
+    status: {
+      type: String,
+      enum: ["open", "in_progress", "completed", "closed"],
+      default: "open",
+    },
     createdAt: { type: Date, default: Date.now },
   });
+  //archieved schema:
+  // Archived Gig Schema - For Completed/Deleted Gigs
+  const archivedGigSchema = new mongoose.Schema({
+    originalGigId: { type: String, required: true },
+    title: { type: String, required: true, trim: true },
+    providerName: { type: String, required: true, trim: true },
+    providerId: { type: String, ref: "User", required: true },
+    thumbnail: { type: String, default: "" },
+    description: { type: String, required: true, trim: true },
+    category: { type: String, required: true, trim: true },
+    price: { type: Number, required: true, min: 0 },
+    agreedPrice: { type: Number, min: 0 },
+    rating: { type: Number, default: 0, min: 0, max: 5 },
+    status: {
+      type: String,
+      enum: ["completed", "cancelled"],
+      default: "completed",
+    },
+    freelancerId: { type: String, ref: "User" },
+    freelancerName: { type: String },
+    completedAt: { type: Date },
+    createdAt: { type: Date },
+    archivedAt: { type: Date, default: Date.now },
+  });
 
+  archivedGigSchema.index({ providerId: 1, archivedAt: -1 });
+  archivedGigSchema.index({ freelancerId: 1, archivedAt: -1 });
+
+  const ArchivedGig = mongoose.model("ArchivedGig", archivedGigSchema);
   // Application Schema - Submitted by Freelancer
   const applicationSchema = new mongoose.Schema({
     _id: { type: String, required: true },
@@ -1208,6 +1241,57 @@ if (enableCluster && cluster.isPrimary) {
     }
   });
 
+  //new something:
+  // Get User's Archived Gigs (As Provider)
+  app.get(
+    "/api/users/:id/archived-gigs/provider",
+    authMiddleware,
+    async (req, res) => {
+      try {
+        if (req.params.id !== req.userId) {
+          return res.status(403).json({ error: "Unauthorized" });
+        }
+
+        const archivedGigs = await ArchivedGig.find({
+          providerId: req.params.id,
+        })
+          .sort({ archivedAt: -1 })
+          .limit(50)
+          .lean();
+
+        res.json({ success: true, archivedGigs });
+      } catch (err) {
+        logger.error("Get archived gigs (provider) error:", err);
+        res.status(500).json({ error: "Server error", details: err.message });
+      }
+    }
+  );
+
+  // Get User's Archived Gigs (As Freelancer)
+  app.get(
+    "/api/users/:id/archived-gigs/freelancer",
+    authMiddleware,
+    async (req, res) => {
+      try {
+        if (req.params.id !== req.userId) {
+          return res.status(403).json({ error: "Unauthorized" });
+        }
+
+        const archivedGigs = await ArchivedGig.find({
+          freelancerId: req.params.id,
+        })
+          .sort({ archivedAt: -1 })
+          .limit(50)
+          .lean();
+
+        res.json({ success: true, archivedGigs });
+      } catch (err) {
+        logger.error("Get archived gigs (freelancer) error:", err);
+        res.status(500).json({ error: "Server error", details: err.message });
+      }
+    }
+  );
+
   app.get("/api/gigs/user/:userId", async (req, res) => {
     try {
       const { userId } = req.params;
@@ -1404,10 +1488,11 @@ if (enableCluster && cluster.isPrimary) {
   );
 
   // Get All Gigs
+  // Update Get All Gigs route
   app.get("/api/gigs", async (req, res) => {
     try {
       const { category, search, page = 1, limit = 10 } = req.query;
-      const query = { status: "open" };
+      const query = { status: "open" }; // Only show open gigs
       if (category) query.category = { $regex: `^${category}$`, $options: "i" };
       if (search) query.title = { $regex: search, $options: "i" };
 
@@ -2247,90 +2332,126 @@ if (enableCluster && cluster.isPrimary) {
 
   // Accept Ticket Price
   app.patch(
-    "/api/tickets/:id/accept-price",
+    "/api/tickets/:id/accept-price-and-applicant",
     authMiddleware,
     checkTicketParticipant,
     async (req, res) => {
       try {
         const ticket = await Ticket.findOne({ _id: req.params.id });
         if (!ticket) return res.status(404).json({ error: "Ticket not found" });
-        if (ticket.status !== "negotiating") {
-          return res.status(400).json({
-            error: "Ticket must be in negotiating status to accept price",
+
+        // Only Provider can accept
+        if (req.userId !== ticket.providerId) {
+          return res.status(403).json({
+            error:
+              "Only the Provider can accept the price and hire the freelancer",
           });
         }
+
+        if (ticket.status !== "negotiating" && ticket.status !== "open") {
+          return res.status(400).json({
+            error: "Can only accept during negotiation phase",
+          });
+        }
+
         if (!ticket.agreedPrice) {
           return res.status(400).json({ error: "No agreed price set" });
         }
 
-        // Find who proposed the last price by checking messages
-        const priceMessages = ticket.messages.filter(
-          (m) =>
-            m.content.includes("Price of ₹") && m.content.includes("proposed")
-        );
-
-        if (priceMessages.length === 0) {
-          return res.status(400).json({ error: "No price proposal found" });
-        }
-
-        const lastPriceMessage = priceMessages[priceMessages.length - 1];
-
-        // Check if user is trying to accept their own price
-        if (lastPriceMessage.senderId === req.userId) {
-          return res.status(400).json({
-            error:
-              "You cannot accept your own price proposal. Wait for the other party to respond.",
-          });
-        }
-
+        // 1. Update Ticket Status
         ticket.status = "accepted";
         ticket.timeline.push({
           _id: crypto.randomBytes(16).toString("hex"),
           action: `Price of ₹${ticket.agreedPrice.toLocaleString(
             "en-IN"
-          )} accepted by ${req.user.fullName}`,
+          )} accepted and freelancer hired by ${req.user.fullName}`,
           timestamp: new Date(),
         });
         ticket.messages.push({
           _id: crypto.randomBytes(16).toString("hex"),
           senderId: req.userId,
           senderName: req.user.fullName,
-          content: `Price of ₹${ticket.agreedPrice.toLocaleString(
+          content: `✅ Price accepted at ₹${ticket.agreedPrice.toLocaleString(
             "en-IN"
-          )} accepted`,
+          )}. Freelancer has been hired for this gig!`,
           timestamp: new Date(),
           read: false,
         });
+
+        // 2. Find and Accept the Application
+        const application = await Application.findOne({
+          gigId: ticket.gigId,
+          applicantId: ticket.freelancerId,
+        });
+
+        if (application && application.status === "pending") {
+          application.status = "accepted";
+          await application.save();
+        }
+
+        // 3. Update Gig Status to "in_progress"
+        const gig = await Gig.findOne({ _id: ticket.gigId });
+        if (gig) {
+          gig.status = "in_progress";
+          await gig.save();
+        }
+
+        // 4. Reject Other Pending Applications
+        const otherApplications = await Application.find({
+          gigId: ticket.gigId,
+          applicantId: { $ne: ticket.freelancerId },
+          status: "pending",
+        });
+
+        for (const app of otherApplications) {
+          app.status = "rejected";
+          await app.save();
+
+          // Notify rejected applicants
+          const applicant = await User.findOne({ _id: app.applicantId }).lean();
+          if (applicant) {
+            const mailOptions = {
+              from: process.env.EMAIL_USER,
+              to: applicant.email,
+              subject: `Application Update for Gig "${gig.title}"`,
+              html: `<p>Dear ${applicant.fullName},</p><p>The provider has selected another freelancer for "${gig.title}". Your application has been closed.</p><p>Explore other gigs on Gig Connect.</p>`,
+            };
+            await transporter.sendMail(mailOptions).catch((err) => {
+              logger.error("Failed to send rejection email:", err);
+            });
+          }
+        }
+
         await ticket.save();
 
-        const otherUserId =
-          ticket.providerId === req.userId
-            ? ticket.freelancerId
-            : ticket.providerId;
-        const otherUser = await User.findOne({ _id: otherUserId }).lean();
-
-        if (otherUser) {
+        // Notify Freelancer
+        const freelancer = await User.findOne({
+          _id: ticket.freelancerId,
+        }).lean();
+        if (freelancer) {
           const mailOptions = {
             from: process.env.EMAIL_USER,
-            to: otherUser.email,
-            subject: `Price Accepted for Gig "${ticket.gigId.title}"`,
+            to: freelancer.email,
+            subject: `You've Been Hired! - "${gig.title}"`,
             html: `<p>Dear ${
-              otherUser.fullName
-            },</p><p>The price of ₹${ticket.agreedPrice.toLocaleString(
+              freelancer.fullName
+            },</p><p>Congratulations! You have been hired for "${
+              gig.title
+            }" at ₹${ticket.agreedPrice.toLocaleString(
               "en-IN"
-            )} for "${ticket.gigId.title}" has been accepted by ${
-              req.user.fullName
-            }.</p><p>Proceed with the work at: /tickets/${ticket._id}</p>`,
+            )}.</p><p>The provider will proceed with payment. Continue the discussion in your ticket: /tickets/${
+              ticket._id
+            }</p>`,
           };
           await transporter.sendMail(mailOptions).catch((err) => {
-            logger.error("Failed to send price acceptance email:", err);
+            logger.error("Failed to send hiring email:", err);
           });
         }
 
         ticketIo.to(req.params.id).emit("newMessage", ticket);
         res.json({ success: true, ticket });
       } catch (err) {
-        logger.error("Accept ticket price error:", err);
+        logger.error("Accept price and applicant error:", err);
         res.status(500).json({ error: "Server error", details: err.message });
       }
     }
@@ -2518,7 +2639,7 @@ if (enableCluster && cluster.isPrimary) {
           read: false,
         });
 
-        // If Provider (Payer) closes the ticket, rate the Freelancer
+        // If Provider closes, rate the Freelancer
         if (rating && req.userId === ticket.providerId) {
           const freelancer = await User.findOne({ _id: ticket.freelancerId });
           if (freelancer) {
@@ -2533,6 +2654,37 @@ if (enableCluster && cluster.isPrimary) {
         }
 
         await ticket.save();
+
+        // Archive the Gig (move to ArchivedGig collection)
+        const gig = await Gig.findOne({ _id: ticket.gigId });
+        if (gig) {
+          // Create archived gig record
+          const archivedGig = {
+            originalGigId: gig._id,
+            title: gig.title,
+            providerName: gig.providerName,
+            providerId: gig.providerId,
+            thumbnail: gig.thumbnail,
+            description: gig.description,
+            category: gig.category,
+            price: gig.price,
+            agreedPrice: ticket.agreedPrice,
+            rating: gig.rating,
+            status: "completed",
+            freelancerId: ticket.freelancerId,
+            freelancerName: ticket.freelancerId.fullName,
+            completedAt: new Date(),
+            createdAt: gig.createdAt,
+            archivedAt: new Date(),
+          };
+
+          await ArchivedGig.create(archivedGig);
+
+          // Delete the original gig
+          await Gig.deleteOne({ _id: gig._id });
+
+          logger.info(`Gig ${gig._id} archived and deleted after completion`);
+        }
 
         const otherUserId =
           ticket.providerId === req.userId
@@ -2550,7 +2702,7 @@ if (enableCluster && cluster.isPrimary) {
               rating && req.userId === ticket.providerId
                 ? `<p>You received a rating of ${rating}/5.</p>`
                 : ""
-            }<p>View details at: /tickets/${ticket._id}</p>`,
+            }<p>The gig has been archived. View your completed work history in your profile.</p>`,
           };
           await transporter.sendMail(mailOptions).catch((err) => {
             logger.error("Failed to send ticket closure email:", err);

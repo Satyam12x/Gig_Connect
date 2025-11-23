@@ -27,6 +27,7 @@ import {
   RefreshCw,
   Briefcase,
   Laptop,
+  XCircle,
 } from "lucide-react";
 import io from "socket.io-client";
 import { debounce } from "lodash";
@@ -352,10 +353,10 @@ const Ticket = () => {
 
   const handleAcceptPrice = async () => {
     setConfirmAction({
-      title: "Accept Price",
+      title: "Accept Price & Application",
       message: `Are you sure you want to accept the price of ₹${ticket.agreedPrice?.toLocaleString(
         "en-IN"
-      )}?`,
+      )}? This will change the gig status to "In Progress" and accept the freelancer's application.`,
       action: async () => {
         try {
           const { data } = await axios.patch(
@@ -369,7 +370,7 @@ const Ticket = () => {
           );
           setTicket(data.ticket);
           toast.success(
-            "Price accepted! Provider can now proceed with payment."
+            "Price accepted! Gig is now in progress. Provider can now proceed with payment."
           );
         } catch (error) {
           toast.error(error.response?.data?.error || "Failed to accept price");
@@ -468,7 +469,8 @@ const Ticket = () => {
       setTicket(data.ticket);
       setIsRatingModalOpen(false);
       setRating(0);
-      toast.success("Ticket closed successfully!");
+      toast.success("Ticket closed successfully! Gig has been archived.");
+      setTimeout(() => navigate("/gigs"), 2000);
     } catch (error) {
       toast.error(error.response?.data?.error || "Failed to close ticket");
     } finally {
@@ -1008,7 +1010,7 @@ const Ticket = () => {
             <div className="border-t-2 border-gray-200 bg-gray-50 p-6 text-center flex-shrink-0">
               <p className="text-sm text-gray-600 flex items-center justify-center gap-2 font-semibold">
                 <Shield className="h-5 w-5" />
-                This ticket is closed
+                This ticket is closed. The gig has been archived.
               </p>
             </div>
           )}
@@ -1062,7 +1064,7 @@ const Ticket = () => {
                           {ticket.providerId?.fullName || "Unknown Provider"}
                         </p>
                         <p className="text-xs text-gray-500 font-semibold uppercase flex items-center gap-1">
-                          <Briefcase size={12} /> Provider
+                          <Briefcase size={12} /> Provider (Payer)
                         </p>
                       </div>
                     </div>
@@ -1086,7 +1088,7 @@ const Ticket = () => {
                             "Unknown Freelancer"}
                         </p>
                         <p className="text-xs text-gray-500 font-semibold uppercase flex items-center gap-1">
-                          <Laptop size={12} /> Freelancer
+                          <Laptop size={12} /> Freelancer (Worker)
                         </p>
                       </div>
                     </div>
@@ -1122,6 +1124,28 @@ const Ticket = () => {
                           : "Not set"}
                       </p>
                     </div>
+                    {ticket.gigId?.status && (
+                      <div>
+                        <p className="text-xs font-bold text-gray-500 uppercase mb-2">
+                          Gig Status
+                        </p>
+                        <span
+                          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold ${
+                            ticket.gigId.status === "open"
+                              ? "bg-blue-100 text-blue-800"
+                              : ticket.gigId.status === "in_progress"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : ticket.gigId.status === "completed"
+                              ? "bg-green-100 text-green-800"
+                              : "bg-gray-100 text-gray-800"
+                          }`}
+                        >
+                          {ticket.gigId.status === "in_progress"
+                            ? "In Progress"
+                            : ticket.gigId.status.toUpperCase()}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1341,25 +1365,68 @@ const Ticket = () => {
               </div>
               <div className="space-y-6">
                 <div className="bg-gray-50 p-4 rounded-xl">
-                  <p className="font-bold">Gig: {ticket.gigId?.title}</p>
-                  <p>Original Budget: ₹{ticket.gigId?.price}</p>
+                  <p className="font-bold text-lg mb-2">
+                    Gig: {ticket.gigId?.title}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Original Budget: ₹
+                    {ticket.gigId?.price?.toLocaleString("en-IN")}
+                  </p>
+                  {ticket.gigId?.status && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      Gig Status:{" "}
+                      <span className="font-semibold capitalize">
+                        {ticket.gigId.status.replace("_", " ")}
+                      </span>
+                    </p>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 bg-blue-50 rounded-xl">
                     <p className="font-bold text-blue-900">Provider (Payer)</p>
-                    <p>{ticket.providerId?.fullName}</p>
+                    <p className="text-sm">{ticket.providerId?.fullName}</p>
                   </div>
                   <div className="p-4 bg-purple-50 rounded-xl">
                     <p className="font-bold text-purple-900">
                       Freelancer (Worker)
                     </p>
-                    <p>{ticket.freelancerId?.fullName}</p>
+                    <p className="text-sm">{ticket.freelancerId?.fullName}</p>
                   </div>
                 </div>
                 <div className="bg-green-50 p-4 rounded-xl border-2 border-green-100">
                   <p className="font-bold text-green-900">Current Status</p>
-                  <p className="capitalize font-medium">{ticket.status}</p>
+                  <p className="capitalize font-medium">
+                    {ticket.status.replace("_", " ")}
+                  </p>
+                  {ticket.agreedPrice && (
+                    <p className="text-sm mt-2">
+                      Agreed Price: ₹
+                      {ticket.agreedPrice.toLocaleString("en-IN")}
+                    </p>
+                  )}
                 </div>
+                {ticket.priceHistory && ticket.priceHistory.length > 0 && (
+                  <div className="bg-yellow-50 p-4 rounded-xl border-2 border-yellow-100">
+                    <p className="font-bold text-yellow-900 mb-3">
+                      Price Negotiation History
+                    </p>
+                    <div className="space-y-2">
+                      {ticket.priceHistory.map((price, idx) => (
+                        <div
+                          key={idx}
+                          className="text-sm flex justify-between items-center"
+                        >
+                          <span className="font-medium">
+                            {price.proposedByName}
+                          </span>
+                          <span className="font-bold text-[#1A2A4F]">
+                            ₹{price.price.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </motion.div>
           </motion.div>
