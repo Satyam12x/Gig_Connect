@@ -14,7 +14,7 @@ export default function SignupEmail() {
     fullName: "",
     email: "",
     password: "",
-    role: "Both",
+    role: "Both", // Backend accepts: "Provider", "Freelancer", "Both"
   });
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -62,7 +62,7 @@ export default function SignupEmail() {
           Create Your Account
         </h2>
         <p className="text-center text-gray-600 text-sm mb-8">
-          Join Gig Connect and start freelancing or hiring today
+          Join Gig Connect – post gigs or freelance with ease
         </p>
 
         <button
@@ -105,7 +105,7 @@ export default function SignupEmail() {
             placeholder="Full Name"
             value={form.fullName}
             onChange={handleChange}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
           />
           <input
             required
@@ -114,7 +114,7 @@ export default function SignupEmail() {
             placeholder="Email Address"
             value={form.email}
             onChange={handleChange}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
           />
           <div className="relative">
             <input
@@ -124,26 +124,29 @@ export default function SignupEmail() {
               placeholder="Create Password"
               value={form.password}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
             />
             <button
               type="button"
               onClick={() => setShowPwd(!showPwd)}
-              className="absolute right-3 top-3.5 text-gray-500 hover:text-gray-700 transition"
+              className="absolute right-3 top-3.5 text-gray-500 hover:text-gray-700"
             >
               {showPwd ? <EyeOff size={22} /> : <Eye size={22} />}
             </button>
           </div>
 
+          {/* Updated Role Options – Match Backend Exactly */}
           <select
             name="role"
             value={form.role}
             onChange={handleChange}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
           >
-            <option value="Both">I want to hire & freelance (Both)</option>
-            <option value="Seller">I want to freelance (Seller)</option>
-            <option value="Buyer">I want to hire talent (Buyer)</option>
+            <option value="Both">Both – Post gigs & Freelance</option>
+            <option value="Provider">Provider – I want to post gigs</option>
+            <option value="Freelancer">
+              Freelancer – I want to work on gigs
+            </option>
           </select>
 
           <button

@@ -5,27 +5,25 @@ import toast from "react-hot-toast";
 import {
   User,
   Briefcase,
-  Award,
+  Target,
   ArrowRight,
   ArrowLeft,
   Check,
   Upload,
   X,
-  Sparkles, // Replaces Welcome
-  Target, // Replaces "What brings you here?"
-  Camera, // Replaces camera
-  GraduationCap, // Replaces college
-  Code2, // Replaces GitHub
+  Sparkles,
+  Zap,
+  Shield,
+  Trophy,
+  Stars,
+  Camera,
+  GraduationCap,
+  Code2,
   Linkedin,
   Instagram,
-  Link2, // Replaces social links
-  Trophy, // Replaces "Stand Out"
-  Shield, // Replaces "Secure"
-  Zap, // Replaces "Quick Setup"
-  Stars, // Replaces "almost done"
+  Link2,
 } from "lucide-react";
-
-import useDocumentTitle from "../../hooks/useDocumentTitle"; // Add this!
+import useDocumentTitle from "../../hooks/useDocumentTitle";
 
 const API = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
 
@@ -66,6 +64,7 @@ export default function OnboardProfile() {
     { id: "social", title: "Connect", icon: Link2 },
   ];
 
+  // Pre-fill existing data if user comes back
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -137,6 +136,7 @@ export default function OnboardProfile() {
     if (data.image) form.append("image", data.image);
     if (data.bio) form.append("bio", data.bio);
     if (data.college) form.append("college", data.college);
+
     if (data.skills) {
       const skillsArr = data.skills
         .split(",")
@@ -203,40 +203,18 @@ export default function OnboardProfile() {
       }}
     >
       <style>{`
-        @keyframes slideInRight {
-          from { opacity: 0; transform: translateX(100px); }
-          to { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes slideInLeft {
-          from { opacity: 0; transform: translateX(-100px); }
-          to { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes fadeInScale {
-          from { opacity: 0; transform: scale(0.9); }
-          to { opacity: 1; transform: scale(1); }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-        .step-content {
-          animation: ${
-            direction === "forward" ? "slideInRight" : "slideInLeft"
-          } 0.5s ease-out;
-        }
-        .progress-bar {
-          transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .hover-lift {
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .hover-lift:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 12px 28px rgba(26, 42, 79, 0.15);
-        }
+        @keyframes slideInRight { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes slideInLeft { from { opacity: 0; transform: translateX(-100px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes fadeInScale { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+        .step-content { animation: ${
+          direction === "forward" ? "slideInRight" : "slideInLeft"
+        } 0.5s ease-out; }
+        .progress-bar { transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+        .hover-lift { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .hover-lift:hover { transform: translateY(-4px); box-shadow: 0 12px 28px rgba(26, 42, 79, 0.15); }
       `}</style>
 
-      {/* Background Effects */}
+      {/* Background Blobs */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div
           className="absolute -top-40 -right-40 w-96 h-96 rounded-full opacity-10 blur-3xl"
@@ -259,11 +237,18 @@ export default function OnboardProfile() {
           animation: "fadeInScale 0.6s ease-out",
         }}
       >
-        {/* Step Content */}
+        {/* Progress Bar */}
+        <div className="h-2 bg-gray-200 rounded-t-3xl overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-[#1A2A4F] to-[#2A3A6F] progress-bar"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
         <div className="p-8 sm:p-12 min-h-[500px] flex flex-col">
           <div className="step-content flex-1">{renderStep()}</div>
 
-          {/* Navigation Buttons */}
+          {/* Navigation */}
           <div className="flex gap-4 mt-8">
             {currentStep > 0 && (
               <button
@@ -275,7 +260,7 @@ export default function OnboardProfile() {
                   backgroundColor: COLORS.white,
                 }}
               >
-                <ArrowLeft size={20} /> Back
+                Back
               </button>
             )}
 
@@ -288,7 +273,7 @@ export default function OnboardProfile() {
                   boxShadow: "0 4px 12px rgba(26, 42, 79, 0.3)",
                 }}
               >
-                Continue <ArrowRight size={20} />
+                Continue
               </button>
             ) : (
               <button
@@ -302,13 +287,7 @@ export default function OnboardProfile() {
                   boxShadow: "0 4px 12px rgba(26, 42, 79, 0.3)",
                 }}
               >
-                {loading ? (
-                  <>Saving...</>
-                ) : (
-                  <>
-                    Complete Setup <Check size={20} />
-                  </>
-                )}
+                {loading ? "Saving..." : "Complete Setup"}
               </button>
             )}
           </div>
@@ -327,6 +306,8 @@ export default function OnboardProfile() {
     </div>
   );
 }
+
+// ────────────────────────────── Steps ──────────────────────────────
 
 function WelcomeStep() {
   return (
@@ -377,21 +358,21 @@ function WelcomeStep() {
 function RoleStep({ data, setData }) {
   const roles = [
     {
-      value: "Seller",
-      title: "Freelance",
-      desc: "Offer your skills and earn money",
+      value: "Freelancer",
+      title: "Freelancer",
+      desc: "Apply to gigs and deliver work",
       icon: Briefcase,
     },
     {
-      value: "Buyer",
-      title: "Hire Talent",
-      desc: "Find skilled freelancers for your projects",
+      value: "Provider",
+      title: "Provider",
+      desc: "Post gigs and hire talent",
       icon: Target,
     },
     {
       value: "Both",
       title: "Both",
-      desc: "Freelance and hire others",
+      desc: "Post gigs & freelance",
       icon: Zap,
     },
   ];
@@ -400,10 +381,10 @@ function RoleStep({ data, setData }) {
     <div className="space-y-6">
       <div className="text-center mb-8">
         <h2 className="text-3xl font-bold mb-3" style={{ color: COLORS.navy }}>
-          What brings you here?
+          What brings you to Gig Connect?
         </h2>
         <p className="text-lg" style={{ color: COLORS.gray600 }}>
-          Choose how you want to use Gig Connect
+          Choose how you want to use the platform
         </p>
       </div>
 
@@ -486,18 +467,15 @@ function ProfileStep({ data, setData, handleImage, removeImage }) {
                 onClick={removeImage}
                 className="absolute top-0 right-0 w-10 h-10 rounded-full flex items-center justify-center bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity"
               >
-                <X size={20} />
+                X
               </button>
             </>
           ) : (
             <div
               className="w-40 h-40 rounded-full flex items-center justify-center border-4 border-dashed"
-              style={{
-                borderColor: COLORS.gray300,
-                backgroundColor: COLORS.gray50,
-              }}
+              style={{ borderColor: "#9CA3AF", backgroundColor: COLORS.gray50 }}
             >
-              <Camera size={56} style={{ color: COLORS.gray400 }} />
+              <Camera size={56} style={{ color: "#9CA3AF" }} />
             </div>
           )}
         </div>
@@ -509,6 +487,7 @@ function ProfileStep({ data, setData, handleImage, removeImage }) {
               background: `linear-gradient(135deg, ${COLORS.navy}, ${COLORS.navyLight})`,
             }}
           >
+            Upload Photo
             <Upload size={20} />
             {data.preview ? "Change Photo" : "Upload Photo"}
           </div>
@@ -529,7 +508,7 @@ function ProfileStep({ data, setData, handleImage, removeImage }) {
           className="block text-sm font-semibold mb-2 flex items-center gap-2"
           style={{ color: COLORS.navy }}
         >
-          <GraduationCap size={20} /> College / University (optional)
+          College / University (optional)
         </label>
         <input
           placeholder="e.g. Stanford University, Self-Taught"
@@ -622,7 +601,7 @@ function SocialStep({ data, setData }) {
             className="block text-sm font-semibold mb-2 flex items-center gap-2"
             style={{ color: COLORS.navy }}
           >
-            <Linkedin size={20} /> LinkedIn Profile
+            LinkedIn Profile
           </label>
           <input
             placeholder="https://linkedin.com/in/yourprofile"
@@ -645,7 +624,7 @@ function SocialStep({ data, setData }) {
             className="block text-sm font-semibold mb-2 flex items-center gap-2"
             style={{ color: COLORS.navy }}
           >
-            <Code2 size={20} /> GitHub Profile
+            GitHub Profile
           </label>
           <input
             placeholder="https://github.com/yourusername"
@@ -668,7 +647,7 @@ function SocialStep({ data, setData }) {
             className="block text-sm font-semibold mb-2 flex items-center gap-2"
             style={{ color: COLORS.navy }}
           >
-            <Instagram size={20} /> Instagram Profile
+            Instagram Profile
           </label>
           <input
             placeholder="https://instagram.com/yourusername"

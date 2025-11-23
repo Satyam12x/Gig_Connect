@@ -1,16 +1,3 @@
-import { useEffect } from "react";
-import { useLocation } from "react-router-dom";
-import useDocumentTitle from "../hooks/useDocumentTitle";
-
-const pageTitles = {
-  "/": "Get started",
-  "/home": "Home",
-  "/onboarding": "Complete Your Profile",
-  "/dashboard": "Dashboard",
-  "/profile": "Profile",
-  "/projects": "Projects",
-  "/messages": "Messages",
-  "/settings": "Settings",
 // src/components/PageWrapper.jsx
 import { useEffect } from "react";
 import { useLocation, useParams } from "react-router-dom";
@@ -48,8 +35,6 @@ const dynamicTitles = {
 
 const PageWrapper = ({ children, customTitle, dynamicTitle }) => {
   const location = useLocation();
-  const title = customTitle || pageTitles[location.pathname] || "Page";
-
   const params = useParams();
 
   // Function to get the appropriate title

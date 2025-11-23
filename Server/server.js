@@ -25,7 +25,7 @@ const helmet = require("helmet");
 const compression = require("compression");
 const winston = require("winston");
 
-// 1. LOGGER SETUP (T Version 1)
+// 1. LOGGER SETUP
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || "info",
   format: winston.format.combine(
@@ -122,16 +122,18 @@ if (enableCluster && cluster.isPrimary) {
   );
   const messageLimiter = limiterConfig(
     60 * 1000,
-    5,
+    20, // Increased for chat fluidity
     "Too many messages sent, please wait a minute."
   );
   const attachmentLimiter = limiterConfig(
     15 * 60 * 1000,
-    5,
+    10,
     "Too many attachment uploads, please try again later."
   );
 
   //  MONGODB SCHEMAS
+
+  // User Schema - Roles updated to Provider/Freelancer
   const userSchema = new mongoose.Schema(
     {
       _id: { type: String, required: true },
@@ -143,7 +145,7 @@ if (enableCluster && cluster.isPrimary) {
       profilePicture: { type: String, default: "" },
       role: {
         type: String,
-        enum: ["Seller", "Buyer", "Both"],
+        enum: ["Provider", "Freelancer", "Both"], // Updated Roles
         default: "Both",
       },
       isVerified: { type: Boolean, default: false },
@@ -153,9 +155,9 @@ if (enableCluster && cluster.isPrimary) {
         { title: String, status: String, earnings: Number, date: Date },
       ],
       gigsCompleted: { type: Number, default: 0 },
-      totalGigs: { type: Number, default: 0 },
+      totalGigs: { type: Number, default: 0 }, // Gigs Posted (for Provider)
       completionRate: { type: Number, default: 0 },
-      credits: { type: Number, default: 0, min: 0 },
+      credits: { type: Number, default: 0, min: 0 }, // Money Earned
       socialLinks: {
         linkedin: String,
         github: String,
@@ -223,11 +225,12 @@ if (enableCluster && cluster.isPrimary) {
 
   const Review = mongoose.model("Review", reviewSchema);
 
+  // Gig Schema - Posted by Provider
   const gigSchema = new mongoose.Schema({
     _id: { type: String, required: true },
     title: { type: String, required: true, trim: true },
-    sellerName: { type: String, required: true, trim: true },
-    sellerId: { type: String, ref: "User", required: true },
+    providerName: { type: String, required: true, trim: true }, // Changed from sellerName
+    providerId: { type: String, ref: "User", required: true }, // Changed from sellerId
     thumbnail: { type: String, default: "" },
     description: { type: String, required: true, trim: true },
     category: { type: String, required: true, trim: true },
@@ -237,10 +240,11 @@ if (enableCluster && cluster.isPrimary) {
     createdAt: { type: Date, default: Date.now },
   });
 
+  // Application Schema - Submitted by Freelancer
   const applicationSchema = new mongoose.Schema({
     _id: { type: String, required: true },
     gigId: { type: String, ref: "Gig", required: true },
-    applicantId: { type: String, ref: "User", required: true },
+    applicantId: { type: String, ref: "User", required: true }, // Freelancer ID
     applicantName: { type: String, required: true, trim: true },
     coverLetter: { type: String, default: "" },
     status: {
@@ -251,11 +255,12 @@ if (enableCluster && cluster.isPrimary) {
     createdAt: { type: Date, default: Date.now },
   });
 
+  // Ticket Schema - Link between Provider and Freelancer
   const ticketSchema = new mongoose.Schema({
     _id: { type: String, required: true },
     gigId: { type: String, ref: "Gig", required: true },
-    sellerId: { type: String, ref: "User", required: true },
-    buyerId: { type: String, ref: "User", required: true },
+    providerId: { type: String, ref: "User", required: true }, // Owner of Gig (Payer)
+    freelancerId: { type: String, ref: "User", required: true }, // Worker (Receiver)
     status: {
       type: String,
       enum: ["open", "negotiating", "accepted", "paid", "completed", "closed"],
@@ -291,7 +296,7 @@ if (enableCluster && cluster.isPrimary) {
 
   // Indexes for performance
   applicationSchema.index({ gigId: 1, applicantId: 1 });
-  ticketSchema.index({ gigId: 1, sellerId: 1, buyerId: 1 });
+  ticketSchema.index({ gigId: 1, providerId: 1, freelancerId: 1 });
   ticketSchema.index({ "messages.timestamp": -1 });
   ticketSchema.index({ "timeline.timestamp": -1 });
 
@@ -468,10 +473,11 @@ if (enableCluster && cluster.isPrimary) {
     try {
       const gig = await Gig.findOne({ _id: req.params.id }).lean();
       if (!gig) return res.status(404).json({ error: "Gig not found" });
-      if (gig.sellerId !== req.userId) {
+      // Checked against providerId
+      if (gig.providerId !== req.userId) {
         return res
           .status(403)
-          .json({ error: "Only the gig owner can perform this action" });
+          .json({ error: "Only the gig provider can perform this action" });
       }
       req.gig = gig;
       next();
@@ -485,7 +491,8 @@ if (enableCluster && cluster.isPrimary) {
     try {
       const ticket = await Ticket.findOne({ _id: req.params.id }).lean();
       if (!ticket) return res.status(404).json({ error: "Ticket not found" });
-      if (![ticket.sellerId, ticket.buyerId].includes(req.userId)) {
+      // Check providerId and freelancerId
+      if (![ticket.providerId, ticket.freelancerId].includes(req.userId)) {
         return res
           .status(403)
           .json({ error: "Only ticket participants can perform this action" });
@@ -533,7 +540,7 @@ if (enableCluster && cluster.isPrimary) {
         .withMessage("Password must be at least 6 characters"),
       check("role")
         .optional()
-        .isIn(["Seller", "Buyer", "Both"])
+        .isIn(["Provider", "Freelancer", "Both"]) // Updated Roles
         .withMessage("Invalid role"),
     ],
     async (req, res) => {
@@ -1209,10 +1216,9 @@ if (enableCluster && cluster.isPrimary) {
         !/^[0-9a-fA-F]{32}$/.test(userId)
       ) {
         // Basic check if it's not a valid mongo ID or custom hex ID
-        // Allowing pass-through if unsure, logic handled by find
       }
 
-      const gigs = await Gig.find({ sellerId: userId }) // Fixed query: sellerId not seller
+      const gigs = await Gig.find({ providerId: userId }) // Changed to providerId
         .sort({ createdAt: -1 })
         .lean();
 
@@ -1323,11 +1329,11 @@ if (enableCluster && cluster.isPrimary) {
     }
   );
 
-  // Create Gig
+  // Create Gig - Only Provider
   app.post(
     "/api/gigs",
     authMiddleware,
-    checkRole(["Seller", "Both"]),
+    checkRole(["Provider", "Both"]), // Updated Role Check
     upload.single("thumbnail"),
     [
       check("title")
@@ -1376,8 +1382,8 @@ if (enableCluster && cluster.isPrimary) {
         const gig = await Gig.create({
           _id: gigId,
           title,
-          sellerName: user.fullName,
-          sellerId: user._id,
+          providerName: user.fullName, // Changed to providerName
+          providerId: user._id, // Changed to providerId
           thumbnail: thumbnailUrl,
           description,
           category,
@@ -1407,10 +1413,10 @@ if (enableCluster && cluster.isPrimary) {
 
       const gigs = await Gig.find(query)
         .select(
-          "title sellerName sellerId thumbnail description category price rating status createdAt"
+          "title providerName providerId thumbnail description category price rating status createdAt"
         )
         .populate({
-          path: "sellerId",
+          path: "providerId",
           select: "ratings",
         })
         .sort({ createdAt: -1 })
@@ -1419,11 +1425,11 @@ if (enableCluster && cluster.isPrimary) {
         .lean();
 
       const gigsWithReviews = gigs.map((gig) => {
-        const ratings = gig.sellerId?.ratings || [];
+        const ratings = gig.providerId?.ratings || [];
         return {
           ...gig,
           reviews: ratings.length,
-          sellerId: gig.sellerId?._id || gig.sellerId,
+          providerId: gig.providerId?._id || gig.providerId,
         };
       });
 
@@ -1475,10 +1481,10 @@ if (enableCluster && cluster.isPrimary) {
     try {
       const gigs = await Gig.find({ status: "open" })
         .select(
-          "title sellerName sellerId thumbnail description category price rating status createdAt"
+          "title providerName providerId thumbnail description category price rating status createdAt"
         )
         .populate({
-          path: "sellerId",
+          path: "providerId",
           select: "ratings",
         })
         .sort({ createdAt: -1 })
@@ -1486,11 +1492,11 @@ if (enableCluster && cluster.isPrimary) {
         .lean();
 
       const gigsWithReviews = gigs.map((gig) => {
-        const ratings = gig.sellerId?.ratings || [];
+        const ratings = gig.providerId?.ratings || [];
         return {
           ...gig,
           reviews: ratings.length,
-          sellerId: gig.sellerId?._id || gig.sellerId,
+          providerId: gig.providerId?._id || gig.providerId,
         };
       });
 
@@ -1520,7 +1526,7 @@ if (enableCluster && cluster.isPrimary) {
   app.put(
     "/api/gigs/:id",
     authMiddleware,
-    checkRole(["Seller", "Both"]),
+    checkRole(["Provider", "Both"]),
     checkGigOwner,
     upload.single("thumbnail"),
     [
@@ -1594,7 +1600,7 @@ if (enableCluster && cluster.isPrimary) {
   app.delete(
     "/api/gigs/:id",
     authMiddleware,
-    checkRole(["Seller", "Both"]),
+    checkRole(["Provider", "Both"]),
     checkGigOwner,
     async (req, res) => {
       try {
@@ -1639,10 +1645,10 @@ if (enableCluster && cluster.isPrimary) {
     }
   );
 
-  // Get Gigs by Seller
+  // Get Gigs by Provider (Seller)
   app.get("/api/users/:id/gigs", async (req, res) => {
     try {
-      const gigs = await Gig.find({ sellerId: req.params.id })
+      const gigs = await Gig.find({ providerId: req.params.id })
         .select(
           "title thumbnail description category price rating status createdAt"
         )
@@ -1655,7 +1661,7 @@ if (enableCluster && cluster.isPrimary) {
     }
   });
 
-  // Submit Application and Create Ticket
+  // Submit Application and Create Ticket (Freelancer Applies)
   app.post(
     "/api/gigs/:id/apply",
     authMiddleware,
@@ -1691,7 +1697,8 @@ if (enableCluster && cluster.isPrimary) {
             .json({ error: "This gig is closed for applications" });
         }
 
-        if (gig.sellerId === req.userId) {
+        // Provider cannot apply to own gig
+        if (gig.providerId === req.userId) {
           return res
             .status(400)
             .json({ error: "You cannot apply to your own gig" });
@@ -1721,7 +1728,7 @@ if (enableCluster && cluster.isPrimary) {
         const application = new Application({
           _id: applicationId,
           gigId: req.params.id,
-          applicantId: req.userId,
+          applicantId: req.userId, // Freelancer ID
           applicantName: req.user.fullName,
           coverLetter: req.body.coverLetter || "",
           status: "pending",
@@ -1732,8 +1739,8 @@ if (enableCluster && cluster.isPrimary) {
         const ticket = new Ticket({
           _id: ticketId,
           gigId: req.params.id,
-          sellerId: gig.sellerId,
-          buyerId: req.userId,
+          providerId: gig.providerId, // Provider (Payer)
+          freelancerId: req.userId, // Freelancer (Worker)
           status: "open",
           messages: [
             {
@@ -1757,13 +1764,13 @@ if (enableCluster && cluster.isPrimary) {
         });
         await ticket.save();
 
-        const seller = await User.findOne({ _id: gig.sellerId }).lean();
-        if (seller) {
+        const provider = await User.findOne({ _id: gig.providerId }).lean();
+        if (provider) {
           const mailOptions = {
             from: process.env.EMAIL_USER,
-            to: seller.email,
+            to: provider.email,
             subject: `New Application for "${gig.title}"`,
-            html: `<p>Dear ${seller.fullName},</p><p>${
+            html: `<p>Dear ${provider.fullName},</p><p>${
               req.user.fullName
             } has applied to your gig "${
               gig.title
@@ -1787,7 +1794,7 @@ if (enableCluster && cluster.isPrimary) {
     }
   );
 
-  // Get Applications for a Gig
+  // Get Applications for a Gig (Provider View)
   app.get(
     "/api/gigs/:id/applications",
     authMiddleware,
@@ -1806,7 +1813,7 @@ if (enableCluster && cluster.isPrimary) {
     }
   );
 
-  // Get User's Applications
+  // Get User's Applications (Freelancer View)
   app.get("/api/users/:id/applications", async (req, res) => {
     try {
       const authHeader = req.header("Authorization");
@@ -1883,9 +1890,10 @@ if (enableCluster && cluster.isPrimary) {
         application.status = status;
         await application.save();
 
+        // Ticket updates
         const ticket = await Ticket.findOne({
           gigId: req.params.id,
-          buyerId: application.applicantId,
+          freelancerId: application.applicantId,
         });
         if (ticket) {
           ticket.status = status === "accepted" ? "accepted" : ticket.status;
@@ -1897,20 +1905,23 @@ if (enableCluster && cluster.isPrimary) {
           await ticket.save();
         }
 
-        const seller = await User.findOne({ _id: gig.sellerId }).lean();
-        const buyer = await User.findOne({
+        const provider = await User.findOne({ _id: gig.providerId }).lean();
+        const freelancer = await User.findOne({
           _id: application.applicantId,
         }).lean();
-        if (seller && buyer) {
+
+        if (provider && freelancer) {
           const mailOptions = {
             from: process.env.EMAIL_USER,
-            to: buyer.email,
+            to: freelancer.email,
             subject: `Your Application for "${gig.title}" Was ${
               status.charAt(0).toUpperCase() + status.slice(1)
             }`,
-            html: `<p>Dear ${buyer.fullName},</p><p>Your application for "${
+            html: `<p>Dear ${
+              freelancer.fullName
+            },</p><p>Your application for "${
               gig.title
-            }" has been ${status} by ${seller.fullName}.</p>${
+            }" has been ${status} by ${provider.fullName}.</p>${
               status === "accepted"
                 ? `<p>Continue negotiation in your ticket: /tickets/${ticket._id}</p>`
                 : "<p>Explore other gigs on Gig Connect.</p>"
@@ -1955,11 +1966,11 @@ if (enableCluster && cluster.isPrimary) {
       }
 
       const tickets = await Ticket.find({
-        $or: [{ sellerId: userId }, { buyerId: userId }],
+        $or: [{ providerId: userId }, { freelancerId: userId }],
       })
         .populate("gigId", "title")
-        .populate("sellerId", "fullName email profilePicture")
-        .populate("buyerId", "fullName email profilePicture")
+        .populate("providerId", "fullName email profilePicture")
+        .populate("freelancerId", "fullName email profilePicture")
         .sort({ createdAt: -1 })
         .lean();
       res.json(tickets);
@@ -1978,8 +1989,8 @@ if (enableCluster && cluster.isPrimary) {
       try {
         const ticket = await Ticket.findOne({ _id: req.params.id })
           .populate("gigId", "title price")
-          .populate("sellerId", "fullName email profilePicture")
-          .populate("buyerId", "fullName email profilePicture")
+          .populate("providerId", "fullName email profilePicture")
+          .populate("freelancerId", "fullName email profilePicture")
           .lean();
         if (!ticket) {
           logger.error(`Ticket not found for ID: ${req.params.id}`);
@@ -2038,7 +2049,9 @@ if (enableCluster && cluster.isPrimary) {
         await ticket.save();
 
         const recipientId =
-          ticket.sellerId === req.userId ? ticket.buyerId : ticket.sellerId;
+          ticket.providerId === req.userId
+            ? ticket.freelancerId
+            : ticket.providerId;
         const recipient = await User.findOne({ _id: recipientId }).lean();
         if (recipient) {
           const mailOptions = {
@@ -2126,7 +2139,9 @@ if (enableCluster && cluster.isPrimary) {
         await ticket.save();
 
         const recipientId =
-          ticket.sellerId === req.userId ? ticket.buyerId : ticket.sellerId;
+          ticket.providerId === req.userId
+            ? ticket.freelancerId
+            : ticket.providerId;
         const recipient = await User.findOne({ _id: recipientId }).lean();
         if (recipient) {
           const mailOptions = {
@@ -2199,7 +2214,9 @@ if (enableCluster && cluster.isPrimary) {
         await ticket.save();
 
         const otherUserId =
-          ticket.sellerId === req.userId ? ticket.buyerId : ticket.sellerId;
+          ticket.providerId === req.userId
+            ? ticket.freelancerId
+            : ticket.providerId;
         const otherUser = await User.findOne({ _id: otherUserId }).lean();
         if (otherUser) {
           const mailOptions = {
@@ -2228,7 +2245,6 @@ if (enableCluster && cluster.isPrimary) {
     }
   );
 
-  // Accept Ticket Price
   // Accept Ticket Price
   app.patch(
     "/api/tickets/:id/accept-price",
@@ -2288,7 +2304,9 @@ if (enableCluster && cluster.isPrimary) {
         await ticket.save();
 
         const otherUserId =
-          ticket.sellerId === req.userId ? ticket.buyerId : ticket.sellerId;
+          ticket.providerId === req.userId
+            ? ticket.freelancerId
+            : ticket.providerId;
         const otherUser = await User.findOne({ _id: otherUserId }).lean();
 
         if (otherUser) {
@@ -2318,7 +2336,7 @@ if (enableCluster && cluster.isPrimary) {
     }
   );
 
-  // Mark Ticket as Paid
+  // Mark Ticket as Paid - ONLY PROVIDER CAN DO THIS
   app.patch(
     "/api/tickets/:id/paid",
     authMiddleware,
@@ -2332,10 +2350,11 @@ if (enableCluster && cluster.isPrimary) {
             .status(400)
             .json({ error: "Ticket must be accepted to mark as paid" });
         }
-        if (req.userId !== ticket.buyerId) {
+        // Only the Provider (Payer) can mark as paid
+        if (req.userId !== ticket.providerId) {
           return res
             .status(403)
-            .json({ error: "Only the buyer can mark the ticket as paid" });
+            .json({ error: "Only the Provider can mark the ticket as paid" });
         }
 
         ticket.status = "paid";
@@ -2356,14 +2375,16 @@ if (enableCluster && cluster.isPrimary) {
         });
         await ticket.save();
 
-        const seller = await User.findOne({ _id: ticket.sellerId }).lean();
-        if (seller) {
+        const freelancer = await User.findOne({
+          _id: ticket.freelancerId,
+        }).lean();
+        if (freelancer) {
           const mailOptions = {
             from: process.env.EMAIL_USER,
-            to: seller.email,
+            to: freelancer.email,
             subject: `Payment Confirmed for Gig "${ticket.gigId.title}"`,
             html: `<p>Dear ${
-              seller.fullName
+              freelancer.fullName
             },</p><p>Payment of ₹${ticket.agreedPrice.toLocaleString(
               "en-IN"
             )} for "${ticket.gigId.title}" has been confirmed by ${
@@ -2384,7 +2405,7 @@ if (enableCluster && cluster.isPrimary) {
     }
   );
 
-  // Mark Ticket as Completed
+  // Mark Ticket as Completed - ONLY FREELANCER CAN DO THIS
   app.patch(
     "/api/tickets/:id/complete",
     authMiddleware,
@@ -2398,9 +2419,10 @@ if (enableCluster && cluster.isPrimary) {
             .status(400)
             .json({ error: "Ticket must be paid to mark as completed" });
         }
-        if (req.userId !== ticket.sellerId) {
+        // Only the Freelancer (Worker) can mark as complete
+        if (req.userId !== ticket.freelancerId) {
           return res.status(403).json({
-            error: "Only the seller can mark the ticket as completed",
+            error: "Only the Freelancer can mark the ticket as completed",
           });
         }
 
@@ -2420,33 +2442,34 @@ if (enableCluster && cluster.isPrimary) {
         });
         await ticket.save();
 
-        const buyer = await User.findOne({ _id: ticket.buyerId }).lean();
-        if (buyer) {
+        const provider = await User.findOne({ _id: ticket.providerId }).lean();
+        if (provider) {
           const mailOptions = {
             from: process.env.EMAIL_USER,
-            to: buyer.email,
+            to: provider.email,
             subject: `Work Completed for Gig "${ticket.gigId.title}"`,
-            html: `<p>Dear ${buyer.fullName},</p><p>The work for "${ticket.gigId.title}" has been marked as completed by ${req.user.fullName}.</p><p>Review the work and provide feedback at: /tickets/${ticket._id}</p>`,
+            html: `<p>Dear ${provider.fullName},</p><p>The work for "${ticket.gigId.title}" has been marked as completed by ${req.user.fullName}.</p><p>Review the work and provide feedback at: /tickets/${ticket._id}</p>`,
           };
           await transporter.sendMail(mailOptions).catch((err) => {
             logger.error("Failed to send completion email:", err);
           });
         }
 
-        const seller = await User.findOne({ _id: ticket.sellerId });
-        if (seller) {
-          seller.gigsCompleted = (seller.gigsCompleted || 0) + 1;
-          seller.completionRate = Math.round(
-            (seller.gigsCompleted / (seller.totalGigs || 1)) * 100
+        // Update Freelancer Stats (credits, completed count)
+        const freelancer = await User.findOne({ _id: ticket.freelancerId });
+        if (freelancer) {
+          freelancer.gigsCompleted = (freelancer.gigsCompleted || 0) + 1;
+          freelancer.completionRate = Math.round(
+            (freelancer.gigsCompleted / (freelancer.totalGigs || 1)) * 100
           );
-          seller.credits = (seller.credits || 0) + ticket.agreedPrice;
-          seller.orderHistory.push({
+          freelancer.credits = (freelancer.credits || 0) + ticket.agreedPrice;
+          freelancer.orderHistory.push({
             title: ticket.gigId.title,
             status: "completed",
             earnings: ticket.agreedPrice,
             date: new Date(),
           });
-          await seller.save();
+          await freelancer.save();
         }
 
         ticketIo.to(req.params.id).emit("newMessage", ticket);
@@ -2495,38 +2518,26 @@ if (enableCluster && cluster.isPrimary) {
           read: false,
         });
 
-        if (rating && req.userId === ticket.buyerId) {
-          const seller = await User.findOne({ _id: ticket.sellerId });
-          if (seller) {
-            seller.ratings.push({
+        // If Provider (Payer) closes the ticket, rate the Freelancer
+        if (rating && req.userId === ticket.providerId) {
+          const freelancer = await User.findOne({ _id: ticket.freelancerId });
+          if (freelancer) {
+            freelancer.ratings.push({
               value: parseInt(rating),
               ticketId: ticket._id,
               giverId: req.userId,
               givenAt: new Date(),
             });
-            await seller.save();
-
-            const gig = await Gig.findOne({ _id: ticket.gigId });
-            if (gig) {
-              const ratings = await User.findOne({
-                _id: ticket.sellerId,
-              }).select("ratings");
-              gig.rating =
-                ratings.ratings.length > 0
-                  ? (
-                      ratings.ratings.reduce((sum, r) => sum + r.value, 0) /
-                      ratings.ratings.length
-                    ).toFixed(1)
-                  : 0;
-              await gig.save();
-            }
+            await freelancer.save();
           }
         }
 
         await ticket.save();
 
         const otherUserId =
-          ticket.sellerId === req.userId ? ticket.buyerId : ticket.sellerId;
+          ticket.providerId === req.userId
+            ? ticket.freelancerId
+            : ticket.providerId;
         const otherUser = await User.findOne({ _id: otherUserId }).lean();
         if (otherUser) {
           const mailOptions = {
@@ -2536,7 +2547,7 @@ if (enableCluster && cluster.isPrimary) {
             html: `<p>Dear ${otherUser.fullName},</p><p>The ticket for "${
               ticket.gigId.title
             }" has been closed by ${req.user.fullName}.</p>${
-              rating && req.userId === ticket.buyerId
+              rating && req.userId === ticket.providerId
                 ? `<p>You received a rating of ${rating}/5.</p>`
                 : ""
             }<p>View details at: /tickets/${ticket._id}</p>`,
@@ -2914,7 +2925,7 @@ if (enableCluster && cluster.isPrimary) {
         if (ticket.status === "closed") {
           return callback({ error: "Ticket is closed" });
         }
-        if (![ticket.sellerId, ticket.buyerId].includes(socket.userId)) {
+        if (![ticket.providerId, ticket.freelancerId].includes(socket.userId)) {
           return callback({ error: "Unauthorized to send message" });
         }
 
@@ -2962,7 +2973,7 @@ if (enableCluster && cluster.isPrimary) {
           }
           return;
         }
-        if (![ticket.sellerId, ticket.buyerId].includes(socket.userId)) {
+        if (![ticket.providerId, ticket.freelancerId].includes(socket.userId)) {
           if (callback && typeof callback === "function") {
             return callback({ error: "Unauthorized to mark messages read" });
           }
