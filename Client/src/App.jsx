@@ -221,9 +221,12 @@ const App = () => {
           path="/tickets/:id"
           element={
             <ProtectedRoute>
-              <PageWrapper dynamicTitle="Ticket #:id">
+              <EnhancedPageWrapper
+                titleResolver={ticketTitleResolver}
+                fallbackTitle="Ticket Details"
+              >
                 <Ticket />
-              </PageWrapper>
+              </EnhancedPageWrapper>
             </ProtectedRoute>
           }
         />
@@ -232,9 +235,12 @@ const App = () => {
           path="/users/:id"
           element={
             <ProtectedRoute>
-              <PageWrapper dynamicTitle="User Profile">
+              <EnhancedPageWrapper
+                titleResolver={userTitleResolver}
+                fallbackTitle="User Profile"
+              >
                 <UserProfile />
-              </PageWrapper>
+              </EnhancedPageWrapper>
             </ProtectedRoute>
           }
         />
