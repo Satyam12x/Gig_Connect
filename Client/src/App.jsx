@@ -9,6 +9,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
+import PageWrapper from './components/PageWrapper';
 
 // Pages
 import LandingPage from "./Pages/LandingPage";
@@ -71,7 +72,9 @@ const App = () => {
           path="/home"
           element={
             <ProtectedRoute>
+              <PageWrapper>
               <Home />
+              </PageWrapper>
             </ProtectedRoute>
           }
         />
@@ -79,15 +82,20 @@ const App = () => {
           path="/profile"
           element={
             <ProtectedRoute>
+              <PageWrapper>
               <Profile />
+              </PageWrapper>
             </ProtectedRoute>
           }
         />
         <Route
           path="/create-gig"
           element={
+            
             <ProtectedRoute>
+              <PageWrapper>
               <CreateGig />
+              </PageWrapper>
             </ProtectedRoute>
           }
         />
@@ -95,7 +103,9 @@ const App = () => {
           path="/gigs"
           element={
             <ProtectedRoute>
+              <PageWrapper>
               <Gigs />
+              </PageWrapper>
             </ProtectedRoute>
           }
         />
@@ -111,7 +121,9 @@ const App = () => {
           path="/tickets"
           element={
             <ProtectedRoute>
+              <PageWrapper>
               <Tickets />
+              </PageWrapper>
             </ProtectedRoute>
           }
         />
@@ -127,7 +139,9 @@ const App = () => {
           path="/users/:id"
           element={
             <ProtectedRoute>
+              <PageWrapper>
               <UserProfile />
+              </PageWrapper>
             </ProtectedRoute>
           }
         />
@@ -135,7 +149,9 @@ const App = () => {
           path="/global-chat"
           element={
             <ProtectedRoute>
+              <PageWrapper>
               <GlobalChat />
+              </PageWrapper>
             </ProtectedRoute>
           }
         />
