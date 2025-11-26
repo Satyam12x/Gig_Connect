@@ -27,6 +27,7 @@ import {
   SortDesc,
   Eye,
   Lock,
+  CircleDot,
 } from "lucide-react";
 
 import Navbar from "../components/Navbar";
@@ -55,6 +56,44 @@ const formatINR = (amount) => {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(n);
+};
+
+// Status badge component
+const GigStatusBadge = ({ status }) => {
+  const statusConfig = {
+    open: {
+      color: "bg-green-100 text-green-700 border-green-200",
+      label: "Open",
+      icon: CircleDot,
+    },
+    in_progress: {
+      color: "bg-yellow-100 text-yellow-700 border-yellow-200",
+      label: "In Progress",
+      icon: Clock,
+    },
+    completed: {
+      color: "bg-blue-100 text-blue-700 border-blue-200",
+      label: "Completed",
+      icon: CheckCircle,
+    },
+    closed: {
+      color: "bg-gray-100 text-gray-600 border-gray-200",
+      label: "Closed",
+      icon: Lock,
+    },
+  };
+
+  const config = statusConfig[status] || statusConfig.open;
+  const Icon = config.icon;
+
+  return (
+    <div
+      className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold border ${config.color}`}
+    >
+      <Icon size={12} />
+      {config.label}
+    </div>
+  );
 };
 
 // --- SKELETON COMPONENTS ---
@@ -877,8 +916,9 @@ const Home = () => {
             ) : (
               filteredGigs.map((gig) => {
                 const isFav = favorites.has(gig._id);
-                const status = getApplicationStatus(gig._id);
+                const applicationStatus = getApplicationStatus(gig._id);
                 const isClosed = gig.status === "closed";
+                const isInProgress = gig.status === "in_progress";
 
                 return (
                   <div
@@ -901,14 +941,29 @@ const Home = () => {
                         </div>
                       )}
 
-                      {/* Badges */}
+                      {/* Category Badge */}
                       <div className="absolute top-3 left-3 bg-white/90 backdrop-blur text-[#1A2A4F] text-xs font-bold px-3 py-1.5 rounded-lg">
                         {gig.category}
                       </div>
 
-                      {isClosed && (
-                        <div className="absolute top-3 right-14 bg-gray-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1">
-                          <Lock size={12} /> Closed
+                      {/* Status Badge - Shows for closed or in_progress */}
+                      {(isClosed || isInProgress) && (
+                        <div
+                          className={`absolute top-3 right-14 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 ${
+                            isClosed
+                              ? "bg-gray-800 text-white"
+                              : "bg-yellow-500 text-white"
+                          }`}
+                        >
+                          {isClosed ? (
+                            <>
+                              <Lock size={12} /> Closed
+                            </>
+                          ) : (
+                            <>
+                              <Clock size={12} /> In Progress
+                            </>
+                          )}
                         </div>
                       )}
 
@@ -935,9 +990,14 @@ const Home = () => {
 
                     {/* Content */}
                     <div className="px-2 pb-2 flex flex-col flex-1">
-                      <h3 className="font-bold text-lg text-[#1A2A4F] line-clamp-1 mb-2 group-hover:text-blue-600 transition-colors">
-                        {gig.title}
-                      </h3>
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-bold text-lg text-[#1A2A4F] line-clamp-1 group-hover:text-blue-600 transition-colors flex-1">
+                          {gig.title}
+                        </h3>
+                        {/* Status indicator badge */}
+                        <GigStatusBadge status={gig.status || "open"} />
+                      </div>
+
                       <p className="text-gray-500 text-sm line-clamp-2 mb-4">
                         {gig.description}
                       </p>
@@ -963,31 +1023,33 @@ const Home = () => {
                         </div>
                       )}
 
-                      {status && (
+                      {applicationStatus && (
                         <p
                           className={`text-sm text-center font-semibold mb-4 ${
-                            status === "accepted"
+                            applicationStatus === "accepted"
                               ? "text-green-600"
-                              : status === "rejected"
+                              : applicationStatus === "rejected"
                               ? "text-red-600"
                               : "text-yellow-600"
                           }`}
                         >
                           Application:{" "}
-                          {status.charAt(0).toUpperCase() + status.slice(1)}
+                          {applicationStatus.charAt(0).toUpperCase() +
+                            applicationStatus.slice(1)}
                         </p>
                       )}
 
+                      {/* Provider Info - FIXED */}
                       <div className="mt-auto flex items-center justify-between pt-4 border-t border-gray-50">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-full bg-gray-100 text-[#1A2A4F] flex items-center justify-center text-xs font-bold border border-gray-200 overflow-hidden">
                             {gig.providerName
-                              ? gig.providerName.charAt(0)
-                              : "U"}
+                              ? gig.providerName.charAt(0).toUpperCase()
+                              : "?"}
                           </div>
                           <div className="flex flex-col">
                             <span className="text-sm font-bold text-gray-700 leading-none">
-                              {gig.sellerName || "Unknown Provider"}
+                              {gig.providerName || "Unknown"}
                             </span>
                             <span className="text-[10px] text-gray-400 font-medium uppercase mt-0.5">
                               Provider
@@ -1001,7 +1063,11 @@ const Home = () => {
                           <span className="block w-full py-3 text-center rounded-xl font-semibold bg-gray-100 text-gray-500 cursor-not-allowed">
                             Applications Closed
                           </span>
-                        ) : status ? (
+                        ) : isInProgress ? (
+                          <span className="block w-full py-3 text-center rounded-xl font-semibold bg-yellow-50 text-yellow-700 border border-yellow-200">
+                            Work In Progress
+                          </span>
+                        ) : applicationStatus ? (
                           <span className="block w-full py-3 text-center rounded-xl font-semibold bg-gray-100 text-gray-600">
                             Application Submitted
                           </span>

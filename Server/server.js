@@ -2332,7 +2332,7 @@ if (enableCluster && cluster.isPrimary) {
 
   // Accept Ticket Price
   app.patch(
-    "/api/tickets/:id/accept-price-and-applicant",
+    "/api/tickets/:id/accept-price",
     authMiddleware,
     checkTicketParticipant,
     async (req, res) => {
@@ -2340,22 +2340,23 @@ if (enableCluster && cluster.isPrimary) {
         const ticket = await Ticket.findOne({ _id: req.params.id });
         if (!ticket) return res.status(404).json({ error: "Ticket not found" });
 
-        // Only Provider can accept
+        // Only Provider can accept price
         if (req.userId !== ticket.providerId) {
           return res.status(403).json({
-            error:
-              "Only the Provider can accept the price and hire the freelancer",
+            error: "Only the Provider can accept the price",
           });
         }
 
-        if (ticket.status !== "negotiating" && ticket.status !== "open") {
+        if (!["open", "negotiating"].includes(ticket.status)) {
           return res.status(400).json({
-            error: "Can only accept during negotiation phase",
+            error: "Can only accept price during negotiation phase",
           });
         }
 
         if (!ticket.agreedPrice) {
-          return res.status(400).json({ error: "No agreed price set" });
+          return res
+            .status(400)
+            .json({ error: "No price has been proposed yet" });
         }
 
         // 1. Update Ticket Status
@@ -2364,7 +2365,7 @@ if (enableCluster && cluster.isPrimary) {
           _id: crypto.randomBytes(16).toString("hex"),
           action: `Price of ₹${ticket.agreedPrice.toLocaleString(
             "en-IN"
-          )} accepted and freelancer hired by ${req.user.fullName}`,
+          )} accepted by ${req.user.fullName}`,
           timestamp: new Date(),
         });
         ticket.messages.push({
@@ -2373,30 +2374,29 @@ if (enableCluster && cluster.isPrimary) {
           senderName: req.user.fullName,
           content: `✅ Price accepted at ₹${ticket.agreedPrice.toLocaleString(
             "en-IN"
-          )}. Freelancer has been hired for this gig!`,
+          )}. Freelancer has been hired!`,
           timestamp: new Date(),
           read: false,
         });
 
-        // 2. Find and Accept the Application
+        // 2. Accept the Application
         const application = await Application.findOne({
           gigId: ticket.gigId,
           applicantId: ticket.freelancerId,
         });
-
         if (application && application.status === "pending") {
           application.status = "accepted";
           await application.save();
         }
 
-        // 3. Update Gig Status to "in_progress"
+        // 3. CLOSE THE GIG - No more applications allowed
         const gig = await Gig.findOne({ _id: ticket.gigId });
         if (gig) {
-          gig.status = "in_progress";
+          gig.status = "closed";
           await gig.save();
         }
 
-        // 4. Reject Other Pending Applications
+        // 4. Reject all other pending applications for this gig
         const otherApplications = await Application.find({
           gigId: ticket.gigId,
           applicantId: { $ne: ticket.freelancerId },
@@ -2407,13 +2407,37 @@ if (enableCluster && cluster.isPrimary) {
           app.status = "rejected";
           await app.save();
 
+          // Update their tickets too
+          const otherTicket = await Ticket.findOne({
+            gigId: ticket.gigId,
+            freelancerId: app.applicantId,
+          });
+          if (otherTicket && otherTicket.status !== "closed") {
+            otherTicket.status = "closed";
+            otherTicket.timeline.push({
+              _id: crypto.randomBytes(16).toString("hex"),
+              action: "Ticket closed - Another freelancer was selected",
+              timestamp: new Date(),
+            });
+            otherTicket.messages.push({
+              _id: crypto.randomBytes(16).toString("hex"),
+              senderId: "system",
+              senderName: "System",
+              content:
+                "This gig has been assigned to another freelancer. Your application was not selected.",
+              timestamp: new Date(),
+              read: false,
+            });
+            await otherTicket.save();
+          }
+
           // Notify rejected applicants
           const applicant = await User.findOne({ _id: app.applicantId }).lean();
           if (applicant) {
             const mailOptions = {
               from: process.env.EMAIL_USER,
               to: applicant.email,
-              subject: `Application Update for Gig "${gig.title}"`,
+              subject: `Application Update for "${gig.title}"`,
               html: `<p>Dear ${applicant.fullName},</p><p>The provider has selected another freelancer for "${gig.title}". Your application has been closed.</p><p>Explore other gigs on Gig Connect.</p>`,
             };
             await transporter.sendMail(mailOptions).catch((err) => {
@@ -2439,9 +2463,7 @@ if (enableCluster && cluster.isPrimary) {
               gig.title
             }" at ₹${ticket.agreedPrice.toLocaleString(
               "en-IN"
-            )}.</p><p>The provider will proceed with payment. Continue the discussion in your ticket: /tickets/${
-              ticket._id
-            }</p>`,
+            )}.</p><p>The provider will proceed with payment. Continue the discussion in your ticket.</p>`,
           };
           await transporter.sendMail(mailOptions).catch((err) => {
             logger.error("Failed to send hiring email:", err);
@@ -2449,9 +2471,13 @@ if (enableCluster && cluster.isPrimary) {
         }
 
         ticketIo.to(req.params.id).emit("newMessage", ticket);
-        res.json({ success: true, ticket });
+        res.json({
+          success: true,
+          ticket,
+          message: "Price accepted and gig closed to new applications",
+        });
       } catch (err) {
-        logger.error("Accept price and applicant error:", err);
+        logger.error("Accept price error:", err);
         res.status(500).json({ error: "Server error", details: err.message });
       }
     }
