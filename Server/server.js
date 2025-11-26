@@ -1963,62 +1963,155 @@ if (enableCluster && cluster.isPrimary) {
             .status(400)
             .json({ error: "Application does not belong to this gig" });
         }
+
+        const gig = await Gig.findOne({ _id: req.params.id });
+        if (!gig) return res.status(404).json({ error: "Gig not found" });
+
+        // Check if gig is already closed (someone else was accepted)
+        if (gig.status === "closed" && status === "accepted") {
+          return res.status(400).json({
+            error:
+              "This gig is already closed. Another freelancer has been accepted.",
+          });
+        }
+
+        // Check if application is already processed
         if (application.status !== "pending") {
           return res
             .status(400)
             .json({ error: `Application is already ${application.status}` });
         }
 
-        const gig = await Gig.findOne({ _id: req.params.id }).lean();
-        if (!gig) return res.status(404).json({ error: "Gig not found" });
-
         application.status = status;
         await application.save();
 
-        // Ticket updates
+        // Update the ticket for this applicant
         const ticket = await Ticket.findOne({
           gigId: req.params.id,
           freelancerId: application.applicantId,
         });
+
         if (ticket) {
-          ticket.status = status === "accepted" ? "accepted" : ticket.status;
-          ticket.timeline.push({
-            _id: crypto.randomBytes(16).toString("hex"),
-            action: `Application ${status} by ${req.user.fullName}`,
-            timestamp: new Date(),
-          });
+          if (status === "accepted") {
+            ticket.status = "accepted";
+            ticket.timeline.push({
+              _id: crypto.randomBytes(16).toString("hex"),
+              action: `Application accepted by ${req.user.fullName}`,
+              timestamp: new Date(),
+            });
+            ticket.messages.push({
+              _id: crypto.randomBytes(16).toString("hex"),
+              senderId: req.userId,
+              senderName: req.user.fullName,
+              content: `✅ Your application has been accepted! Let's discuss the details and finalize the price.`,
+              timestamp: new Date(),
+              read: false,
+            });
+          } else {
+            ticket.status = "closed";
+            ticket.timeline.push({
+              _id: crypto.randomBytes(16).toString("hex"),
+              action: `Application rejected by ${req.user.fullName}`,
+              timestamp: new Date(),
+            });
+            ticket.messages.push({
+              _id: crypto.randomBytes(16).toString("hex"),
+              senderId: req.userId,
+              senderName: req.user.fullName,
+              content: `Your application has been declined. Thank you for your interest.`,
+              timestamp: new Date(),
+              read: false,
+            });
+          }
           await ticket.save();
+          ticketIo.to(ticket._id).emit("newMessage", ticket);
         }
 
-        const provider = await User.findOne({ _id: gig.providerId }).lean();
-        const freelancer = await User.findOne({
-          _id: application.applicantId,
-        }).lean();
+        // If accepted, close the gig and reject other applications
+        if (status === "accepted") {
+          // Close the gig
+          gig.status = "closed";
+          await gig.save();
 
-        if (provider && freelancer) {
-          const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: freelancer.email,
-            subject: `Your Application for "${gig.title}" Was ${
-              status.charAt(0).toUpperCase() + status.slice(1)
-            }`,
-            html: `<p>Dear ${
-              freelancer.fullName
-            },</p><p>Your application for "${
-              gig.title
-            }" has been ${status} by ${provider.fullName}.</p>${
-              status === "accepted"
-                ? `<p>Continue negotiation in your ticket: /tickets/${ticket._id}</p>`
-                : "<p>Explore other gigs on Gig Connect.</p>"
-            }`,
-          };
-          await transporter.sendMail(mailOptions).catch((err) => {
-            logger.error("Failed to send application status email:", err);
+          // Reject all other pending applications
+          const otherApplications = await Application.find({
+            gigId: req.params.id,
+            applicantId: { $ne: application.applicantId },
+            status: "pending",
           });
+
+          for (const app of otherApplications) {
+            app.status = "rejected";
+            await app.save();
+
+            // Update their tickets
+            const otherTicket = await Ticket.findOne({
+              gigId: req.params.id,
+              freelancerId: app.applicantId,
+            });
+
+            if (otherTicket && otherTicket.status !== "closed") {
+              otherTicket.status = "closed";
+              otherTicket.timeline.push({
+                _id: crypto.randomBytes(16).toString("hex"),
+                action: "Ticket closed - Another freelancer was selected",
+                timestamp: new Date(),
+              });
+              otherTicket.messages.push({
+                _id: crypto.randomBytes(16).toString("hex"),
+                senderId: "system",
+                senderName: "System",
+                content:
+                  "This gig has been assigned to another freelancer. Your application was not selected.",
+                timestamp: new Date(),
+                read: false,
+              });
+              await otherTicket.save();
+              ticketIo.to(otherTicket._id).emit("newMessage", otherTicket);
+            }
+
+            // Notify rejected applicant
+            const applicant = await User.findOne({
+              _id: app.applicantId,
+            }).lean();
+            if (applicant) {
+              const mailOptions = {
+                from: process.env.EMAIL_USER,
+                to: applicant.email,
+                subject: `Application Update for "${gig.title}"`,
+                html: `<p>Dear ${applicant.fullName},</p><p>The provider has selected another freelancer for "${gig.title}". Your application has been closed.</p><p>Explore other gigs on Gig Connect.</p>`,
+              };
+              await transporter.sendMail(mailOptions).catch((err) => {
+                logger.error("Failed to send rejection email:", err);
+              });
+            }
+          }
+
+          // Notify accepted freelancer
+          const freelancer = await User.findOne({
+            _id: application.applicantId,
+          }).lean();
+          if (freelancer) {
+            const mailOptions = {
+              from: process.env.EMAIL_USER,
+              to: freelancer.email,
+              subject: `Application Accepted for "${gig.title}"`,
+              html: `<p>Dear ${freelancer.fullName},</p><p>Congratulations! Your application for "${gig.title}" has been accepted.</p><p>Please continue the discussion in your ticket to finalize the details.</p>`,
+            };
+            await transporter.sendMail(mailOptions).catch((err) => {
+              logger.error("Failed to send acceptance email:", err);
+            });
+          }
+
+          logger.info(
+            `Gig ${gig._id} closed. Freelancer ${application.applicantId} accepted.`
+          );
         }
 
-        logger.info(`Application status updated: ${req.params.applicationId}`);
-        res.json({ success: true, application });
+        logger.info(
+          `Application status updated: ${req.params.applicationId} -> ${status}`
+        );
+        res.json({ success: true, application, gigStatus: gig.status });
       } catch (err) {
         logger.error("Application status update error:", err);
         res.status(500).json({ error: "Server error", details: err.message });
@@ -2337,7 +2430,9 @@ if (enableCluster && cluster.isPrimary) {
     checkTicketParticipant,
     async (req, res) => {
       try {
-        const ticket = await Ticket.findOne({ _id: req.params.id });
+        const ticket = await Ticket.findOne({ _id: req.params.id }).populate(
+          "gigId"
+        );
         if (!ticket) return res.status(404).json({ error: "Ticket not found" });
 
         // Only Provider can accept price
@@ -2347,9 +2442,9 @@ if (enableCluster && cluster.isPrimary) {
           });
         }
 
-        if (!["open", "negotiating"].includes(ticket.status)) {
+        if (!["open", "negotiating", "accepted"].includes(ticket.status)) {
           return res.status(400).json({
-            error: "Can only accept price during negotiation phase",
+            error: "Cannot accept price at this stage",
           });
         }
 
@@ -2359,7 +2454,21 @@ if (enableCluster && cluster.isPrimary) {
             .json({ error: "No price has been proposed yet" });
         }
 
-        // 1. Update Ticket Status
+        const gig = await Gig.findOne({
+          _id: ticket.gigId._id || ticket.gigId,
+        });
+        if (!gig) return res.status(404).json({ error: "Gig not found" });
+
+        // Check if gig is already closed by another acceptance
+        if (gig.status === "closed" && ticket.status !== "accepted") {
+          return res.status(400).json({
+            error:
+              "This gig is already closed. Another freelancer has been accepted.",
+          });
+        }
+
+        // Update Ticket Status
+        const wasAlreadyAccepted = ticket.status === "accepted";
         ticket.status = "accepted";
         ticket.timeline.push({
           _id: crypto.randomBytes(16).toString("hex"),
@@ -2374,14 +2483,14 @@ if (enableCluster && cluster.isPrimary) {
           senderName: req.user.fullName,
           content: `✅ Price accepted at ₹${ticket.agreedPrice.toLocaleString(
             "en-IN"
-          )}. Freelancer has been hired!`,
+          )}. You have been hired for this gig!`,
           timestamp: new Date(),
           read: false,
         });
 
-        // 2. Accept the Application
+        // Accept the Application if not already
         const application = await Application.findOne({
-          gigId: ticket.gigId,
+          gigId: ticket.gigId._id || ticket.gigId,
           applicantId: ticket.freelancerId,
         });
         if (application && application.status === "pending") {
@@ -2389,60 +2498,61 @@ if (enableCluster && cluster.isPrimary) {
           await application.save();
         }
 
-        // 3. CLOSE THE GIG - No more applications allowed
-        const gig = await Gig.findOne({ _id: ticket.gigId });
-        if (gig) {
+        // Close the gig if not already closed
+        if (gig.status !== "closed") {
           gig.status = "closed";
           await gig.save();
-        }
 
-        // 4. Reject all other pending applications for this gig
-        const otherApplications = await Application.find({
-          gigId: ticket.gigId,
-          applicantId: { $ne: ticket.freelancerId },
-          status: "pending",
-        });
-
-        for (const app of otherApplications) {
-          app.status = "rejected";
-          await app.save();
-
-          // Update their tickets too
-          const otherTicket = await Ticket.findOne({
-            gigId: ticket.gigId,
-            freelancerId: app.applicantId,
+          // Reject all other pending applications
+          const otherApplications = await Application.find({
+            gigId: gig._id,
+            applicantId: { $ne: ticket.freelancerId },
+            status: "pending",
           });
-          if (otherTicket && otherTicket.status !== "closed") {
-            otherTicket.status = "closed";
-            otherTicket.timeline.push({
-              _id: crypto.randomBytes(16).toString("hex"),
-              action: "Ticket closed - Another freelancer was selected",
-              timestamp: new Date(),
-            });
-            otherTicket.messages.push({
-              _id: crypto.randomBytes(16).toString("hex"),
-              senderId: "system",
-              senderName: "System",
-              content:
-                "This gig has been assigned to another freelancer. Your application was not selected.",
-              timestamp: new Date(),
-              read: false,
-            });
-            await otherTicket.save();
-          }
 
-          // Notify rejected applicants
-          const applicant = await User.findOne({ _id: app.applicantId }).lean();
-          if (applicant) {
-            const mailOptions = {
-              from: process.env.EMAIL_USER,
-              to: applicant.email,
-              subject: `Application Update for "${gig.title}"`,
-              html: `<p>Dear ${applicant.fullName},</p><p>The provider has selected another freelancer for "${gig.title}". Your application has been closed.</p><p>Explore other gigs on Gig Connect.</p>`,
-            };
-            await transporter.sendMail(mailOptions).catch((err) => {
-              logger.error("Failed to send rejection email:", err);
+          for (const app of otherApplications) {
+            app.status = "rejected";
+            await app.save();
+
+            const otherTicket = await Ticket.findOne({
+              gigId: gig._id,
+              freelancerId: app.applicantId,
             });
+
+            if (otherTicket && otherTicket.status !== "closed") {
+              otherTicket.status = "closed";
+              otherTicket.timeline.push({
+                _id: crypto.randomBytes(16).toString("hex"),
+                action: "Ticket closed - Another freelancer was selected",
+                timestamp: new Date(),
+              });
+              otherTicket.messages.push({
+                _id: crypto.randomBytes(16).toString("hex"),
+                senderId: "system",
+                senderName: "System",
+                content:
+                  "This gig has been assigned to another freelancer. Your application was not selected.",
+                timestamp: new Date(),
+                read: false,
+              });
+              await otherTicket.save();
+              ticketIo.to(otherTicket._id).emit("newMessage", otherTicket);
+            }
+
+            const applicant = await User.findOne({
+              _id: app.applicantId,
+            }).lean();
+            if (applicant) {
+              const mailOptions = {
+                from: process.env.EMAIL_USER,
+                to: applicant.email,
+                subject: `Application Update for "${gig.title}"`,
+                html: `<p>Dear ${applicant.fullName},</p><p>The provider has selected another freelancer for "${gig.title}". Your application has been closed.</p>`,
+              };
+              await transporter.sendMail(mailOptions).catch((err) => {
+                logger.error("Failed to send rejection email:", err);
+              });
+            }
           }
         }
 
@@ -2452,7 +2562,7 @@ if (enableCluster && cluster.isPrimary) {
         const freelancer = await User.findOne({
           _id: ticket.freelancerId,
         }).lean();
-        if (freelancer) {
+        if (freelancer && !wasAlreadyAccepted) {
           const mailOptions = {
             from: process.env.EMAIL_USER,
             to: freelancer.email,
@@ -2463,7 +2573,7 @@ if (enableCluster && cluster.isPrimary) {
               gig.title
             }" at ₹${ticket.agreedPrice.toLocaleString(
               "en-IN"
-            )}.</p><p>The provider will proceed with payment. Continue the discussion in your ticket.</p>`,
+            )}.</p><p>The provider will proceed with payment.</p>`,
           };
           await transporter.sendMail(mailOptions).catch((err) => {
             logger.error("Failed to send hiring email:", err);
@@ -2474,7 +2584,7 @@ if (enableCluster && cluster.isPrimary) {
         res.json({
           success: true,
           ticket,
-          message: "Price accepted and gig closed to new applications",
+          message: "Price accepted. Gig closed to new applications.",
         });
       } catch (err) {
         logger.error("Accept price error:", err);

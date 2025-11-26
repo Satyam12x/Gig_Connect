@@ -27,7 +27,13 @@ import {
   RefreshCw,
   Briefcase,
   Laptop,
-  XCircle,
+  CreditCard,
+  Award,
+  Lock,
+  Unlock,
+  ChevronDown,
+  ChevronUp,
+  ArrowRight,
 } from "lucide-react";
 import io from "socket.io-client";
 import { debounce } from "lodash";
@@ -35,6 +41,349 @@ import moment from "moment";
 
 const API_BASE = "http://localhost:5000/api";
 const SOCKET_URL = "http://localhost:5000";
+
+// Collapsible Status Flow Component
+const StatusFlow = ({ currentStatus, isCollapsed, onToggle }) => {
+  const statuses = [
+    { key: "open", label: "Open", icon: Unlock },
+    { key: "negotiating", label: "Negotiating", icon: TrendingUp },
+    { key: "accepted", label: "Accepted", icon: Check },
+    { key: "paid", label: "Paid", icon: CreditCard },
+    { key: "completed", label: "Completed", icon: Package },
+    { key: "closed", label: "Closed", icon: Shield },
+  ];
+
+  const currentIndex = statuses.findIndex((s) => s.key === currentStatus);
+  const currentStatusData = statuses.find((s) => s.key === currentStatus);
+  const CurrentIcon = currentStatusData?.icon || AlertCircle;
+
+  return (
+    <div className="bg-white rounded-xl border-2 border-gray-100 overflow-hidden">
+      {/* Header - Always Visible */}
+      <button
+        onClick={onToggle}
+        className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#1A2A4F] text-white flex items-center justify-center">
+            <CurrentIcon className="h-5 w-5" />
+          </div>
+          <div className="text-left">
+            <p className="text-xs font-semibold text-gray-500 uppercase">
+              Current Status
+            </p>
+            <p className="text-lg font-bold text-[#1A2A4F]">
+              {currentStatus.replace("_", " ").toUpperCase()}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">
+            Step {currentIndex + 1} of {statuses.length}
+          </span>
+          {isCollapsed ? (
+            <ChevronDown className="h-5 w-5 text-gray-400" />
+          ) : (
+            <ChevronUp className="h-5 w-5 text-gray-400" />
+          )}
+        </div>
+      </button>
+
+      {/* Expandable Content */}
+      <AnimatePresence>
+        {!isCollapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4">
+              <div className="flex items-center justify-between pt-2">
+                {statuses.map((status, idx) => {
+                  const Icon = status.icon;
+                  const isActive = idx <= currentIndex;
+                  const isCurrent = status.key === currentStatus;
+
+                  return (
+                    <React.Fragment key={status.key}>
+                      <div className="flex flex-col items-center">
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                            isCurrent
+                              ? "bg-[#1A2A4F] text-white ring-4 ring-[#1A2A4F]/20"
+                              : isActive
+                              ? "bg-green-500 text-white"
+                              : "bg-gray-200 text-gray-400"
+                          }`}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <span
+                          className={`text-[10px] mt-1 font-semibold text-center ${
+                            isCurrent
+                              ? "text-[#1A2A4F]"
+                              : isActive
+                              ? "text-green-600"
+                              : "text-gray-400"
+                          }`}
+                        >
+                          {status.label}
+                        </span>
+                      </div>
+                      {idx < statuses.length - 1 && (
+                        <div
+                          className={`flex-1 h-1 mx-1 rounded ${
+                            idx < currentIndex ? "bg-green-500" : "bg-gray-200"
+                          }`}
+                        />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+// Next Action Card Component
+const NextActionCard = ({
+  ticket,
+  isProvider,
+  onProposePrice,
+  onAcceptPrice,
+  onConfirmPayment,
+  onMarkComplete,
+  onCloseTicket,
+  isCollapsed,
+  onToggle,
+}) => {
+  const getNextAction = () => {
+    switch (ticket.status) {
+      case "open":
+      case "negotiating":
+        if (!ticket.agreedPrice) {
+          return {
+            title: "Propose a Price",
+            description: "Start by proposing a price for this work",
+            action: onProposePrice,
+            buttonText: "Propose Price",
+            icon: DollarSign,
+            color: "blue",
+          };
+        }
+        if (isProvider) {
+          return {
+            title: "Review Price Proposal",
+            description: `₹${ticket.agreedPrice?.toLocaleString(
+              "en-IN"
+            )} proposed. Accept to hire the freelancer and close the gig.`,
+            action: onAcceptPrice,
+            buttonText: "Accept & Hire",
+            icon: Check,
+            color: "green",
+            secondary: {
+              text: "Counter Offer",
+              action: onProposePrice,
+            },
+          };
+        } else {
+          return {
+            title: "Waiting for Provider",
+            description: `Your price of ₹${ticket.agreedPrice?.toLocaleString(
+              "en-IN"
+            )} is pending approval`,
+            icon: Clock,
+            color: "yellow",
+            waiting: true,
+            secondary: {
+              text: "Update Price",
+              action: onProposePrice,
+            },
+          };
+        }
+
+      case "accepted":
+        if (isProvider) {
+          return {
+            title: "Confirm Payment",
+            description: `Please confirm payment of ₹${ticket.agreedPrice?.toLocaleString(
+              "en-IN"
+            )} to the freelancer`,
+            action: onConfirmPayment,
+            buttonText: "Confirm Payment",
+            icon: CreditCard,
+            color: "blue",
+          };
+        } else {
+          return {
+            title: "Waiting for Payment",
+            description:
+              "You've been hired! Waiting for provider to confirm payment.",
+            icon: Clock,
+            color: "yellow",
+            waiting: true,
+          };
+        }
+
+      case "paid":
+        if (!isProvider) {
+          return {
+            title: "Complete the Work",
+            description:
+              "Payment confirmed! Complete the work and mark it as done.",
+            action: onMarkComplete,
+            buttonText: "Mark as Complete",
+            icon: Package,
+            color: "green",
+          };
+        } else {
+          return {
+            title: "Work in Progress",
+            description: "Freelancer is working on your project.",
+            icon: Clock,
+            color: "blue",
+            waiting: true,
+          };
+        }
+
+      case "completed":
+        if (isProvider) {
+          return {
+            title: "Review & Close",
+            description: "Work is complete! Review and close the ticket.",
+            action: onCloseTicket,
+            buttonText: "Close & Rate",
+            icon: Award,
+            color: "purple",
+          };
+        } else {
+          return {
+            title: "Waiting for Review",
+            description: "Provider is reviewing your work.",
+            icon: Clock,
+            color: "yellow",
+            waiting: true,
+          };
+        }
+
+      case "closed":
+        return {
+          title: "Ticket Closed",
+          description: "This ticket has been completed and closed.",
+          icon: Shield,
+          color: "gray",
+          completed: true,
+        };
+
+      default:
+        return null;
+    }
+  };
+
+  const action = getNextAction();
+  if (!action) return null;
+
+  const colorClasses = {
+    blue: "bg-blue-50 border-blue-200 text-blue-800",
+    green: "bg-green-50 border-green-200 text-green-800",
+    yellow: "bg-yellow-50 border-yellow-200 text-yellow-800",
+    purple: "bg-purple-50 border-purple-200 text-purple-800",
+    gray: "bg-gray-50 border-gray-200 text-gray-600",
+  };
+
+  const buttonClasses = {
+    blue: "bg-blue-600 hover:bg-blue-700",
+    green: "bg-green-600 hover:bg-green-700",
+    purple: "bg-purple-600 hover:bg-purple-700",
+  };
+
+  const Icon = action.icon;
+
+  return (
+    <div
+      className={`rounded-xl border-2 overflow-hidden ${
+        colorClasses[action.color]
+      }`}
+    >
+      {/* Header */}
+      <button
+        onClick={onToggle}
+        className="w-full p-4 flex items-center justify-between hover:bg-white/50 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-white/80 flex items-center justify-center">
+            <Icon className="h-5 w-5" />
+          </div>
+          <div className="text-left">
+            <p className="text-xs font-semibold uppercase opacity-70">
+              Next Action
+            </p>
+            <p className="text-lg font-bold">{action.title}</p>
+          </div>
+        </div>
+        {isCollapsed ? (
+          <ChevronDown className="h-5 w-5 opacity-50" />
+        ) : (
+          <ChevronUp className="h-5 w-5 opacity-50" />
+        )}
+      </button>
+
+      {/* Expandable Content */}
+      <AnimatePresence>
+        {!isCollapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4">
+              <p className="text-sm opacity-80 mb-4">{action.description}</p>
+
+              {!action.waiting && !action.completed && action.action && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={action.action}
+                    className={`flex-1 px-5 py-2.5 text-white rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${
+                      buttonClasses[action.color]
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {action.buttonText}
+                  </button>
+                  {action.secondary && (
+                    <button
+                      onClick={action.secondary.action}
+                      className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-all"
+                    >
+                      {action.secondary.text}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {action.waiting && action.secondary && (
+                <button
+                  onClick={action.secondary.action}
+                  className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-all"
+                >
+                  {action.secondary.text}
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 const Ticket = () => {
   const { id } = useParams();
@@ -68,6 +417,8 @@ const Ticket = () => {
   // UI state
   const [showSidebar, setShowSidebar] = useState(true);
   const [typingUser, setTypingUser] = useState(null);
+  const [isStatusCollapsed, setIsStatusCollapsed] = useState(false);
+  const [isActionCollapsed, setIsActionCollapsed] = useState(false);
 
   // Refs
   const messagesContainerRef = useRef(null);
@@ -191,9 +542,9 @@ const Ticket = () => {
   useEffect(() => {
     if (message && socketRef.current && ticket) {
       const userName =
-        userId === ticket.freelancerId._id
+        userId === ticket.freelancerId?._id
           ? ticket.freelancerId.fullName
-          : ticket.providerId.fullName;
+          : ticket.providerId?.fullName;
 
       socketRef.current.emit("typing", {
         ticketId: id,
@@ -353,10 +704,16 @@ const Ticket = () => {
 
   const handleAcceptPrice = async () => {
     setConfirmAction({
-      title: "Accept Price & Application",
-      message: `Are you sure you want to accept the price of ₹${ticket.agreedPrice?.toLocaleString(
+      title: "Accept Price & Hire Freelancer",
+      message: `By accepting ₹${ticket.agreedPrice?.toLocaleString(
         "en-IN"
-      )}? This will change the gig status to "In Progress" and accept the freelancer's application.`,
+      )}, you will:
+
+• Hire this freelancer for the job
+• Close the gig to new applications
+• Reject all other pending applications
+
+This action cannot be undone.`,
       action: async () => {
         try {
           const { data } = await axios.patch(
@@ -370,7 +727,7 @@ const Ticket = () => {
           );
           setTicket(data.ticket);
           toast.success(
-            "Price accepted! Gig is now in progress. Provider can now proceed with payment."
+            "Freelancer hired! Gig closed. Please proceed with payment."
           );
         } catch (error) {
           toast.error(error.response?.data?.error || "Failed to accept price");
@@ -380,21 +737,15 @@ const Ticket = () => {
     setIsConfirmModalOpen(true);
   };
 
-  const handleCounterOffer = () => {
-    setShowPriceInput(true);
-    setTimeout(() => {
-      const inputElement = document.querySelector('input[type="number"]');
-      if (inputElement) inputElement.focus();
-    }, 100);
-  };
-
-  // Payment handler (Provider pays Freelancer)
+  // Payment handler
   const handleConfirmPayment = async () => {
     setConfirmAction({
       title: "Confirm Payment",
       message: `Please confirm that you have paid ₹${ticket.agreedPrice?.toLocaleString(
         "en-IN"
-      )} to the Freelancer.`,
+      )} to the Freelancer.
+
+After confirmation, the freelancer will be notified to start the work.`,
       action: async () => {
         try {
           const { data } = await axios.patch(
@@ -407,7 +758,7 @@ const Ticket = () => {
             }
           );
           setTicket(data.ticket);
-          toast.success("Payment confirmed! Freelancer can start the work.");
+          toast.success("Payment confirmed! Freelancer can now start working.");
         } catch (error) {
           toast.error(
             error.response?.data?.error || "Failed to confirm payment"
@@ -418,12 +769,12 @@ const Ticket = () => {
     setIsConfirmModalOpen(true);
   };
 
-  // Completion handler (Freelancer marks work as done)
+  // Completion handler
   const handleMarkComplete = async () => {
     setConfirmAction({
-      title: "Mark as Complete",
+      title: "Mark Work as Complete",
       message:
-        "Are you sure the work is complete? This will notify the Provider for final review.",
+        "Are you sure you have completed all the work? The provider will be notified to review and close the ticket.",
       action: async () => {
         try {
           const { data } = await axios.patch(
@@ -437,7 +788,7 @@ const Ticket = () => {
           );
           setTicket(data.ticket);
           toast.success(
-            "Work marked as complete! Waiting for Provider confirmation."
+            "Work marked as complete! Waiting for provider review."
           );
         } catch (error) {
           toast.error(
@@ -449,7 +800,7 @@ const Ticket = () => {
     setIsConfirmModalOpen(true);
   };
 
-  // Close ticket handler (Provider rates Freelancer)
+  // Close ticket handler
   const handleCloseTicket = async () => {
     const isProvider = userId === ticket.providerId?._id;
     if (isProvider && ticket.status === "completed" && rating === 0) {
@@ -469,7 +820,7 @@ const Ticket = () => {
       setTicket(data.ticket);
       setIsRatingModalOpen(false);
       setRating(0);
-      toast.success("Ticket closed successfully! Gig has been archived.");
+      toast.success("Ticket closed successfully!");
       setTimeout(() => navigate("/gigs"), 2000);
     } catch (error) {
       toast.error(error.response?.data?.error || "Failed to close ticket");
@@ -493,75 +844,15 @@ const Ticket = () => {
 
   const getStatusIcon = (status) => {
     const icons = {
-      open: MessageSquare,
+      open: Unlock,
       negotiating: TrendingUp,
       accepted: CheckCircle,
-      paid: DollarSign,
+      paid: CreditCard,
       completed: Package,
       closed: Shield,
     };
     const Icon = icons[status] || AlertCircle;
     return <Icon className="h-4 w-4" />;
-  };
-
-  // Action buttons logic
-  const getActionButtons = () => {
-    if (!ticket || ticket.status === "closed") return [];
-
-    const isProvider = userId === ticket.providerId?._id;
-    const isFreelancer = userId === ticket.freelancerId?._id;
-    const actions = [];
-
-    if (["open", "negotiating"].includes(ticket.status)) {
-      actions.push({
-        id: "propose-price",
-        label: "Propose New Price",
-        icon: DollarSign,
-        variant: "primary",
-        onClick: () => setShowPriceInput(!showPriceInput),
-      });
-    }
-
-    if (ticket.status === "accepted" && isProvider) {
-      actions.push({
-        id: "confirm-payment",
-        label: "Confirm Payment",
-        icon: DollarSign,
-        variant: "primary",
-        onClick: handleConfirmPayment,
-      });
-    }
-
-    if (ticket.status === "paid" && isFreelancer) {
-      actions.push({
-        id: "mark-complete",
-        label: "Mark as Complete",
-        icon: Package,
-        variant: "success",
-        onClick: handleMarkComplete,
-      });
-    }
-
-    if (ticket.status === "completed") {
-      actions.push({
-        id: "close-ticket",
-        label: isProvider ? "Close & Rate" : "Close Ticket",
-        icon: Shield,
-        variant: "secondary",
-        onClick: handleCloseTicket,
-      });
-    }
-    return actions;
-  };
-
-  const findLastPriceMessageIndex = () => {
-    if (!ticket?.messages) return -1;
-    for (let i = ticket.messages.length - 1; i >= 0; i--) {
-      if (ticket.messages[i].content.includes("Price of ₹")) {
-        return i;
-      }
-    }
-    return -1;
   };
 
   if (loading) {
@@ -599,7 +890,6 @@ const Ticket = () => {
   }
 
   const isProvider = userId === ticket.providerId?._id;
-  const lastPriceMsgIndex = findLastPriceMessageIndex();
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
@@ -626,9 +916,11 @@ const Ticket = () => {
                   {getStatusIcon(ticket.status)}
                   {ticket.status.replace("_", " ").toUpperCase()}
                 </span>
-                <span className="text-xs text-gray-500 font-medium">
-                  ID: {ticket._id?.slice(-8)}
-                </span>
+                {ticket.agreedPrice && (
+                  <span className="text-sm font-bold text-green-600">
+                    ₹{ticket.agreedPrice.toLocaleString("en-IN")}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -654,6 +946,29 @@ const Ticket = () => {
       <div className="flex flex-1 overflow-hidden">
         {/* Main Chat Area */}
         <div className="flex flex-col flex-1 min-w-0">
+          {/* Collapsible Status & Action Section */}
+          <div className="px-4 sm:px-6 py-3 bg-white border-b border-gray-100 space-y-3">
+            <StatusFlow
+              currentStatus={ticket.status}
+              isCollapsed={isStatusCollapsed}
+              onToggle={() => setIsStatusCollapsed(!isStatusCollapsed)}
+            />
+
+            {ticket.status !== "closed" && (
+              <NextActionCard
+                ticket={ticket}
+                isProvider={isProvider}
+                onProposePrice={() => setShowPriceInput(true)}
+                onAcceptPrice={handleAcceptPrice}
+                onConfirmPayment={handleConfirmPayment}
+                onMarkComplete={handleMarkComplete}
+                onCloseTicket={handleCloseTicket}
+                isCollapsed={isActionCollapsed}
+                onToggle={() => setIsActionCollapsed(!isActionCollapsed)}
+              />
+            )}
+          </div>
+
           {/* Search Bar */}
           <div className="px-4 sm:px-6 py-3 bg-white border-b-2 border-gray-200 flex-shrink-0">
             <div className="relative max-w-2xl">
@@ -695,19 +1010,29 @@ const Ticket = () => {
                   <p className="text-xl font-bold text-gray-700 mb-2">
                     No messages yet
                   </p>
+                  <p className="text-gray-500">
+                    Start the conversation by sending a message
+                  </p>
                 </div>
               </div>
             ) : (
               <div className="space-y-4 max-w-4xl mx-auto">
                 {ticket.messages.map((msg, idx) => {
                   const isOwn = msg.senderId === userId;
+                  const isSystem = msg.senderId === "system";
                   const showAvatar =
                     idx === 0 ||
                     ticket.messages[idx - 1].senderId !== msg.senderId;
-                  const isLastPriceProposal = idx === lastPriceMsgIndex;
-                  const showPriceActions =
-                    isLastPriceProposal &&
-                    ["open", "negotiating"].includes(ticket.status);
+
+                  if (isSystem) {
+                    return (
+                      <div key={msg._id} className="flex justify-center my-4">
+                        <div className="bg-gray-100 text-gray-600 text-sm px-4 py-2 rounded-full border border-gray-200">
+                          {msg.content}
+                        </div>
+                      </div>
+                    );
+                  }
 
                   return (
                     <motion.div
@@ -799,42 +1124,6 @@ const Ticket = () => {
                               </span>
                             )}
                           </div>
-
-                          {showPriceActions && (
-                            <div className="mt-4 pt-3 border-t border-gray-300/30 flex flex-col gap-2">
-                              {isOwn ? (
-                                <div className="text-xs italic opacity-80 flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  Waiting for response...
-                                </div>
-                              ) : (
-                                <div className="flex flex-wrap gap-2">
-                                  <button
-                                    onClick={handleAcceptPrice}
-                                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm ${
-                                      isOwn
-                                        ? "bg-white text-[#1A2A4F]"
-                                        : "bg-green-600 text-white hover:bg-green-700"
-                                    }`}
-                                  >
-                                    <Check className="h-3.5 w-3.5" />
-                                    Accept Price
-                                  </button>
-                                  <button
-                                    onClick={handleCounterOffer}
-                                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm ${
-                                      isOwn
-                                        ? "bg-white/20 text-white hover:bg-white/30"
-                                        : "bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300"
-                                    }`}
-                                  >
-                                    <RefreshCw className="h-3.5 w-3.5" />
-                                    Counter Offer
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
                         </div>
                       </div>
 
@@ -883,12 +1172,15 @@ const Ticket = () => {
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mb-4 bg-white rounded-xl p-4 border-2 border-[#1A2A4F] shadow-lg"
+                    className="mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border-2 border-blue-200"
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm font-bold text-[#1A2A4F]">
-                        {agreedPrice ? "Confirm Amount" : "Enter New Amount"}
-                      </label>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="h-5 w-5 text-blue-600" />
+                        <label className="text-sm font-bold text-blue-900">
+                          Propose Your Price
+                        </label>
+                      </div>
                       <button
                         onClick={() => {
                           setShowPriceInput(false);
@@ -901,24 +1193,33 @@ const Ticket = () => {
                     </div>
                     <div className="flex gap-2">
                       <div className="relative flex-1">
-                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">
+                          ₹
+                        </span>
                         <input
                           type="number"
                           value={agreedPrice}
                           onChange={(e) => setAgreedPrice(e.target.value)}
-                          placeholder="0.00"
-                          className="w-full pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#1A2A4F] font-bold"
+                          placeholder="Enter amount"
+                          className="w-full pl-8 pr-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-blue-500 font-bold text-lg"
                           autoFocus
                         />
                       </div>
                       <button
                         onClick={handleProposePrice}
                         disabled={!agreedPrice || parseFloat(agreedPrice) <= 0}
-                        className="px-6 py-2 bg-[#1A2A4F] text-white rounded-lg font-bold hover:bg-[#2A3A5F] disabled:opacity-50 transition-all"
+                        className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-all flex items-center gap-2"
                       >
-                        Send Offer
+                        <Send className="h-4 w-4" />
+                        Send
                       </button>
                     </div>
+                    {ticket.gigId?.price && (
+                      <p className="text-xs text-blue-600 mt-2">
+                        Original budget: ₹
+                        {ticket.gigId.price.toLocaleString("en-IN")}
+                      </p>
+                    )}
                   </motion.div>
                 )}
 
@@ -1010,7 +1311,7 @@ const Ticket = () => {
             <div className="border-t-2 border-gray-200 bg-gray-50 p-6 text-center flex-shrink-0">
               <p className="text-sm text-gray-600 flex items-center justify-center gap-2 font-semibold">
                 <Shield className="h-5 w-5" />
-                This ticket is closed. The gig has been archived.
+                This ticket is closed.
               </p>
             </div>
           )}
@@ -1047,7 +1348,13 @@ const Ticket = () => {
                   </h4>
                   <div className="space-y-4">
                     {/* Provider Card */}
-                    <div className="flex items-start gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors">
+                    <div
+                      className={`flex items-start gap-4 p-3 rounded-xl transition-colors ${
+                        isProvider
+                          ? "bg-blue-50 border-2 border-blue-200"
+                          : "hover:bg-gray-50"
+                      }`}
+                    >
                       <div className="h-12 w-12 rounded-full bg-gradient-to-br from-[#1A2A4F] to-[#2A3A5F] flex items-center justify-center text-white font-bold flex-shrink-0 text-lg shadow-md overflow-hidden">
                         {ticket.providerId?.profilePicture ? (
                           <img
@@ -1060,9 +1367,16 @@ const Ticket = () => {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-900 text-base truncate">
-                          {ticket.providerId?.fullName || "Unknown Provider"}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-gray-900 text-base truncate">
+                            {ticket.providerId?.fullName || "Unknown Provider"}
+                          </p>
+                          {isProvider && (
+                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
+                              You
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-gray-500 font-semibold uppercase flex items-center gap-1">
                           <Briefcase size={12} /> Provider (Payer)
                         </p>
@@ -1070,7 +1384,13 @@ const Ticket = () => {
                     </div>
 
                     {/* Freelancer Card */}
-                    <div className="flex items-start gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors">
+                    <div
+                      className={`flex items-start gap-4 p-3 rounded-xl transition-colors ${
+                        !isProvider
+                          ? "bg-purple-50 border-2 border-purple-200"
+                          : "hover:bg-gray-50"
+                      }`}
+                    >
                       <div className="h-12 w-12 rounded-full bg-gradient-to-br from-purple-600 to-purple-700 flex items-center justify-center text-white font-bold flex-shrink-0 text-lg shadow-md overflow-hidden">
                         {ticket.freelancerId?.profilePicture ? (
                           <img
@@ -1083,10 +1403,17 @@ const Ticket = () => {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-900 text-base truncate">
-                          {ticket.freelancerId?.fullName ||
-                            "Unknown Freelancer"}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-gray-900 text-base truncate">
+                            {ticket.freelancerId?.fullName ||
+                              "Unknown Freelancer"}
+                          </p>
+                          {!isProvider && (
+                            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-semibold">
+                              You
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-gray-500 font-semibold uppercase flex items-center gap-1">
                           <Laptop size={12} /> Freelancer (Worker)
                         </p>
@@ -1095,98 +1422,67 @@ const Ticket = () => {
                   </div>
                 </div>
 
-                {/* Ticket Details */}
+                {/* Financial Details */}
                 <div className="p-6 border-b-2 border-gray-200">
                   <h4 className="text-xs font-bold text-gray-500 uppercase mb-4">
-                    Ticket Status
+                    Financial Details
                   </h4>
                   <div className="space-y-4">
-                    <div>
-                      <p className="text-xs font-bold text-gray-500 uppercase mb-2">
-                        Current State
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <p className="text-xs font-bold text-gray-500 uppercase mb-1">
+                        Original Budget
                       </p>
-                      <span
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold border-2 ${getStatusColor(
-                          ticket.status
-                        )}`}
-                      >
-                        {getStatusIcon(ticket.status)}
-                        {ticket.status.replace("_", " ").toUpperCase()}
-                      </span>
+                      <p className="text-xl font-bold text-gray-700">
+                        ₹{ticket.gigId?.price?.toLocaleString("en-IN") || "N/A"}
+                      </p>
                     </div>
-                    <div>
-                      <p className="text-xs font-bold text-gray-500 uppercase mb-2">
+                    <div className="bg-green-50 rounded-xl p-4 border-2 border-green-100">
+                      <p className="text-xs font-bold text-green-700 uppercase mb-1">
                         Agreed Amount
                       </p>
-                      <p className="text-2xl font-black text-[#1A2A4F]">
+                      <p className="text-2xl font-black text-green-800">
                         {ticket.agreedPrice
                           ? `₹${ticket.agreedPrice.toLocaleString("en-IN")}`
-                          : "Not set"}
+                          : "Not set yet"}
                       </p>
                     </div>
-                    {ticket.gigId?.status && (
-                      <div>
-                        <p className="text-xs font-bold text-gray-500 uppercase mb-2">
-                          Gig Status
-                        </p>
-                        <span
-                          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold ${
-                            ticket.gigId.status === "open"
-                              ? "bg-blue-100 text-blue-800"
-                              : ticket.gigId.status === "in_progress"
-                              ? "bg-yellow-100 text-yellow-800"
-                              : ticket.gigId.status === "completed"
-                              ? "bg-green-100 text-green-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}
-                        >
-                          {ticket.gigId.status === "in_progress"
-                            ? "In Progress"
-                            : ticket.gigId.status.toUpperCase()}
+                  </div>
+                </div>
+
+                {/* Gig Info */}
+                <div className="p-6">
+                  <h4 className="text-xs font-bold text-gray-500 uppercase mb-4">
+                    Gig Information
+                  </h4>
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <p className="font-bold text-gray-900 mb-2">
+                      {ticket.gigId?.title || "Untitled Gig"}
+                    </p>
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <Lock className="h-4 w-4" />
+                      <span>
+                        Gig Status:{" "}
+                        <span className="font-semibold capitalize">
+                          {ticket.gigId?.status || "Unknown"}
                         </span>
-                      </div>
-                    )}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Actions */}
+              {/* Quick Actions */}
               <div className="p-6 border-t-2 border-gray-200 bg-gray-50 flex-shrink-0">
-                <div className="space-y-3">
-                  {getActionButtons().map((action) => {
-                    const Icon = action.icon;
-                    const variantClasses = {
-                      primary: "bg-[#1A2A4F] text-white hover:bg-[#2A3A5F]",
-                      success: "bg-green-600 text-white hover:bg-green-700",
-                      secondary: "bg-gray-200 text-gray-700 hover:bg-gray-300",
-                    };
-
-                    return (
-                      <button
-                        key={action.id}
-                        onClick={action.onClick}
-                        className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all shadow-md ${
-                          variantClasses[action.variant] ||
-                          variantClasses.primary
-                        }`}
-                      >
-                        <Icon className="h-5 w-5" />
-                        {action.label}
-                      </button>
-                    );
-                  })}
-
-                  <button
-                    onClick={() => {
-                      setIsDetailsModalOpen(true);
-                      setShowSidebar(false);
-                    }}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-all"
-                  >
-                    <Info className="h-5 w-5" />
-                    Full Details
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    setIsDetailsModalOpen(true);
+                    setShowSidebar(false);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-all"
+                >
+                  <Info className="h-5 w-5" />
+                  View Full Details
+                </button>
               </div>
             </motion.aside>
           )}
@@ -1234,7 +1530,7 @@ const Ticket = () => {
                   <X className="h-6 w-6" />
                 </button>
               </div>
-              <p className="text-sm text-gray-600 mb-8 leading-relaxed">
+              <p className="text-sm text-gray-600 mb-8 leading-relaxed whitespace-pre-line">
                 {confirmAction.message}
               </p>
               <div className="flex gap-3">
@@ -1282,7 +1578,7 @@ const Ticket = () => {
             >
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-2xl font-black text-[#1A2A4F]">
-                  Rate Your Experience
+                  Rate the Freelancer
                 </h3>
                 <button
                   onClick={() => setIsRatingModalOpen(false)}
@@ -1292,8 +1588,9 @@ const Ticket = () => {
                 </button>
               </div>
               <p className="text-sm text-gray-600 mb-8 leading-relaxed">
-                Please rate the Freelancer before closing the ticket. Your
-                feedback helps improve our community.
+                How was your experience working with{" "}
+                {ticket.freelancerId?.fullName}? Your feedback helps our
+                community.
               </p>
               <div className="flex justify-center gap-3 mb-8">
                 {[1, 2, 3, 4, 5].map((star) => (
@@ -1363,70 +1660,86 @@ const Ticket = () => {
                   <X className="h-6 w-6 text-gray-500" />
                 </button>
               </div>
+
               <div className="space-y-6">
+                {/* Status Timeline */}
                 <div className="bg-gray-50 p-4 rounded-xl">
-                  <p className="font-bold text-lg mb-2">
-                    Gig: {ticket.gigId?.title}
+                  <h4 className="font-bold text-gray-900 mb-3">
+                    Status Timeline
+                  </h4>
+                  <div className="space-y-3 max-h-60 overflow-y-auto">
+                    {ticket.timeline?.map((item, idx) => (
+                      <div key={idx} className="flex items-start gap-3">
+                        <div className="w-2 h-2 rounded-full bg-[#1A2A4F] mt-2"></div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">
+                            {item.action}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {moment(item.timestamp).format(
+                              "MMM D, YYYY h:mm A"
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Gig Info */}
+                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                  <h4 className="font-bold text-blue-900 mb-2">Gig Details</h4>
+                  <p className="font-semibold text-gray-900">
+                    {ticket.gigId?.title}
                   </p>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-gray-600 mt-1">
                     Original Budget: ₹
                     {ticket.gigId?.price?.toLocaleString("en-IN")}
                   </p>
-                  {ticket.gigId?.status && (
-                    <p className="text-sm text-gray-600 mt-1">
-                      Gig Status:{" "}
-                      <span className="font-semibold capitalize">
-                        {ticket.gigId.status.replace("_", " ")}
-                      </span>
-                    </p>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-blue-50 rounded-xl">
-                    <p className="font-bold text-blue-900">Provider (Payer)</p>
-                    <p className="text-sm">{ticket.providerId?.fullName}</p>
-                  </div>
-                  <div className="p-4 bg-purple-50 rounded-xl">
-                    <p className="font-bold text-purple-900">
-                      Freelancer (Worker)
-                    </p>
-                    <p className="text-sm">{ticket.freelancerId?.fullName}</p>
-                  </div>
-                </div>
-                <div className="bg-green-50 p-4 rounded-xl border-2 border-green-100">
-                  <p className="font-bold text-green-900">Current Status</p>
-                  <p className="capitalize font-medium">
-                    {ticket.status.replace("_", " ")}
+                  <p className="text-sm text-gray-600">
+                    Gig Status:{" "}
+                    <span className="font-semibold capitalize">
+                      {ticket.gigId?.status}
+                    </span>
                   </p>
-                  {ticket.agreedPrice && (
-                    <p className="text-sm mt-2">
-                      Agreed Price: ₹
-                      {ticket.agreedPrice.toLocaleString("en-IN")}
-                    </p>
-                  )}
                 </div>
-                {ticket.priceHistory && ticket.priceHistory.length > 0 && (
-                  <div className="bg-yellow-50 p-4 rounded-xl border-2 border-yellow-100">
-                    <p className="font-bold text-yellow-900 mb-3">
-                      Price Negotiation History
+
+                {/* Participants */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-gray-50 rounded-xl">
+                    <p className="font-bold text-gray-900">Provider</p>
+                    <p className="text-sm text-gray-600">
+                      {ticket.providerId?.fullName}
                     </p>
-                    <div className="space-y-2">
-                      {ticket.priceHistory.map((price, idx) => (
-                        <div
-                          key={idx}
-                          className="text-sm flex justify-between items-center"
-                        >
-                          <span className="font-medium">
-                            {price.proposedByName}
-                          </span>
-                          <span className="font-bold text-[#1A2A4F]">
-                            ₹{price.price.toLocaleString("en-IN")}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                    <p className="text-xs text-gray-400">
+                      {ticket.providerId?.email}
+                    </p>
                   </div>
-                )}
+                  <div className="p-4 bg-gray-50 rounded-xl">
+                    <p className="font-bold text-gray-900">Freelancer</p>
+                    <p className="text-sm text-gray-600">
+                      {ticket.freelancerId?.fullName}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {ticket.freelancerId?.email}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Financial */}
+                <div className="bg-green-50 p-4 rounded-xl border border-green-100">
+                  <h4 className="font-bold text-green-900 mb-2">
+                    Financial Summary
+                  </h4>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Agreed Price:</span>
+                    <span className="text-2xl font-black text-green-800">
+                      {ticket.agreedPrice
+                        ? `₹${ticket.agreedPrice.toLocaleString("en-IN")}`
+                        : "Not set"}
+                    </span>
+                  </div>
+                </div>
               </div>
             </motion.div>
           </motion.div>

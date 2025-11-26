@@ -21,11 +21,53 @@ import {
   X,
   Check,
   Lock,
+  Unlock,
+  ArrowRight,
+  Ticket,
+  Loader2,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
 const API_BASE = "http://localhost:5000/api";
+
+// Status Badge Component
+const StatusBadge = ({ status }) => {
+  const config = {
+    open: {
+      color: "bg-green-100 text-green-700 border-green-200",
+      icon: Unlock,
+      label: "Open for Applications",
+    },
+    in_progress: {
+      color: "bg-yellow-100 text-yellow-700 border-yellow-200",
+      icon: Clock,
+      label: "In Progress",
+    },
+    closed: {
+      color: "bg-gray-100 text-gray-600 border-gray-200",
+      icon: Lock,
+      label: "Closed",
+    },
+    completed: {
+      color: "bg-blue-100 text-blue-700 border-blue-200",
+      icon: Check,
+      label: "Completed",
+    },
+  };
+
+  const cfg = config[status] || config.open;
+  const Icon = cfg.icon;
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${cfg.color}`}
+    >
+      <Icon className="h-3 w-3" />
+      {cfg.label}
+    </span>
+  );
+};
 
 const GigDetails = () => {
   const { id } = useParams();
@@ -34,18 +76,21 @@ const GigDetails = () => {
   // State
   const [gig, setGig] = useState(null);
   const [userApplications, setUserApplications] = useState([]);
+  const [userTickets, setUserTickets] = useState([]);
   const [userId, setUserId] = useState(null);
   const [role, setRole] = useState(null);
   const [isVerified, setIsVerified] = useState(false);
   const [applicants, setApplicants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isApplying, setIsApplying] = useState(false);
+  const [isProcessing, setIsProcessing] = useState({});
   const [error, setError] = useState(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
 
   // Modal State
   const [showApplicantsModal, setShowApplicantsModal] = useState(false);
+  const [confirmModal, setConfirmModal] = useState(null);
 
   // Fetch user info from token
   useEffect(() => {
@@ -90,14 +135,18 @@ const GigDetails = () => {
         const token = localStorage.getItem("token");
 
         if (userId && token) {
-          // 1. Get User's own applications
           requests.push(
             axios.get(`${API_BASE}/users/${userId}/applications`, {
               headers: { Authorization: `Bearer ${token}` },
             })
           );
 
-          // 2. If Seller, get ALL applications for this gig
+          requests.push(
+            axios.get(`${API_BASE}/users/${userId}/tickets`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+          );
+
           if (fetchedGig && fetchedGig.providerId === userId) {
             requests.push(
               axios.get(`${API_BASE}/gigs/${id}/applications`, {
@@ -110,24 +159,25 @@ const GigDetails = () => {
         } else {
           requests.push(
             Promise.resolve({ data: [] }),
+            Promise.resolve({ data: [] }),
             Promise.resolve({ data: [] })
           );
         }
 
-        const [userAppsRes, gigAppsRes] = await Promise.all(requests);
+        const [userAppsRes, userTicketsRes, gigAppsRes] = await Promise.all(
+          requests
+        );
 
-        // Process User's applications
         setUserApplications(
           userAppsRes.data.map((app) => ({
-            gigId: app.gigId._id || app.gigId,
+            gigId: app.gigId?._id || app.gigId,
             status: app.status,
             _id: app._id,
           })) || []
         );
 
-        // Process All Applicants (for provider)
+        setUserTickets(userTicketsRes.data || []);
         setApplicants(gigAppsRes.data || []);
-
         setLoading(false);
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -140,6 +190,25 @@ const GigDetails = () => {
       fetchData();
     }
   }, [id, userId]);
+
+  // Find ticket for this gig (for freelancer)
+  const getTicketForGig = () => {
+    return userTickets.find(
+      (ticket) =>
+        (ticket.gigId?._id || ticket.gigId) === id &&
+        (ticket.providerId?._id === userId ||
+          ticket.freelancerId?._id === userId)
+    );
+  };
+
+  // Find ticket for specific applicant (for provider)
+  const getTicketForApplicant = (applicantId) => {
+    return userTickets.find(
+      (ticket) =>
+        (ticket.gigId?._id || ticket.gigId) === id &&
+        (ticket.freelancerId?._id || ticket.freelancerId) === applicantId
+    );
+  };
 
   // --- HANDLERS ---
 
@@ -155,6 +224,11 @@ const GigDetails = () => {
       return;
     }
 
+    if (role === "Provider") {
+      toast.error("Only Freelancers can apply for gigs.");
+      return;
+    }
+
     setIsApplying(true);
     try {
       const response = await axios.post(
@@ -166,13 +240,11 @@ const GigDetails = () => {
       );
       toast.success("Application submitted! Redirecting to ticket...");
 
-      // Update local state
       setUserApplications([
         ...userApplications,
         { gigId: id, status: "pending", _id: response.data.application._id },
       ]);
 
-      // Go to ticket
       navigate(`/tickets/${response.data.ticketId}`);
     } catch (error) {
       console.error("Error applying:", error);
@@ -181,52 +253,57 @@ const GigDetails = () => {
     }
   };
 
-  const handleApplicationStatus = async (applicationId, status) => {
-    const token = localStorage.getItem("token");
+  const handleApplicationStatus = async (
+    applicationId,
+    applicantId,
+    status
+  ) => {
+    setIsProcessing((prev) => ({ ...prev, [applicationId]: true }));
+
     try {
-      // 1. Update Application Status
-      await axios.patch(
+      const response = await axios.patch(
         `${API_BASE}/gigs/${id}/applications/${applicationId}`,
         { status },
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
 
-      toast.success(`Application ${status}!`);
+      toast.success(
+        status === "accepted"
+          ? "Freelancer accepted! Gig is now closed."
+          : "Application rejected."
+      );
 
-      // 2. Update Local Applicants State
+      // Update local state
       setApplicants((prev) =>
         prev.map((app) =>
           app._id === applicationId ? { ...app, status } : app
         )
       );
 
-      // --- LOGIC TO CLOSE GIG IF ACCEPTED ---
       if (status === "accepted") {
-        try {
-          // Update Gig Status to 'closed'
-          await axios.put(
-            `${API_BASE}/gigs/${id}`,
-            { status: "closed" },
-            {
-              headers: { Authorization: `Bearer ${token}` },
-            }
-          );
+        // Update gig status locally
+        setGig((prev) => ({ ...prev, status: "closed" }));
 
-          // Update Local Gig State
-          setGig((prev) => ({ ...prev, status: "closed" }));
-          toast.success("Gig has been marked as Closed.");
-        } catch (updateError) {
-          console.error("Failed to close gig:", updateError);
-          toast.error(
-            "Applicant accepted, but failed to close gig automatically."
-          );
-        }
+        // Update other applicants to rejected
+        setApplicants((prev) =>
+          prev.map((app) =>
+            app._id !== applicationId && app.status === "pending"
+              ? { ...app, status: "rejected" }
+              : app
+          )
+        );
       }
+
+      setConfirmModal(null);
     } catch (error) {
-      console.error("Error updating status:", error);
-      toast.error(error.response?.data?.error || "Failed to update.");
+      console.error("Error updating application:", error);
+      toast.error(
+        error.response?.data?.error || "Failed to update application."
+      );
+    } finally {
+      setIsProcessing((prev) => ({ ...prev, [applicationId]: false }));
     }
   };
 
@@ -237,12 +314,16 @@ const GigDetails = () => {
         await navigator.share({ title: gig.title, url });
         toast.success("Shared successfully!");
       } catch (err) {
-        // Ignore abort errors
+        // Ignore
       }
     } else {
       navigator.clipboard.writeText(url);
       toast.success("Link copied to clipboard!");
     }
+  };
+
+  const handleGoToTicket = (ticketId) => {
+    navigate(`/tickets/${ticketId}`);
   };
 
   // Image Navigation
@@ -254,7 +335,7 @@ const GigDetails = () => {
   const prevImage = () =>
     setCurrentImageIndex((p) => (p - 1 + images.length) % images.length);
 
-  // --- RENDER HELPERS ---
+  // --- RENDER ---
 
   if (loading) {
     return (
@@ -302,8 +383,13 @@ const GigDetails = () => {
 
   const userApplication = userApplications.find((app) => app.gigId === id);
   const hasApplied = !!userApplication;
+  const existingTicket = getTicketForGig();
   const isClosed = gig.status === "closed";
   const isOwner = gig.providerId === userId;
+  const acceptedApplicant = applicants.find((app) => app.status === "accepted");
+  const pendingApplicants = applicants.filter(
+    (app) => app.status === "pending"
+  );
 
   return (
     <div className="min-h-screen bg-white flex flex-col font-sans text-gray-900">
@@ -327,11 +413,7 @@ const GigDetails = () => {
                 <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-bold uppercase tracking-wider rounded-full">
                   {gig.category}
                 </span>
-                {isClosed && (
-                  <span className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-bold uppercase tracking-wider rounded-full border border-gray-200 flex items-center gap-1">
-                    <Lock className="h-3 w-3" /> Closed
-                  </span>
-                )}
+                <StatusBadge status={gig.status} />
               </div>
               <h1 className="text-3xl md:text-4xl font-extrabold text-[#1A2A4F] leading-tight">
                 {gig.title}
@@ -368,7 +450,7 @@ const GigDetails = () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-            {/* LEFT COLUMN (Images & Description) */}
+            {/* LEFT COLUMN */}
             <div className="lg:col-span-2 space-y-8">
               {/* Gallery */}
               {images.length > 0 && (
@@ -435,7 +517,7 @@ const GigDetails = () => {
                     </h4>
                     <div className="flex items-center gap-1 text-sm text-gray-500">
                       <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                      <span>4.9 (Verified)</span>
+                      <span>Verified Provider</span>
                     </div>
                   </div>
                   <button
@@ -448,13 +530,13 @@ const GigDetails = () => {
               </div>
             </div>
 
-            {/* RIGHT COLUMN (Action Card) */}
+            {/* RIGHT COLUMN */}
             <div className="lg:col-span-1">
               <div className="sticky top-24">
                 <div className="bg-white border border-gray-200 shadow-xl rounded-2xl p-6">
                   <div className="mb-6">
                     <p className="text-gray-500 text-sm font-medium mb-1">
-                      Fixed Price
+                      Budget
                     </p>
                     <p className="text-4xl font-black text-[#1A2A4F]">
                       ₹{gig.price.toLocaleString("en-IN")}
@@ -469,44 +551,113 @@ const GigDetails = () => {
                           <Users className="h-4 w-4" />
                           {applicants.length}{" "}
                           {applicants.length === 1 ? "Applicant" : "Applicants"}
+                          {pendingApplicants.length > 0 && !isClosed && (
+                            <span className="ml-auto bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">
+                              {pendingApplicants.length} pending
+                            </span>
+                          )}
                         </p>
                       </div>
 
-                      {isClosed ? (
-                        <div className="w-full py-3 bg-gray-100 border border-gray-200 text-gray-600 rounded-xl font-bold text-center flex items-center justify-center gap-2">
-                          <Lock className="h-5 w-5" /> Gig Closed
+                      {isClosed && acceptedApplicant && (
+                        <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
+                          <p className="text-sm font-bold text-green-800 mb-2 flex items-center gap-2">
+                            <Check className="h-4 w-4" />
+                            Freelancer Hired
+                          </p>
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-green-600 flex items-center justify-center text-white font-bold">
+                              {acceptedApplicant.applicantId?.fullName?.[0] ||
+                                acceptedApplicant.applicantName?.[0] ||
+                                "F"}
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-900">
+                                {acceptedApplicant.applicantId?.fullName ||
+                                  acceptedApplicant.applicantName}
+                              </p>
+                            </div>
+                          </div>
+                          {getTicketForApplicant(
+                            acceptedApplicant.applicantId?._id ||
+                              acceptedApplicant.applicantId
+                          ) && (
+                            <button
+                              onClick={() =>
+                                handleGoToTicket(
+                                  getTicketForApplicant(
+                                    acceptedApplicant.applicantId?._id ||
+                                      acceptedApplicant.applicantId
+                                  )._id
+                                )
+                              }
+                              className="w-full mt-3 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                              Go to Ticket
+                            </button>
+                          )}
                         </div>
-                      ) : (
-                        <button
-                          onClick={() => setShowApplicantsModal(true)}
-                          className="w-full py-4 bg-[#1A2A4F] text-white rounded-xl font-bold text-lg hover:bg-[#0f1a35] transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
-                        >
-                          <Users className="h-5 w-5" />
-                          Manage Applicants
-                        </button>
-                      )}
-
-                      {/* Even if closed, allow managing so they can find the accepted one */}
-                      {isClosed && (
-                        <button
-                          onClick={() => setShowApplicantsModal(true)}
-                          className="w-full py-3 text-[#1A2A4F] hover:underline text-sm"
-                        >
-                          View Accepted Applicant
-                        </button>
                       )}
 
                       <button
-                        onClick={() => navigate(`/gigs/edit/${id}`)}
-                        className="w-full py-3 bg-white border-2 border-gray-200 text-gray-700 rounded-xl font-bold hover:border-gray-300 transition-colors"
+                        onClick={() => setShowApplicantsModal(true)}
+                        className="w-full py-4 bg-[#1A2A4F] text-white rounded-xl font-bold text-lg hover:bg-[#0f1a35] transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
                       >
-                        Edit Gig
+                        <Users className="h-5 w-5" />
+                        {isClosed ? "View All Applicants" : "Manage Applicants"}
                       </button>
+
+                      {!isClosed && (
+                        <button
+                          onClick={() => navigate(`/gigs/edit/${id}`)}
+                          className="w-full py-3 bg-white border-2 border-gray-200 text-gray-700 rounded-xl font-bold hover:border-gray-300 transition-colors"
+                        >
+                          Edit Gig
+                        </button>
+                      )}
                     </div>
                   ) : (
                     // --- FREELANCER VIEW ---
                     <div className="space-y-4">
-                      {hasApplied ? (
+                      {existingTicket ? (
+                        <div className="space-y-3">
+                          <div
+                            className={`p-4 rounded-xl border text-center ${
+                              existingTicket.status === "closed"
+                                ? "bg-gray-50 border-gray-200 text-gray-600"
+                                : ["accepted", "paid", "completed"].includes(
+                                    existingTicket.status
+                                  )
+                                ? "bg-green-50 border-green-200 text-green-700"
+                                : "bg-blue-50 border-blue-200 text-blue-700"
+                            }`}
+                          >
+                            <p className="font-bold flex items-center justify-center gap-2">
+                              <Ticket className="h-5 w-5" />
+                              Ticket:{" "}
+                              {existingTicket.status
+                                .replace("_", " ")
+                                .toUpperCase()}
+                            </p>
+                            <p className="text-xs mt-1 opacity-80">
+                              {existingTicket.agreedPrice
+                                ? `Agreed: ₹${existingTicket.agreedPrice.toLocaleString(
+                                    "en-IN"
+                                  )}`
+                                : "Price not yet agreed"}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleGoToTicket(existingTicket._id)}
+                            className="w-full py-4 bg-[#1A2A4F] text-white rounded-xl font-bold text-lg hover:bg-[#0f1a35] transition-all shadow-lg flex items-center justify-center gap-2"
+                          >
+                            <MessageSquare className="h-5 w-5" />
+                            Go to Ticket
+                            <ArrowRight className="h-5 w-5" />
+                          </button>
+                        </div>
+                      ) : hasApplied ? (
                         <div
                           className={`p-4 rounded-xl border text-center ${
                             userApplication.status === "accepted"
@@ -531,27 +682,44 @@ const GigDetails = () => {
                           </p>
                         </div>
                       ) : (
-                        <button
-                          onClick={handleApply}
-                          disabled={isClosed || isApplying || !isVerified}
-                          className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg flex items-center justify-center gap-2 ${
-                            isClosed || !isVerified
-                              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                              : "bg-[#1A2A4F] text-white hover:bg-[#0f1a35] hover:shadow-xl"
-                          }`}
-                        >
-                          {isApplying
-                            ? "Applying..."
-                            : isClosed
-                            ? "Gig Closed"
-                            : "Apply Now"}
-                          {!isApplying && !isClosed && (
-                            <Briefcase className="h-5 w-5" />
+                        <>
+                          <button
+                            onClick={handleApply}
+                            disabled={isClosed || isApplying || !isVerified}
+                            className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg flex items-center justify-center gap-2 ${
+                              isClosed || !isVerified
+                                ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                                : "bg-[#1A2A4F] text-white hover:bg-[#0f1a35] hover:shadow-xl"
+                            }`}
+                          >
+                            {isApplying ? (
+                              <>
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                                Applying...
+                              </>
+                            ) : isClosed ? (
+                              <>
+                                <Lock className="h-5 w-5" />
+                                Gig Closed
+                              </>
+                            ) : !isVerified ? (
+                              "Verify Email First"
+                            ) : (
+                              <>
+                                <Briefcase className="h-5 w-5" />
+                                Apply Now
+                              </>
+                            )}
+                          </button>
+                          {!isVerified && !isClosed && (
+                            <p className="text-xs text-center text-red-500">
+                              Please verify your email to apply
+                            </p>
                           )}
-                        </button>
+                        </>
                       )}
 
-                      {!hasApplied && (
+                      {!hasApplied && !existingTicket && !isClosed && (
                         <p className="text-xs text-center text-gray-400">
                           By applying, you agree to our Terms of Service.
                         </p>
@@ -568,15 +736,17 @@ const GigDetails = () => {
       {/* --- APPLICANTS MODAL --- */}
       {showApplicantsModal && isOwner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
             {/* Modal Header */}
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center flex-shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1A2A4F]">
-                  Manage Applicants
+                  {isClosed ? "All Applicants" : "Manage Applicants"}
                 </h2>
                 <p className="text-sm text-gray-500">
-                  Review and accept freelancers for "{gig.title}"
+                  {isClosed
+                    ? "This gig has been assigned"
+                    : `Select a freelancer for "${gig.title}"`}
                 </p>
               </div>
               <button
@@ -589,6 +759,17 @@ const GigDetails = () => {
 
             {/* Modal Content */}
             <div className="flex-1 overflow-y-auto p-6">
+              {/* Info Banner */}
+              {!isClosed && pendingApplicants.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+                  <p className="text-sm text-amber-800">
+                    <strong>⚠️ Important:</strong> Once you accept an applicant,
+                    the gig will be closed and all other pending applications
+                    will be automatically rejected.
+                  </p>
+                </div>
+              )}
+
               {applicants.length === 0 ? (
                 <div className="text-center py-10">
                   <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
@@ -596,101 +777,235 @@ const GigDetails = () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {applicants.map((app) => (
-                    <div
-                      key={app._id}
-                      className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 border border-gray-200 rounded-xl hover:border-gray-300 transition-colors bg-gray-50/50"
-                    >
-                      {/* Avatar/Name */}
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-700 font-bold text-lg">
-                          {app.applicantId?.fullName?.[0] ||
-                            app.applicantName?.[0] ||
-                            "U"}
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-gray-900">
-                            {app.applicantId?.fullName || app.applicantName}
-                          </h4>
-                          <button
-                            onClick={() =>
-                              navigate(
-                                `/profile/${
-                                  app.applicantId?._id || app.applicantId
-                                }`
-                              )
-                            }
-                            className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                          >
-                            <User className="h-3 w-3" /> View Profile
-                          </button>
-                        </div>
-                      </div>
+                  {applicants.map((app) => {
+                    const applicantTicket = getTicketForApplicant(
+                      app.applicantId?._id || app.applicantId
+                    );
+                    const isAccepted = app.status === "accepted";
+                    const isRejected = app.status === "rejected";
+                    const isPending = app.status === "pending";
 
-                      {/* Status & Actions */}
-                      <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                        {app.status === "pending" && !isClosed ? (
-                          <>
-                            <button
-                              onClick={() =>
-                                handleApplicationStatus(app._id, "accepted")
-                              }
-                              className="px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1"
+                    return (
+                      <div
+                        key={app._id}
+                        className={`p-4 border-2 rounded-xl transition-all ${
+                          isAccepted
+                            ? "border-green-300 bg-green-50"
+                            : isRejected
+                            ? "border-gray-200 bg-gray-50 opacity-60"
+                            : "border-gray-200 bg-white hover:border-[#1A2A4F]"
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                          {/* Avatar/Name */}
+                          <div className="flex items-center gap-3 flex-1">
+                            <div
+                              className={`h-12 w-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${
+                                isAccepted
+                                  ? "bg-green-600"
+                                  : isRejected
+                                  ? "bg-gray-400"
+                                  : "bg-gradient-to-br from-[#1A2A4F] to-[#2A3A5F]"
+                              }`}
                             >
-                              <Check className="h-4 w-4" /> Accept
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleApplicationStatus(app._id, "rejected")
-                              }
-                              className="px-4 py-2 bg-white border border-red-200 text-red-600 text-sm font-bold rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1"
-                            >
-                              <X className="h-4 w-4" /> Reject
-                            </button>
-                          </>
-                        ) : (
-                          <div
-                            className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 ${
-                              app.status === "accepted"
-                                ? "bg-green-100 text-green-800"
-                                : "bg-red-100 text-red-800"
-                            }`}
-                          >
-                            {app.status === "accepted" ? (
-                              <Check className="h-4 w-4" />
-                            ) : (
-                              <X className="h-4 w-4" />
+                              {app.applicantId?.fullName?.[0] ||
+                                app.applicantName?.[0] ||
+                                "U"}
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-bold text-gray-900">
+                                {app.applicantId?.fullName || app.applicantName}
+                              </h4>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                  onClick={() =>
+                                    navigate(
+                                      `/profile/${
+                                        app.applicantId?._id || app.applicantId
+                                      }`
+                                    )
+                                  }
+                                  className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                                >
+                                  <User className="h-3 w-3" /> View Profile
+                                </button>
+                                {isAccepted && (
+                                  <span className="text-xs font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                    <Check className="h-3 w-3" /> ACCEPTED
+                                  </span>
+                                )}
+                                {isRejected && (
+                                  <span className="text-xs font-bold bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                    <X className="h-3 w-3" /> REJECTED
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
+                            {/* Go to Ticket Button */}
+                            {applicantTicket && (
+                              <button
+                                onClick={() =>
+                                  handleGoToTicket(applicantTicket._id)
+                                }
+                                className="px-3 py-2 bg-gray-100 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-1"
+                              >
+                                <MessageSquare className="h-4 w-4" />
+                                Ticket
+                              </button>
                             )}
-                            {app.status.charAt(0).toUpperCase() +
-                              app.status.slice(1)}
+
+                            {/* Accept/Reject Buttons (only for pending and gig not closed) */}
+                            {isPending && !isClosed && (
+                              <>
+                                <button
+                                  onClick={() =>
+                                    setConfirmModal({
+                                      type: "accept",
+                                      applicationId: app._id,
+                                      applicantId:
+                                        app.applicantId?._id || app.applicantId,
+                                      applicantName:
+                                        app.applicantId?.fullName ||
+                                        app.applicantName,
+                                    })
+                                  }
+                                  disabled={isProcessing[app._id]}
+                                  className="px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+                                >
+                                  {isProcessing[app._id] ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Check className="h-4 w-4" />
+                                  )}
+                                  Accept
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    setConfirmModal({
+                                      type: "reject",
+                                      applicationId: app._id,
+                                      applicantId:
+                                        app.applicantId?._id || app.applicantId,
+                                      applicantName:
+                                        app.applicantId?.fullName ||
+                                        app.applicantName,
+                                    })
+                                  }
+                                  disabled={isProcessing[app._id]}
+                                  className="px-4 py-2 bg-white border-2 border-red-200 text-red-600 text-sm font-bold rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1 disabled:opacity-50"
+                                >
+                                  <X className="h-4 w-4" />
+                                  Reject
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Cover Letter Preview */}
+                        {app.coverLetter && (
+                          <div className="mt-3 pt-3 border-t border-gray-100">
+                            <p className="text-xs text-gray-500 font-semibold uppercase mb-1">
+                              Cover Letter
+                            </p>
+                            <p className="text-sm text-gray-600 line-clamp-2">
+                              {app.coverLetter}
+                            </p>
                           </div>
                         )}
-
-                        {/* Link to Ticket/Chat */}
-                        <button
-                          onClick={() => {
-                            navigate("/tickets");
-                            toast("Check your tickets", { icon: "💬" });
-                          }}
-                          className="p-2 text-gray-500 hover:bg-gray-200 rounded-lg"
-                          title="Go to Chat"
-                        >
-                          <MessageSquare className="h-5 w-5" />
-                        </button>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end">
+            <div className="p-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end flex-shrink-0">
               <button
                 onClick={() => setShowApplicantsModal(false)}
                 className="px-6 py-2 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- CONFIRM MODAL --- */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h3 className="text-xl font-bold text-[#1A2A4F] mb-4">
+              {confirmModal.type === "accept"
+                ? "Accept Applicant?"
+                : "Reject Applicant?"}
+            </h3>
+
+            {confirmModal.type === "accept" ? (
+              <div className="space-y-4 mb-6">
+                <p className="text-gray-600">
+                  You are about to accept{" "}
+                  <strong>{confirmModal.applicantName}</strong> for this gig.
+                </p>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-sm text-amber-800">
+                    <strong>This will:</strong>
+                  </p>
+                  <ul className="text-sm text-amber-700 mt-1 space-y-1">
+                    <li>• Close this gig to new applications</li>
+                    <li>• Reject all other pending applications</li>
+                    <li>• Notify the selected freelancer</li>
+                  </ul>
+                </div>
+              </div>
+            ) : (
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to reject{" "}
+                <strong>{confirmModal.applicantName}</strong>'s application?
+              </p>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() =>
+                  handleApplicationStatus(
+                    confirmModal.applicationId,
+                    confirmModal.applicantId,
+                    confirmModal.type === "accept" ? "accepted" : "rejected"
+                  )
+                }
+                disabled={isProcessing[confirmModal.applicationId]}
+                className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 ${
+                  confirmModal.type === "accept"
+                    ? "bg-green-600 text-white hover:bg-green-700"
+                    : "bg-red-600 text-white hover:bg-red-700"
+                }`}
+              >
+                {isProcessing[confirmModal.applicationId] ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : confirmModal.type === "accept" ? (
+                  <>
+                    <Check className="h-5 w-5" />
+                    Accept
+                  </>
+                ) : (
+                  <>
+                    <X className="h-5 w-5" />
+                    Reject
+                  </>
+                )}
               </button>
             </div>
           </div>
