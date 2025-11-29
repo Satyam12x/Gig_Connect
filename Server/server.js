@@ -25,6 +25,439 @@ const helmet = require("helmet");
 const compression = require("compression");
 const winston = require("winston");
 
+//a good looking logger
+// Console Box Utilities
+// Console Utilities
+const colors = {
+  reset: "\x1b[0m",
+  bright: "\x1b[1m",
+  dim: "\x1b[2m",
+  black: "\x1b[30m",
+  red: "\x1b[31m",
+  green: "\x1b[32m",
+  yellow: "\x1b[33m",
+  blue: "\x1b[34m",
+  magenta: "\x1b[35m",
+  cyan: "\x1b[36m",
+  white: "\x1b[37m",
+};
+
+const box = {
+  tl: "╔",
+  tr: "╗",
+  bl: "╚",
+  br: "╝",
+  h: "═",
+  v: "║",
+  lt: "╠",
+  rt: "╣",
+  tt: "╦",
+  bt: "╩",
+};
+
+const getTerminalWidth = () => process.stdout.columns || 80;
+const getTerminalHeight = () => process.stdout.rows || 24;
+
+const createLine = (char, width) => char.repeat(width);
+
+const centerText = (text, width, padChar = " ") => {
+  const cleanText = text.replace(/\x1b\[[0-9;]*m/g, "");
+  const padding = Math.max(0, width - cleanText.length);
+  const leftPad = Math.floor(padding / 2);
+  const rightPad = padding - leftPad;
+  return padChar.repeat(leftPad) + text + padChar.repeat(rightPad);
+};
+
+const createFullWidthBox = (lines, opts = {}) => {
+  const {
+    borderColor = colors.cyan,
+    textColor = colors.white,
+    title = null,
+  } = opts;
+  const width = getTerminalWidth() - 2;
+  const innerWidth = width - 2;
+
+  let result = [];
+
+  if (title) {
+    const titleText = ` ${title} `;
+    const titleLen = title.length + 2;
+    const leftDash = Math.floor((innerWidth - titleLen) / 2);
+    const rightDash = innerWidth - titleLen - leftDash;
+    result.push(
+      `${borderColor}${box.tl}${box.h.repeat(leftDash)}${colors.reset}${
+        colors.yellow
+      }${colors.bright}${titleText}${colors.reset}${borderColor}${box.h.repeat(
+        rightDash
+      )}${box.tr}${colors.reset}`
+    );
+  } else {
+    result.push(
+      `${borderColor}${box.tl}${box.h.repeat(innerWidth)}${box.tr}${
+        colors.reset
+      }`
+    );
+  }
+
+  lines.forEach((line) => {
+    if (line === "divider") {
+      result.push(
+        `${borderColor}${box.lt}${box.h.repeat(innerWidth)}${box.rt}${
+          colors.reset
+        }`
+      );
+    } else if (line === "empty") {
+      result.push(
+        `${borderColor}${box.v}${colors.reset}${" ".repeat(
+          innerWidth
+        )}${borderColor}${box.v}${colors.reset}`
+      );
+    } else if (typeof line === "object") {
+      const c = line.color || textColor;
+      const text = line.text || "";
+      const align = line.align || "left";
+      let content;
+      if (align === "center") {
+        content = centerText(`${c}${text}${colors.reset}`, innerWidth);
+      } else {
+        const cleanLen = text.length;
+        content = `  ${c}${text}${colors.reset}${" ".repeat(
+          Math.max(0, innerWidth - cleanLen - 2)
+        )}`;
+      }
+      result.push(
+        `${borderColor}${box.v}${colors.reset}${content}${borderColor}${box.v}${colors.reset}`
+      );
+    } else {
+      const cleanLen = line.length;
+      const content = `  ${textColor}${line}${colors.reset}${" ".repeat(
+        Math.max(0, innerWidth - cleanLen - 2)
+      )}`;
+      result.push(
+        `${borderColor}${box.v}${colors.reset}${content}${borderColor}${box.v}${colors.reset}`
+      );
+    }
+  });
+
+  result.push(
+    `${borderColor}${box.bl}${box.h.repeat(innerWidth)}${box.br}${colors.reset}`
+  );
+  return result.join("\n");
+};
+
+const printFullPageStartup = (port, dbStatus = "pending") => {
+  console.clear();
+  const width = getTerminalWidth();
+  const height = getTerminalHeight();
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString("en-US", {
+    hour12: true,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const dateStr = now.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const banner = `
+${colors.cyan}${colors.bright}
+     ██████╗ ██╗ ██████╗      ██████╗ ██████╗ ███╗   ██╗███╗   ██╗███████╗ ██████╗████████╗
+    ██╔════╝ ██║██╔════╝     ██╔════╝██╔═══██╗████╗  ██║████╗  ██║██╔════╝██╔════╝╚══██╔══╝
+    ██║  ███╗██║██║  ███╗    ██║     ██║   ██║██╔██╗ ██║██╔██╗ ██║█████╗  ██║        ██║   
+    ██║   ██║██║██║   ██║    ██║     ██║   ██║██║╚██╗██║██║╚██╗██║██╔══╝  ██║        ██║   
+    ╚██████╔╝██║╚██████╔╝    ╚██████╗╚██████╔╝██║ ╚████║██║ ╚████║███████╗╚██████╗   ██║   
+     ╚═════╝ ╚═╝ ╚═════╝      ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═══╝╚══════╝ ╚═════╝   ╚═╝   
+${colors.reset}`;
+
+  console.log(banner);
+  console.log(
+    `${colors.dim}${centerText("═".repeat(width - 4), width)}${colors.reset}`
+  );
+  console.log();
+
+  const serverLines = [
+    "empty",
+    {
+      text: "🚀 SERVER STATUS",
+      color: colors.green + colors.bright,
+      align: "center",
+    },
+    "empty",
+    "divider",
+    "empty",
+    { text: `⏰  Time Started    │  ${timeStr}`, color: colors.yellow },
+    { text: `📅  Date            │  ${dateStr}`, color: colors.yellow },
+    "empty",
+    "divider",
+    "empty",
+    { text: `🌐  Port            │  ${port}`, color: colors.cyan },
+    {
+      text: `🔧  Environment     │  ${process.env.NODE_ENV || "development"}`,
+      color: colors.cyan,
+    },
+    { text: `📦  Node Version    │  ${process.version}`, color: colors.cyan },
+    {
+      text: `💻  Platform        │  ${os.platform()} ${os.arch()}`,
+      color: colors.cyan,
+    },
+    {
+      text: `🧠  Total Memory    │  ${Math.round(
+        os.totalmem() / 1024 / 1024 / 1024
+      )} GB`,
+      color: colors.cyan,
+    },
+    { text: `⚡  CPU Cores       │  ${os.cpus().length}`, color: colors.cyan },
+    "empty",
+  ];
+
+  console.log(
+    createFullWidthBox(serverLines, {
+      borderColor: colors.cyan,
+      title: "SERVER INFORMATION",
+    })
+  );
+  console.log();
+
+  const statusIcon =
+    dbStatus === "connected" ? "✅" : dbStatus === "pending" ? "⏳" : "❌";
+  const statusColor =
+    dbStatus === "connected"
+      ? colors.green
+      : dbStatus === "pending"
+      ? colors.yellow
+      : colors.red;
+  const statusText =
+    dbStatus === "connected"
+      ? "CONNECTED"
+      : dbStatus === "pending"
+      ? "CONNECTING..."
+      : "DISCONNECTED";
+
+  const servicesLines = [
+    "empty",
+    {
+      text: "SERVICE STATUS DASHBOARD",
+      color: colors.blue + colors.bright,
+      align: "center",
+    },
+    "empty",
+    "divider",
+    "empty",
+    {
+      text: `${statusIcon}  MongoDB Database      │  ${statusText}`,
+      color: statusColor,
+    },
+    { text: `✅  Express Server        │  RUNNING`, color: colors.green },
+    { text: `✅  WebSocket (Global)    │  READY`, color: colors.green },
+    { text: `✅  WebSocket (Tickets)   │  READY`, color: colors.green },
+    { text: `✅  Cloudinary CDN        │  CONFIGURED`, color: colors.green },
+    { text: `✅  Email Service         │  CONFIGURED`, color: colors.green },
+    { text: `✅  Rate Limiting         │  ACTIVE`, color: colors.green },
+    { text: `✅  Security (Helmet)     │  ACTIVE`, color: colors.green },
+    { text: `✅  Compression           │  ENABLED`, color: colors.green },
+    "empty",
+  ];
+
+  console.log(
+    createFullWidthBox(servicesLines, {
+      borderColor: colors.blue,
+      title: "SERVICES",
+    })
+  );
+  console.log();
+
+  const endpointsLines = [
+    "empty",
+    {
+      text: "API ENDPOINTS OVERVIEW",
+      color: colors.magenta + colors.bright,
+      align: "center",
+    },
+    "empty",
+    "divider",
+    "empty",
+    {
+      text: `🔐  AUTH        │  /api/auth/signup, /api/auth/login, /api/auth/verify-otp`,
+      color: colors.white,
+    },
+    {
+      text: `👤  USERS       │  /api/users/profile, /api/users/skills, /api/users/:id`,
+      color: colors.white,
+    },
+    {
+      text: `💼  GIGS        │  /api/gigs, /api/gigs/:id, /api/gigs/:id/apply`,
+      color: colors.white,
+    },
+    {
+      text: `🎫  TICKETS     │  /api/tickets/:id, /api/tickets/:id/messages`,
+      color: colors.white,
+    },
+    { text: `⭐  REVIEWS     │  /api/reviews`, color: colors.white },
+    { text: `🤖  AI          │  /api/ai/chat`, color: colors.white },
+    {
+      text: `🔍  DEBUG       │  /api/debug/gigs, /api/categories`,
+      color: colors.white,
+    },
+    "empty",
+  ];
+
+  console.log(
+    createFullWidthBox(endpointsLines, {
+      borderColor: colors.magenta,
+      title: "ENDPOINTS",
+    })
+  );
+  console.log();
+
+  const footerLines = [
+    "empty",
+    {
+      text: "🎉 SERVER IS READY TO ACCEPT CONNECTIONS 🎉",
+      color: colors.green + colors.bright,
+      align: "center",
+    },
+    "empty",
+    {
+      text: `Local:   http://localhost:${port}`,
+      color: colors.cyan,
+      align: "center",
+    },
+    {
+      text: `Network: http://${getLocalIP()}:${port}`,
+      color: colors.cyan,
+      align: "center",
+    },
+    "empty",
+    {
+      text: "Press Ctrl+C to stop the server",
+      color: colors.dim,
+      align: "center",
+    },
+    "empty",
+  ];
+
+  console.log(
+    createFullWidthBox(footerLines, {
+      borderColor: colors.green,
+      title: "READY",
+    })
+  );
+  console.log();
+  console.log(`${colors.dim}${"─".repeat(width - 2)}${colors.reset}`);
+  console.log(`${colors.dim}${centerText("LIVE LOGS", width)}${colors.reset}`);
+  console.log(`${colors.dim}${"─".repeat(width - 2)}${colors.reset}`);
+};
+
+const getLocalIP = () => {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === "IPv4" && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return "127.0.0.1";
+};
+
+const printClusterInfo = (numWorkers) => {
+  console.clear();
+  const width = getTerminalWidth();
+
+  const banner = `
+${colors.magenta}${colors.bright}
+     ██████╗██╗     ██╗   ██╗███████╗████████╗███████╗██████╗ 
+    ██╔════╝██║     ██║   ██║██╔════╝╚══██╔══╝██╔════╝██╔══██╗
+    ██║     ██║     ██║   ██║███████╗   ██║   █████╗  ██████╔╝
+    ██║     ██║     ██║   ██║╚════██║   ██║   ██╔══╝  ██╔══██╗
+    ╚██████╗███████╗╚██████╔╝███████║   ██║   ███████╗██║  ██║
+     ╚═════╝╚══════╝ ╚═════╝ ╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
+${colors.reset}`;
+
+  console.log(banner);
+  console.log();
+
+  const lines = [
+    "empty",
+    {
+      text: "⚡ CLUSTER MODE ACTIVE",
+      color: colors.magenta + colors.bright,
+      align: "center",
+    },
+    "empty",
+    "divider",
+    "empty",
+    { text: `👷  Workers Spawned    │  ${numWorkers}`, color: colors.cyan },
+    {
+      text: `🖥️   CPU Cores          │  ${os.cpus().length}`,
+      color: colors.cyan,
+    },
+    { text: `🔄  Load Balancing     │  ENABLED`, color: colors.green },
+    { text: `♻️   Auto-Restart       │  ENABLED`, color: colors.green },
+    { text: `📊  Strategy           │  Round Robin`, color: colors.yellow },
+    "empty",
+    "divider",
+    "empty",
+    {
+      text: "Workers will handle incoming requests",
+      color: colors.dim,
+      align: "center",
+    },
+    "empty",
+  ];
+
+  console.log(
+    createFullWidthBox(lines, {
+      borderColor: colors.magenta,
+      title: "CLUSTER MANAGER",
+    })
+  );
+  console.log();
+  console.log(`${colors.dim}${"─".repeat(width - 2)}${colors.reset}`);
+  console.log(
+    `${colors.dim}${centerText("WORKER LOGS", width)}${colors.reset}`
+  );
+  console.log(`${colors.dim}${"─".repeat(width - 2)}${colors.reset}`);
+};
+
+const logInfo = (message, category = "INFO") => {
+  const timestamp = new Date().toLocaleTimeString("en-US", { hour12: false });
+  const catColors = {
+    INFO: colors.blue,
+    SUCCESS: colors.green,
+    WARNING: colors.yellow,
+    ERROR: colors.red,
+    DEBUG: colors.magenta,
+    DATABASE: colors.cyan,
+    AUTH: colors.yellow,
+    SOCKET: colors.magenta,
+    WORKER: colors.cyan,
+  };
+  const icons = {
+    INFO: "ℹ️ ",
+    SUCCESS: "✅",
+    WARNING: "⚠️ ",
+    ERROR: "❌",
+    DEBUG: "🔍",
+    DATABASE: "🗄️ ",
+    AUTH: "🔐",
+    SOCKET: "🔌",
+    WORKER: "👷",
+  };
+  const c = catColors[category] || colors.white;
+  const icon = icons[category] || "📌";
+  console.log(
+    `${colors.dim}[${timestamp}]${colors.reset} ${c}${
+      colors.bright
+    }[${category.padEnd(8)}]${colors.reset} ${icon} ${message}`
+  );
+};
+
 // 1. LOGGER SETUP
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || "info",
@@ -56,17 +489,22 @@ const enableCluster = process.env.ENABLE_CLUSTER === "true";
 const numCPUs = os.cpus().length;
 
 if (enableCluster && cluster.isPrimary) {
-  logger.info(`Primary process ${process.pid} is running`);
-  logger.info(`Forking ${numCPUs} workers for load balancing...`);
+  printClusterInfo(numCPUs);
 
-  // Fork workers.
   for (let i = 0; i < numCPUs; i++) {
     cluster.fork();
   }
 
   cluster.on("exit", (worker, code, signal) => {
-    logger.warn(`Worker ${worker.process.pid} died. Restarting...`);
+    logInfo(
+      `Worker ${worker.process.pid} died (${signal || code}). Restarting...`,
+      "WARNING"
+    );
     cluster.fork();
+  });
+
+  cluster.on("online", (worker) => {
+    logInfo(`Worker ${worker.process.pid} is online`, "WORKER");
   });
 } else {
   // 3. WORKER PROCESS (THE ACTUAL APP)
@@ -110,9 +548,9 @@ if (enableCluster && cluster.isPrimary) {
       windowMs,
       max,
       message: msg,
-      keyGenerator: (req) => req.userId || req.ip,
       standardHeaders: true,
       legacyHeaders: false,
+      validate: { xForwardedForHeader: false },
     });
 
   const applyLimiter = limiterConfig(
@@ -122,7 +560,7 @@ if (enableCluster && cluster.isPrimary) {
   );
   const messageLimiter = limiterConfig(
     60 * 1000,
-    20, // Increased for chat fluidity
+    20,
     "Too many messages sent, please wait a minute."
   );
   const attachmentLimiter = limiterConfig(
@@ -419,13 +857,16 @@ if (enableCluster && cluster.isPrimary) {
   );
 
   //  DATABASE CONNECT
+  // Database Connect
+  // Database Connect
   mongoose
-    .connect(process.env.MONGODB_URL, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
+    .connect(process.env.MONGODB_URL)
+    .then(() => {
+      logInfo("MongoDB connected successfully", "DATABASE");
     })
-    .then(() => logger.info(`[Worker ${process.pid}] MongoDB connected`))
-    .catch((err) => logger.error("MongoDB connection error:", err));
+    .catch((err) => {
+      logInfo(`MongoDB connection failed: ${err.message}`, "ERROR");
+    });
 
   //  HELPERS (Multer, Cloudinary, Email)
   const transporter = nodemailer.createTransport({
@@ -3332,6 +3773,6 @@ if (enableCluster && cluster.isPrimary) {
 
   //  START SERVER
   server.listen(PORT, () => {
-    logger.info(`[Worker ${process.pid}] Server running on port ${PORT}`);
+    printFullPageStartup(PORT, "connected");
   });
 }

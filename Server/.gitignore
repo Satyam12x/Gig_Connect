@@ -3,3 +3,5 @@ env
 node_modules
 combined.log
 error.log
+app.js
+chatRoutes.js
