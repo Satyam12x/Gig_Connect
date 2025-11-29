@@ -583,7 +583,7 @@ if (enableCluster && cluster.isPrimary) {
       profilePicture: { type: String, default: "" },
       role: {
         type: String,
-        enum: ["Provider", "Freelancer", "Both"], // Updated Roles
+        enum: ["Provider", "Freelancer", "Both"],
         default: "Both",
       },
       isVerified: { type: Boolean, default: false },
@@ -593,9 +593,10 @@ if (enableCluster && cluster.isPrimary) {
         { title: String, status: String, earnings: Number, date: Date },
       ],
       gigsCompleted: { type: Number, default: 0 },
-      totalGigs: { type: Number, default: 0 }, // Gigs Posted (for Provider)
+      totalGigs: { type: Number, default: 0 },
       completionRate: { type: Number, default: 0 },
-      credits: { type: Number, default: 0, min: 0 }, // Money Earned
+      credits: { type: Number, default: 0, min: 0 },
+      coins: { type: Number, default: 0, min: 0 }, // NEW: Coin system
       socialLinks: {
         linkedin: String,
         github: String,
@@ -775,6 +776,121 @@ if (enableCluster && cluster.isPrimary) {
   const Application = mongoose.model("Application", applicationSchema);
   const Ticket = mongoose.model("Ticket", ticketSchema);
 
+  // Coin Transaction Schema
+  const coinTransactionSchema = new mongoose.Schema({
+    _id: { type: String, required: true },
+    userId: { type: String, ref: "User", required: true },
+    type: {
+      type: String,
+      enum: [
+        "purchase",
+        "deduct",
+        "transfer_sent",
+        "transfer_received",
+        "refund",
+        "bonus",
+      ],
+      required: true,
+    },
+    amount: { type: Number, required: true },
+    balanceBefore: { type: Number, required: true },
+    balanceAfter: { type: Number, required: true },
+    description: { type: String, default: "" },
+    razorpayOrderId: { type: String },
+    razorpayPaymentId: { type: String },
+    razorpaySignature: { type: String },
+    status: {
+      type: String,
+      enum: ["pending", "completed", "failed", "refunded"],
+      default: "pending",
+    },
+    relatedUserId: { type: String, ref: "User" },
+    metadata: { type: mongoose.Schema.Types.Mixed },
+    createdAt: { type: Date, default: Date.now },
+  });
+
+  coinTransactionSchema.index({ userId: 1, createdAt: -1 });
+  coinTransactionSchema.index({ razorpayOrderId: 1 });
+  coinTransactionSchema.index({ status: 1 });
+
+  const CoinTransaction = mongoose.model(
+    "CoinTransaction",
+    coinTransactionSchema
+  );
+
+  // Coin Packages Configuration
+  const COIN_PACKAGES = [
+    {
+      id: "pack_100",
+      coins: 100,
+      price: 99,
+      originalPrice: 100,
+      discount: 1,
+      popular: false,
+      badge: null,
+    },
+    {
+      id: "pack_250",
+      coins: 250,
+      price: 225,
+      originalPrice: 250,
+      discount: 10,
+      popular: false,
+      badge: "SAVE 10%",
+    },
+    {
+      id: "pack_500",
+      coins: 500,
+      price: 425,
+      originalPrice: 500,
+      discount: 15,
+      popular: true,
+      badge: "MOST POPULAR",
+    },
+    {
+      id: "pack_1000",
+      coins: 1000,
+      price: 799,
+      originalPrice: 1000,
+      discount: 20,
+      popular: false,
+      badge: "BEST VALUE",
+    },
+    {
+      id: "pack_2500",
+      coins: 2500,
+      price: 1875,
+      originalPrice: 2500,
+      discount: 25,
+      popular: false,
+      badge: null,
+    },
+    {
+      id: "pack_5000",
+      coins: 5000,
+      price: 3500,
+      originalPrice: 5000,
+      discount: 30,
+      popular: false,
+      badge: "MEGA PACK",
+    },
+  ];
+
+  // Razorpay Configuration (Will use dummy mode if credentials not set)
+  let razorpay = null;
+  const RAZORPAY_ENABLED =
+    process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET;
+
+  if (RAZORPAY_ENABLED) {
+    const Razorpay = require("razorpay");
+    razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
+    logInfo("Razorpay configured successfully", "SUCCESS");
+  } else {
+    logInfo("Razorpay not configured - Running in TEST MODE", "WARNING");
+  }
   //  PASSPORT CONFIG
   passport.serializeUser((user, done) => done(null, user._id));
   passport.deserializeUser(async (id, done) => {
@@ -833,6 +949,7 @@ if (enableCluster && cluster.isPrimary) {
               totalGigs: 0,
               completionRate: 0,
               credits: 0,
+              coins: 0, // NEW: No free coins
               ratings: [],
             };
             await User.create(user);
@@ -856,8 +973,6 @@ if (enableCluster && cluster.isPrimary) {
     )
   );
 
-  //  DATABASE CONNECT
-  // Database Connect
   // Database Connect
   mongoose
     .connect(process.env.MONGODB_URL)
@@ -1116,6 +1231,7 @@ if (enableCluster && cluster.isPrimary) {
           totalGigs: 0,
           completionRate: 0,
           credits: 0,
+          coins: 0, // NEW: Starts at 0, no free coins
           ratings: [],
         });
         await user.save();
@@ -1445,11 +1561,28 @@ if (enableCluster && cluster.isPrimary) {
           role: user.role,
           profilePicture: user.profilePicture,
           onboarded: user.onboarded ?? false,
+          coins: user.coins || 0, // NEW: Include coins
         },
       });
     } catch (err) {
       logger.error("Auth check error:", err.message);
       res.json({ authenticated: false });
+    }
+  });
+
+  // 4. NEW COIN ENDPOINTS - Add these routes
+
+  // Get User Coin Balance
+  app.get("/api/users/coins", authMiddleware, async (req, res) => {
+    try {
+      const user = await User.findOne({ _id: req.userId })
+        .select("coins")
+        .lean();
+      if (!user) return res.status(404).json({ error: "User not found" });
+      res.json({ success: true, coins: user.coins || 0 });
+    } catch (err) {
+      logger.error("Get coins error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
     }
   });
 
@@ -3510,6 +3643,7 @@ if (enableCluster && cluster.isPrimary) {
         }
 
         user.onboarded = true;
+        // NO bonus coins for onboarding
         await user.save();
 
         res.json({ success: true, message: "Onboarding complete" });
@@ -3540,6 +3674,787 @@ if (enableCluster && cluster.isPrimary) {
       logger.error("Cleanup error:", err);
       res.status(500).json({ error: "Cleanup failed", details: err.message });
     }
+  });
+
+  //Coin system
+
+  // Get User's Coin Balance
+  app.get("/api/users/coins", authMiddleware, async (req, res) => {
+    try {
+      const user = await User.findOne({ _id: req.userId })
+        .select("coins")
+        .lean();
+      if (!user) return res.status(404).json({ error: "User not found" });
+      res.json({ success: true, coins: user.coins || 0 });
+    } catch (err) {
+      logger.error("Get coins error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  });
+
+  // Purchase Coins (Payment Gateway Integration)
+  app.post(
+    "/api/users/coins/purchase",
+    authMiddleware,
+    [
+      check("amount")
+        .isInt({ min: 1 })
+        .withMessage("Amount must be a positive integer"),
+      check("paymentId")
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage("Payment ID is required"),
+    ],
+    async (req, res) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { amount, paymentId } = req.body;
+      try {
+        // TODO: Verify payment with payment gateway (Razorpay, Stripe, etc.)
+        // For now, assuming payment is verified
+
+        const user = await User.findOne({ _id: req.userId });
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        user.coins = (user.coins || 0) + parseInt(amount);
+        await user.save();
+
+        logger.info(
+          `User ${user._id} purchased ${amount} coins. Payment ID: ${
+            paymentId || "N/A"
+          }`
+        );
+        res.json({
+          success: true,
+          coins: user.coins,
+          message: `${amount} coins purchased successfully`,
+        });
+      } catch (err) {
+        logger.error("Purchase coins error:", err);
+        res.status(500).json({ error: "Server error", details: err.message });
+      }
+    }
+  );
+  // Get Coin Transaction History
+  app.get("/api/users/coins/history", authMiddleware, async (req, res) => {
+    try {
+      const { page = 1, limit = 20, type } = req.query;
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+
+      const query = { userId: req.userId };
+      if (type) query.type = type;
+
+      const transactions = await CoinTransaction.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean();
+
+      const total = await CoinTransaction.countDocuments(query);
+
+      // Get summary stats
+      const stats = await CoinTransaction.aggregate([
+        { $match: { userId: req.userId, status: "completed" } },
+        {
+          $group: {
+            _id: "$type",
+            total: { $sum: "$amount" },
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+
+      res.json({
+        success: true,
+        transactions,
+        stats,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          pages: Math.ceil(total / parseInt(limit)),
+        },
+      });
+    } catch (err) {
+      logger.error("Get transaction history error:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
+    }
+  });
+
+  // Deduct Coins (For transactions - posting gigs, buying services, etc.)
+  app.post(
+    "/api/users/coins/deduct",
+    authMiddleware,
+    [
+      check("amount")
+        .isInt({ min: 1 })
+        .withMessage("Amount must be a positive integer"),
+      check("reason").trim().notEmpty().withMessage("Reason is required"),
+    ],
+    async (req, res) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { amount, reason } = req.body;
+      try {
+        const user = await User.findOne({ _id: req.userId });
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        if ((user.coins || 0) < parseInt(amount)) {
+          return res.status(400).json({
+            error: "Insufficient coins",
+            required: parseInt(amount),
+            available: user.coins || 0,
+          });
+        }
+
+        user.coins = (user.coins || 0) - parseInt(amount);
+        await user.save();
+
+        logger.info(
+          `${amount} coins deducted from user ${user._id}. Reason: ${reason}`
+        );
+        res.json({
+          success: true,
+          coins: user.coins,
+          message: `${amount} coins deducted successfully`,
+        });
+      } catch (err) {
+        logger.error("Deduct coins error:", err);
+        res.status(500).json({ error: "Server error", details: err.message });
+      }
+    }
+  );
+
+  // Transfer Coins (Between users - for payments)
+  app.post(
+    "/api/users/coins/transfer",
+    authMiddleware,
+    [
+      check("recipientId")
+        .trim()
+        .notEmpty()
+        .withMessage("Recipient ID is required"),
+      check("amount")
+        .isInt({ min: 1 })
+        .withMessage("Amount must be a positive integer"),
+      check("reason").trim().notEmpty().withMessage("Reason is required"),
+    ],
+    async (req, res) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { recipientId, amount, reason } = req.body;
+      try {
+        if (req.userId === recipientId) {
+          return res
+            .status(400)
+            .json({ error: "Cannot transfer coins to yourself" });
+        }
+
+        const sender = await User.findOne({ _id: req.userId });
+        const recipient = await User.findOne({ _id: recipientId });
+
+        if (!sender) return res.status(404).json({ error: "Sender not found" });
+        if (!recipient)
+          return res.status(404).json({ error: "Recipient not found" });
+
+        if ((sender.coins || 0) < parseInt(amount)) {
+          return res.status(400).json({
+            error: "Insufficient coins",
+            required: parseInt(amount),
+            available: sender.coins || 0,
+          });
+        }
+
+        // Deduct from sender
+        sender.coins = (sender.coins || 0) - parseInt(amount);
+        await sender.save();
+
+        // Add to recipient
+        recipient.coins = (recipient.coins || 0) + parseInt(amount);
+        await recipient.save();
+
+        logger.info(
+          `${amount} coins transferred from ${sender._id} to ${recipient._id}. Reason: ${reason}`
+        );
+        res.json({
+          success: true,
+          senderCoins: sender.coins,
+          recipientCoins: recipient.coins,
+          message: `${amount} coins transferred successfully`,
+        });
+      } catch (err) {
+        logger.error("Transfer coins error:", err);
+        res.status(500).json({ error: "Server error", details: err.message });
+      }
+    }
+  );
+
+  // Create Order (Razorpay or Test Mode)
+  app.post(
+    "/api/coins/create-order",
+    authMiddleware,
+    [
+      check("packageId")
+        .trim()
+        .notEmpty()
+        .withMessage("Package ID is required"),
+    ],
+    async (req, res) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { packageId } = req.body;
+
+      try {
+        const coinPackage = COIN_PACKAGES.find((p) => p.id === packageId);
+        if (!coinPackage) {
+          return res.status(400).json({ error: "Invalid package selected" });
+        }
+
+        const user = await User.findOne({ _id: req.userId }).lean();
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        const transactionId = crypto.randomBytes(16).toString("hex");
+
+        // Create transaction record
+        const transaction = await CoinTransaction.create({
+          _id: transactionId,
+          userId: req.userId,
+          type: "purchase",
+          amount: coinPackage.coins,
+          balanceBefore: user.coins || 0,
+          balanceAfter: (user.coins || 0) + coinPackage.coins,
+          description: `Purchase of ${coinPackage.coins} coins`,
+          status: "pending",
+          metadata: {
+            packageId: packageId,
+            price: coinPackage.price,
+            originalPrice: coinPackage.originalPrice,
+            discount: coinPackage.discount,
+          },
+        });
+
+        // If Razorpay is configured, create real order
+        if (RAZORPAY_ENABLED && razorpay) {
+          const options = {
+            amount: coinPackage.price * 100,
+            currency: "INR",
+            receipt: transactionId,
+            notes: {
+              userId: req.userId,
+              packageId: packageId,
+              coins: coinPackage.coins,
+              transactionId: transactionId,
+            },
+          };
+
+          const order = await razorpay.orders.create(options);
+
+          transaction.razorpayOrderId = order.id;
+          await transaction.save();
+
+          logInfo(
+            `Razorpay order created: ${order.id} for user ${req.userId}`,
+            "SUCCESS"
+          );
+
+          res.json({
+            success: true,
+            testMode: false,
+            order: {
+              id: order.id,
+              amount: order.amount,
+              currency: order.currency,
+            },
+            transactionId: transactionId,
+            package: coinPackage,
+            key: process.env.RAZORPAY_KEY_ID,
+          });
+        } else {
+          // Test Mode - Generate dummy order
+          const dummyOrderId = `order_TEST_${Date.now()}_${crypto
+            .randomBytes(4)
+            .toString("hex")}`;
+
+          transaction.razorpayOrderId = dummyOrderId;
+          await transaction.save();
+
+          logInfo(
+            `TEST MODE: Order created: ${dummyOrderId} for user ${req.userId}`,
+            "INFO"
+          );
+
+          res.json({
+            success: true,
+            testMode: true,
+            order: {
+              id: dummyOrderId,
+              amount: coinPackage.price * 100,
+              currency: "INR",
+            },
+            transactionId: transactionId,
+            package: coinPackage,
+            key: "rzp_test_DUMMY_KEY",
+          });
+        }
+      } catch (err) {
+        logger.error("Create order error:", err);
+        res
+          .status(500)
+          .json({ error: "Failed to create order", details: err.message });
+      }
+    }
+  );
+
+  // Verify Payment (Razorpay or Test Mode)
+  app.post(
+    "/api/coins/verify-payment",
+    authMiddleware,
+    [
+      check("razorpay_order_id")
+        .trim()
+        .notEmpty()
+        .withMessage("Order ID is required"),
+      check("razorpay_payment_id")
+        .trim()
+        .notEmpty()
+        .withMessage("Payment ID is required"),
+      check("razorpay_signature")
+        .trim()
+        .notEmpty()
+        .withMessage("Signature is required"),
+      check("transactionId")
+        .trim()
+        .notEmpty()
+        .withMessage("Transaction ID is required"),
+    ],
+    async (req, res) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const {
+        razorpay_order_id,
+        razorpay_payment_id,
+        razorpay_signature,
+        transactionId,
+      } = req.body;
+
+      try {
+        const transaction = await CoinTransaction.findOne({
+          _id: transactionId,
+        });
+        if (!transaction) {
+          return res.status(404).json({ error: "Transaction not found" });
+        }
+
+        if (transaction.status === "completed") {
+          return res
+            .status(400)
+            .json({ error: "Transaction already processed" });
+        }
+
+        if (transaction.userId !== req.userId) {
+          return res.status(403).json({ error: "Unauthorized transaction" });
+        }
+
+        // Verify signature if Razorpay is enabled
+        if (RAZORPAY_ENABLED) {
+          const expectedSignature = crypto
+            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+            .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+            .digest("hex");
+
+          if (expectedSignature !== razorpay_signature) {
+            await CoinTransaction.findByIdAndUpdate(transactionId, {
+              status: "failed",
+              razorpayPaymentId: razorpay_payment_id,
+              razorpaySignature: razorpay_signature,
+            });
+
+            logger.error(
+              `Payment verification failed for order: ${razorpay_order_id}`
+            );
+            return res
+              .status(400)
+              .json({ error: "Payment verification failed" });
+          }
+        } else {
+          // Test Mode - Accept any signature that starts with "test_"
+          if (!razorpay_signature.startsWith("test_")) {
+            return res.status(400).json({ error: "Invalid test signature" });
+          }
+          logInfo(
+            `TEST MODE: Payment verified for order: ${razorpay_order_id}`,
+            "INFO"
+          );
+        }
+
+        // Update user coins
+        const user = await User.findOne({ _id: req.userId });
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        const currentBalance = user.coins || 0;
+        const newBalance = currentBalance + transaction.amount;
+
+        user.coins = newBalance;
+        await user.save();
+
+        // Update transaction
+        transaction.status = "completed";
+        transaction.razorpayPaymentId = razorpay_payment_id;
+        transaction.razorpaySignature = razorpay_signature;
+        transaction.balanceBefore = currentBalance;
+        transaction.balanceAfter = newBalance;
+        await transaction.save();
+
+        logInfo(
+          `Payment verified: ${razorpay_payment_id}. User ${req.userId} received ${transaction.amount} coins.`,
+          "SUCCESS"
+        );
+
+        // Send email confirmation
+        if (user.email) {
+          const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: user.email,
+            subject: "Coin Purchase Successful - Gig Connect",
+            html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: #1A2A4F; padding: 30px; text-align: center;">
+                <h1 style="color: white; margin: 0;">Gig Connect</h1>
+              </div>
+              <div style="padding: 30px; background: #f9fafb;">
+                <h2 style="color: #1A2A4F;">Payment Successful! 🎉</h2>
+                <p style="color: #4a5568;">Hi ${user.fullName},</p>
+                <p style="color: #4a5568;">Your coin purchase was successful. Here are the details:</p>
+                <div style="background: white; padding: 20px; border-radius: 10px; margin: 20px 0;">
+                  <p style="margin: 10px 0;"><strong>Coins Purchased:</strong> ${transaction.amount}</p>
+                  <p style="margin: 10px 0;"><strong>Amount Paid:</strong> ₹${transaction.metadata.price}</p>
+                  <p style="margin: 10px 0;"><strong>Transaction ID:</strong> ${transactionId}</p>
+                  <p style="margin: 10px 0;"><strong>New Balance:</strong> ${newBalance} coins</p>
+                </div>
+                <p style="color: #4a5568;">Thank you for your purchase!</p>
+              </div>
+            </div>
+          `,
+          };
+          await transporter.sendMail(mailOptions).catch((err) => {
+            logger.error("Failed to send purchase confirmation email:", err);
+          });
+        }
+
+        res.json({
+          success: true,
+          message: "Payment verified successfully",
+          coins: newBalance,
+          transaction: {
+            id: transaction._id,
+            amount: transaction.amount,
+            status: transaction.status,
+          },
+        });
+      } catch (err) {
+        logger.error("Verify payment error:", err);
+        res
+          .status(500)
+          .json({ error: "Payment verification failed", details: err.message });
+      }
+    }
+  );
+
+  // Test Mode - Simulate Payment (Only works when Razorpay is not configured)
+  app.post(
+    "/api/coins/test-payment",
+    authMiddleware,
+    [
+      check("transactionId")
+        .trim()
+        .notEmpty()
+        .withMessage("Transaction ID is required"),
+    ],
+    async (req, res) => {
+      if (RAZORPAY_ENABLED) {
+        return res
+          .status(400)
+          .json({ error: "Test payment not available in production mode" });
+      }
+
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { transactionId } = req.body;
+
+      try {
+        const transaction = await CoinTransaction.findOne({
+          _id: transactionId,
+        });
+        if (!transaction) {
+          return res.status(404).json({ error: "Transaction not found" });
+        }
+
+        if (transaction.status === "completed") {
+          return res
+            .status(400)
+            .json({ error: "Transaction already processed" });
+        }
+
+        if (transaction.userId !== req.userId) {
+          return res.status(403).json({ error: "Unauthorized transaction" });
+        }
+
+        // Update user coins
+        const user = await User.findOne({ _id: req.userId });
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        const currentBalance = user.coins || 0;
+        const newBalance = currentBalance + transaction.amount;
+
+        user.coins = newBalance;
+        await user.save();
+
+        // Update transaction
+        transaction.status = "completed";
+        transaction.razorpayPaymentId = `pay_TEST_${Date.now()}`;
+        transaction.razorpaySignature = `test_${crypto
+          .randomBytes(16)
+          .toString("hex")}`;
+        transaction.balanceBefore = currentBalance;
+        transaction.balanceAfter = newBalance;
+        await transaction.save();
+
+        logInfo(
+          `TEST MODE: Payment completed. User ${req.userId} received ${transaction.amount} coins.`,
+          "SUCCESS"
+        );
+
+        res.json({
+          success: true,
+          testMode: true,
+          message: "Test payment completed successfully",
+          coins: newBalance,
+          transaction: {
+            id: transaction._id,
+            amount: transaction.amount,
+            status: transaction.status,
+          },
+        });
+      } catch (err) {
+        logger.error("Test payment error:", err);
+        res
+          .status(500)
+          .json({ error: "Test payment failed", details: err.message });
+      }
+    }
+  );
+
+  // Deduct Coins
+  app.post(
+    "/api/users/coins/deduct",
+    authMiddleware,
+    [
+      check("amount")
+        .isInt({ min: 1 })
+        .withMessage("Amount must be a positive integer"),
+      check("reason").trim().notEmpty().withMessage("Reason is required"),
+    ],
+    async (req, res) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { amount, reason } = req.body;
+
+      try {
+        const user = await User.findOne({ _id: req.userId });
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        const currentBalance = user.coins || 0;
+        if (currentBalance < parseInt(amount)) {
+          return res.status(400).json({
+            error: "Insufficient coins",
+            required: parseInt(amount),
+            available: currentBalance,
+          });
+        }
+
+        const newBalance = currentBalance - parseInt(amount);
+        user.coins = newBalance;
+        await user.save();
+
+        const transactionId = crypto.randomBytes(16).toString("hex");
+        await CoinTransaction.create({
+          _id: transactionId,
+          userId: req.userId,
+          type: "deduct",
+          amount: parseInt(amount),
+          balanceBefore: currentBalance,
+          balanceAfter: newBalance,
+          description: reason,
+          status: "completed",
+        });
+
+        logInfo(
+          `${amount} coins deducted from user ${req.userId}. Reason: ${reason}`,
+          "INFO"
+        );
+
+        res.json({
+          success: true,
+          coins: newBalance,
+          message: `${amount} coins deducted successfully`,
+        });
+      } catch (err) {
+        logger.error("Deduct coins error:", err);
+        res.status(500).json({ error: "Server error", details: err.message });
+      }
+    }
+  );
+
+  // Transfer Coins (Atomic transaction)
+  app.post(
+    "/api/users/coins/transfer",
+    authMiddleware,
+    [
+      check("recipientId")
+        .trim()
+        .notEmpty()
+        .withMessage("Recipient ID is required"),
+      check("amount")
+        .isInt({ min: 1 })
+        .withMessage("Amount must be a positive integer"),
+      check("reason").optional().trim(),
+    ],
+    async (req, res) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { recipientId, amount, reason = "Coin transfer" } = req.body;
+
+      const session = await mongoose.startSession();
+      session.startTransaction();
+
+      try {
+        if (req.userId === recipientId) {
+          await session.abortTransaction();
+          return res
+            .status(400)
+            .json({ error: "Cannot transfer coins to yourself" });
+        }
+
+        const sender = await User.findOne({ _id: req.userId }).session(session);
+        const recipient = await User.findOne({ _id: recipientId }).session(
+          session
+        );
+
+        if (!sender) {
+          await session.abortTransaction();
+          return res.status(404).json({ error: "Sender not found" });
+        }
+        if (!recipient) {
+          await session.abortTransaction();
+          return res.status(404).json({ error: "Recipient not found" });
+        }
+
+        const senderBalance = sender.coins || 0;
+        if (senderBalance < parseInt(amount)) {
+          await session.abortTransaction();
+          return res.status(400).json({
+            error: "Insufficient coins",
+            required: parseInt(amount),
+            available: senderBalance,
+          });
+        }
+
+        const recipientBalance = recipient.coins || 0;
+        const senderNewBalance = senderBalance - parseInt(amount);
+        const recipientNewBalance = recipientBalance + parseInt(amount);
+
+        sender.coins = senderNewBalance;
+        recipient.coins = recipientNewBalance;
+
+        await sender.save({ session });
+        await recipient.save({ session });
+
+        const senderTransactionId = crypto.randomBytes(16).toString("hex");
+        const recipientTransactionId = crypto.randomBytes(16).toString("hex");
+
+        await CoinTransaction.create(
+          [
+            {
+              _id: senderTransactionId,
+              userId: req.userId,
+              type: "transfer_sent",
+              amount: parseInt(amount),
+              balanceBefore: senderBalance,
+              balanceAfter: senderNewBalance,
+              description: `Transfer to ${recipient.fullName}: ${reason}`,
+              status: "completed",
+              relatedUserId: recipientId,
+            },
+            {
+              _id: recipientTransactionId,
+              userId: recipientId,
+              type: "transfer_received",
+              amount: parseInt(amount),
+              balanceBefore: recipientBalance,
+              balanceAfter: recipientNewBalance,
+              description: `Received from ${sender.fullName}: ${reason}`,
+              status: "completed",
+              relatedUserId: req.userId,
+            },
+          ],
+          { session }
+        );
+
+        await session.commitTransaction();
+
+        logInfo(
+          `${amount} coins transferred from ${req.userId} to ${recipientId}`,
+          "SUCCESS"
+        );
+
+        res.json({
+          success: true,
+          senderCoins: senderNewBalance,
+          recipientName: recipient.fullName,
+          message: `${amount} coins transferred successfully to ${recipient.fullName}`,
+        });
+      } catch (err) {
+        await session.abortTransaction();
+        logger.error("Transfer coins error:", err);
+        res.status(500).json({ error: "Server error", details: err.message });
+      } finally {
+        session.endSession();
+      }
+    }
+  );
+
+  // Get Coin Packages
+  app.get("/api/coins/packages", (req, res) => {
+    res.json({
+      success: true,
+      packages: COIN_PACKAGES,
+      testMode: !RAZORPAY_ENABLED,
+    });
   });
 
   // 5. SOCKET.IO

@@ -1,4 +1,3 @@
-// src/App.jsx
 import React from "react";
 import {
   BrowserRouter as Router,
@@ -18,6 +17,7 @@ import Login from "./Pages/Onbaording/Login";
 import Profile from "./Pages/Profile";
 import Home from "./Pages/Home";
 import GlobalChat from "./Pages/GlobalChat";
+import PurchaseCoins from "./Pages/PurchaseCoins";
 
 // Auth Pages
 import SignupEmail from "./Pages/Onbaording/SignupEmail";
@@ -33,10 +33,8 @@ import Ticket from "./components/Ticket";
 import Tickets from "./components/Tickets";
 import UserProfile from "./components/UserProfile";
 
-// Configure axios base URL (adjust according to your backend)
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-// Protected Route
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem("token");
   const location = useLocation();
@@ -48,23 +46,17 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// Title resolver functions
 const gigTitleResolver = async (params) => {
   try {
     const token = localStorage.getItem("token");
     const response = await axios.get(`${API_BASE_URL}/api/gigs/${params.id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${token}` },
     });
-
-    // Make sure we have a valid title
     if (response.data && response.data.title) {
       return `${response.data.title} | Gig Details`;
     }
     return "Gig Details";
   } catch (error) {
-    console.error("Error fetching gig:", error);
     return "Gig Details";
   }
 };
@@ -75,18 +67,14 @@ const ticketTitleResolver = async (params) => {
     const response = await axios.get(
       `${API_BASE_URL}/api/tickets/${params.id}`,
       {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       }
     );
-
     if (response.data && response.data.title) {
       return `${response.data.title} | Ticket`;
     }
     return `Ticket #${params.id}`;
   } catch (error) {
-    console.error("Error fetching ticket:", error);
     return `Ticket #${params.id}`;
   }
 };
@@ -95,30 +83,24 @@ const userTitleResolver = async (params) => {
   try {
     const token = localStorage.getItem("token");
     const response = await axios.get(`${API_BASE_URL}/api/users/${params.id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${token}` },
     });
-
     if (response.data && response.data.name) {
       return `${response.data.name} | Profile`;
     }
     return "User Profile";
   } catch (error) {
-    console.error("Error fetching user:", error);
     return "User Profile";
   }
 };
 
-// Main App
 const App = () => {
   return (
     <Router>
-      {/* Show toast notifications */}
       <Toaster position="top-right" />
 
       <Routes>
-        {/* === PUBLIC ROUTES === */}
+        {/* Public Routes */}
         <Route
           path="/"
           element={
@@ -136,7 +118,7 @@ const App = () => {
           }
         />
 
-        {/* === AUTH FLOW === */}
+        {/* Auth Flow */}
         <Route
           path="/signup"
           element={
@@ -161,8 +143,6 @@ const App = () => {
             </PageWrapper>
           }
         />
-
-        {/* Onboard alias route */}
         <Route
           path="/onboard"
           element={
@@ -171,8 +151,6 @@ const App = () => {
             </PageWrapper>
           }
         />
-
-        {/* Google OAuth Callback */}
         <Route
           path="/auth/google/callback"
           element={
@@ -182,7 +160,7 @@ const App = () => {
           }
         />
 
-        {/* === PROTECTED ROUTES === */}
+        {/* Protected Routes */}
         <Route
           path="/home"
           element={
@@ -200,6 +178,18 @@ const App = () => {
             <ProtectedRoute>
               <PageWrapper>
                 <Profile />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Purchase Coins Page */}
+        <Route
+          path="/purchase-coins"
+          element={
+            <ProtectedRoute>
+              <PageWrapper customTitle="Purchase Coins | Gig Connect">
+                <PurchaseCoins />
               </PageWrapper>
             </ProtectedRoute>
           }
@@ -227,7 +217,6 @@ const App = () => {
           }
         />
 
-        {/* Dynamic route for Gig Details */}
         <Route
           path="/gigs/:id"
           element={
@@ -253,7 +242,6 @@ const App = () => {
           }
         />
 
-        {/* Dynamic route for Ticket Details */}
         <Route
           path="/tickets/:id"
           element={
@@ -268,7 +256,6 @@ const App = () => {
           }
         />
 
-        {/* Dynamic route for User Profile */}
         <Route
           path="/users/:id"
           element={
@@ -294,7 +281,6 @@ const App = () => {
           }
         />
 
-        {/* Fallback with PageWrapper */}
         <Route
           path="*"
           element={

@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   User,
   Mail,
   Lock,
-  Star,
   CheckCircle,
   Linkedin,
   Github,
@@ -21,15 +21,626 @@ import {
   Camera,
   Briefcase,
   Zap,
+  Coins,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Send,
+  CreditCard,
+  History,
+  Wallet,
+  TrendingUp,
+  ChevronRight,
+  Copy,
+  Download,
+  ExternalLink,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import Navbar from "../components/Navbar";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
 
+const theme = {
+  primary: "#1A2A4F",
+  primaryLight: "#2A3A6F",
+  primaryMedium: "#3A4A7F",
+  primarySoft: "#4A5A8F",
+  light: "#E8EBF2",
+  lighter: "#F4F6FA",
+  white: "#FFFFFF",
+};
+
+// Fade In Animation Component
+const FadeIn = ({ children, delay = 0, className = "" }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.5, delay, ease: "easeOut" }}
+    className={className}
+  >
+    {children}
+  </motion.div>
+);
+
+// Stat Card Component
+const StatCard = ({ icon: Icon, label, value, delay = 0 }) => (
+  <FadeIn delay={delay}>
+    <div
+      className="text-center p-6 rounded-2xl border transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+      style={{ backgroundColor: theme.white, borderColor: theme.light }}
+    >
+      <div
+        className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3"
+        style={{ backgroundColor: theme.lighter }}
+      >
+        <Icon className="w-6 h-6" style={{ color: theme.primary }} />
+      </div>
+      <div className="text-3xl font-bold" style={{ color: theme.primary }}>
+        {value}
+      </div>
+      <div className="text-sm mt-1" style={{ color: theme.primaryMedium }}>
+        {label}
+      </div>
+    </div>
+  </FadeIn>
+);
+
+// Section Card Component
+const SectionCard = ({ children, className = "" }) => (
+  <div
+    className={`rounded-2xl border p-6 md:p-8 ${className}`}
+    style={{ backgroundColor: theme.white, borderColor: theme.light }}
+  >
+    {children}
+  </div>
+);
+
+// Section Header Component
+const SectionHeader = ({ icon: Icon, title, action }) => (
+  <div className="flex items-center justify-between mb-6">
+    <div className="flex items-center gap-3">
+      <div
+        className="w-10 h-10 rounded-xl flex items-center justify-center"
+        style={{ backgroundColor: theme.lighter }}
+      >
+        <Icon className="w-5 h-5" style={{ color: theme.primary }} />
+      </div>
+      <h2 className="text-xl font-bold" style={{ color: theme.primary }}>
+        {title}
+      </h2>
+    </div>
+    {action}
+  </div>
+);
+
+// Setting Item Component
+const SettingItem = ({
+  icon: Icon,
+  title,
+  subtitle,
+  isOpen,
+  onToggle,
+  children,
+}) => (
+  <div
+    className="rounded-xl p-4 transition-all duration-300 border"
+    style={{
+      backgroundColor: isOpen ? theme.lighter : theme.white,
+      borderColor: isOpen ? theme.primaryMedium : theme.light,
+    }}
+  >
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-4">
+        <div
+          className="w-12 h-12 rounded-xl flex items-center justify-center"
+          style={{ backgroundColor: isOpen ? theme.white : theme.lighter }}
+        >
+          <Icon className="w-5 h-5" style={{ color: theme.primary }} />
+        </div>
+        <div>
+          <h3 className="font-semibold" style={{ color: theme.primary }}>
+            {title}
+          </h3>
+          <p className="text-sm" style={{ color: theme.primaryMedium }}>
+            {subtitle}
+          </p>
+        </div>
+      </div>
+      <button
+        onClick={onToggle}
+        className="p-2 rounded-lg transition-colors"
+        style={{ backgroundColor: theme.lighter }}
+      >
+        {isOpen ? (
+          <X className="w-5 h-5" style={{ color: theme.primary }} />
+        ) : (
+          <Edit2 className="w-5 h-5" style={{ color: theme.primary }} />
+        )}
+      </button>
+    </div>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: "auto", opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.3 }}
+          className="overflow-hidden"
+        >
+          <div
+            className="pt-4 mt-4 border-t"
+            style={{ borderColor: theme.light }}
+          >
+            {children}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  </div>
+);
+
+// Input Component
+const Input = ({
+  type = "text",
+  placeholder,
+  value,
+  onChange,
+  disabled = false,
+  className = "",
+}) => (
+  <input
+    type={type}
+    placeholder={placeholder}
+    value={value}
+    onChange={onChange}
+    disabled={disabled}
+    className={`w-full px-4 py-3 rounded-xl border-2 text-base transition-all duration-300 focus:outline-none disabled:opacity-60 ${className}`}
+    style={{
+      borderColor: theme.light,
+      backgroundColor: theme.white,
+      color: theme.primary,
+    }}
+    onFocus={(e) => (e.target.style.borderColor = theme.primary)}
+    onBlur={(e) => (e.target.style.borderColor = theme.light)}
+  />
+);
+
+// Button Component
+const Button = ({
+  children,
+  onClick,
+  type = "button",
+  variant = "primary",
+  disabled = false,
+  className = "",
+}) => {
+  const styles = {
+    primary: {
+      backgroundColor: theme.primary,
+      color: theme.white,
+    },
+    secondary: {
+      backgroundColor: theme.lighter,
+      color: theme.primary,
+    },
+    outline: {
+      backgroundColor: "transparent",
+      color: theme.primary,
+      border: `2px solid ${theme.primary}`,
+    },
+  };
+
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${className}`}
+      style={styles[variant]}
+    >
+      {children}
+    </button>
+  );
+};
+
+// Coin Wallet Modal
+const CoinWalletModal = ({ isOpen, onClose, user, onUpdateCoins }) => {
+  const [activeTab, setActiveTab] = useState("balance");
+  const [purchaseAmount, setPurchaseAmount] = useState("");
+  const [transferAmount, setTransferAmount] = useState("");
+  const [recipientId, setRecipientId] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const coinPackages = [
+    { coins: 100, price: 99, popular: false },
+    { coins: 500, price: 449, popular: true },
+    { coins: 1000, price: 849, popular: false },
+    { coins: 2500, price: 1999, popular: false },
+  ];
+
+  const handlePurchase = async (amount) => {
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.post(
+        `${API_BASE}/users/coins/purchase`,
+        { amount, paymentId: `PAY_${Date.now()}` },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      onUpdateCoins(res.data.coins);
+      toast.success(`${amount} coins purchased successfully!`);
+      setPurchaseAmount("");
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Purchase failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTransfer = async (e) => {
+    e.preventDefault();
+    if (!recipientId || !transferAmount) return;
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.post(
+        `${API_BASE}/users/coins/transfer`,
+        {
+          recipientId,
+          amount: parseInt(transferAmount),
+          reason: "Profile transfer",
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      onUpdateCoins(res.data.senderCoins);
+      toast.success(`${transferAmount} coins sent successfully!`);
+      setTransferAmount("");
+      setRecipientId("");
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Transfer failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleNavigateToPurchase = () => {
+    navigate("/purchase-coins");
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl"
+        style={{ backgroundColor: theme.white }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="p-6" style={{ backgroundColor: theme.primary }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-white/20">
+                <Wallet className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">Coin Wallet</h3>
+                <p className="text-white/70 text-sm">Manage your coins</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
+          </div>
+
+          {/* Balance Display */}
+          <div className="mt-6 p-4 rounded-xl bg-white/10">
+            <p className="text-white/70 text-sm">Current Balance</p>
+            <div className="flex items-center gap-2 mt-1">
+              <Coins className="w-8 h-8 text-yellow-400" />
+              <span className="text-4xl font-bold text-white">
+                {user?.coins || 0}
+              </span>
+              <span className="text-white/70">coins</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b" style={{ borderColor: theme.light }}>
+          {[
+            { id: "balance", label: "Buy Coins", icon: CreditCard },
+            { id: "transfer", label: "Transfer", icon: Send },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 flex items-center justify-center gap-2 py-4 font-medium transition-colors ${
+                activeTab === tab.id ? "border-b-2" : ""
+              }`}
+              style={{
+                borderColor:
+                  activeTab === tab.id ? theme.primary : "transparent",
+                color:
+                  activeTab === tab.id ? theme.primary : theme.primaryMedium,
+              }}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          {activeTab === "balance" && (
+            <div className="space-y-4">
+              <p className="text-sm" style={{ color: theme.primaryMedium }}>
+                Select a package or enter custom amount
+              </p>
+
+              {/* Quick Buy Packages */}
+              <div className="grid grid-cols-2 gap-3">
+                {coinPackages.map((pkg) => (
+                  <button
+                    key={pkg.coins}
+                    onClick={() => handlePurchase(pkg.coins)}
+                    disabled={isLoading}
+                    className={`relative p-4 rounded-xl border-2 transition-all duration-300 hover:shadow-md ${
+                      pkg.popular ? "border-yellow-400" : ""
+                    }`}
+                    style={{
+                      borderColor: pkg.popular ? "#facc15" : theme.light,
+                      backgroundColor: theme.white,
+                    }}
+                  >
+                    {pkg.popular && (
+                      <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-yellow-400 text-xs font-bold rounded-full text-yellow-900">
+                        POPULAR
+                      </span>
+                    )}
+                    <div className="flex items-center justify-center gap-1 mb-2">
+                      <Coins className="w-5 h-5 text-yellow-500" />
+                      <span
+                        className="text-xl font-bold"
+                        style={{ color: theme.primary }}
+                      >
+                        {pkg.coins}
+                      </span>
+                    </div>
+                    <p
+                      className="text-sm font-medium"
+                      style={{ color: theme.primaryMedium }}
+                    >
+                      ₹{pkg.price}
+                    </p>
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom Amount */}
+              <div className="flex gap-3 mt-4">
+                <Input
+                  type="number"
+                  placeholder="Custom amount"
+                  value={purchaseAmount}
+                  onChange={(e) => setPurchaseAmount(e.target.value)}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={() =>
+                    purchaseAmount && handlePurchase(parseInt(purchaseAmount))
+                  }
+                  disabled={!purchaseAmount || isLoading}
+                >
+                  {isLoading ? "..." : "Buy"}
+                </Button>
+              </div>
+
+              {/* Navigate to Full Purchase Page */}
+              <div
+                className="mt-6 pt-6 border-t"
+                style={{ borderColor: theme.light }}
+              >
+                <Button
+                  onClick={handleNavigateToPurchase}
+                  variant="outline"
+                  className="w-full"
+                >
+                  <CreditCard className="w-4 h-4" />
+                  View All Packages & Offers
+                  <ArrowUpRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "transfer" && (
+            <form onSubmit={handleTransfer} className="space-y-4">
+              <p className="text-sm" style={{ color: theme.primaryMedium }}>
+                Send coins to another user
+              </p>
+
+              <Input
+                placeholder="Recipient User ID"
+                value={recipientId}
+                onChange={(e) => setRecipientId(e.target.value)}
+              />
+
+              <Input
+                type="number"
+                placeholder="Amount to send"
+                value={transferAmount}
+                onChange={(e) => setTransferAmount(e.target.value)}
+              />
+
+              <Button
+                type="submit"
+                disabled={isLoading || !recipientId || !transferAmount}
+                className="w-full"
+              >
+                {isLoading ? (
+                  "Sending..."
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    Send Coins
+                  </>
+                )}
+              </Button>
+
+              <p
+                className="text-xs text-center"
+                style={{ color: theme.primaryMedium }}
+              >
+                Coins will be instantly transferred to the recipient
+              </p>
+            </form>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+// Share Profile Modal
+const ShareProfileModal = ({ isOpen, onClose, user, stats }) => {
+  const profileUrl = `${window.location.origin}/profile/${user?._id}`;
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(profileUrl);
+    toast.success("Profile link copied!");
+  };
+
+  if (!isOpen || !user) return null;
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="w-full max-w-md rounded-2xl overflow-hidden shadow-2xl"
+        style={{ backgroundColor: theme.white }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="p-6" style={{ backgroundColor: theme.primary }}>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-bold text-white">Share Profile</h3>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
+          </div>
+        </div>
+
+        {/* Profile Card Preview */}
+        <div className="p-6">
+          <div
+            className="p-6 rounded-xl border"
+            style={{ backgroundColor: theme.lighter, borderColor: theme.light }}
+          >
+            <div className="flex items-center gap-4 mb-4">
+              {user.profilePicture ? (
+                <img
+                  src={user.profilePicture}
+                  alt="Profile"
+                  className="w-16 h-16 rounded-xl object-cover"
+                />
+              ) : (
+                <div
+                  className="w-16 h-16 rounded-xl flex items-center justify-center text-2xl font-bold text-white"
+                  style={{ backgroundColor: theme.primary }}
+                >
+                  {user.fullName?.[0]?.toUpperCase()}
+                </div>
+              )}
+              <div>
+                <h4
+                  className="text-lg font-bold"
+                  style={{ color: theme.primary }}
+                >
+                  {user.fullName}
+                </h4>
+                <p className="text-sm" style={{ color: theme.primaryMedium }}>
+                  {user.role === "Both" ? "Provider & Freelancer" : user.role}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              {stats.map((stat, i) => (
+                <div
+                  key={i}
+                  className="text-center p-3 rounded-lg"
+                  style={{ backgroundColor: theme.white }}
+                >
+                  <div
+                    className="text-lg font-bold"
+                    style={{ color: theme.primary }}
+                  >
+                    {stat.value}
+                  </div>
+                  <div
+                    className="text-xs"
+                    style={{ color: theme.primaryMedium }}
+                  >
+                    {stat.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Share Options */}
+          <div className="mt-6 space-y-3">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={profileUrl}
+                readOnly
+                className="flex-1 px-4 py-3 rounded-xl border text-sm truncate"
+                style={{
+                  backgroundColor: theme.lighter,
+                  borderColor: theme.light,
+                  color: theme.primary,
+                }}
+              />
+              <Button onClick={copyToClipboard} variant="secondary">
+                <Copy className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <Button className="w-full">
+              <Download className="w-4 h-4" />
+              Download Profile Card
+            </Button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+// Main Profile Component
 const Profile = () => {
   const [user, setUser] = useState(null);
   const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Form States
   const [nameForm, setNameForm] = useState({ fullName: "" });
   const [emailForm, setEmailForm] = useState({ newEmail: "", otp: "" });
   const [passwordForm, setPasswordForm] = useState({
@@ -38,16 +649,20 @@ const Profile = () => {
     confirmPassword: "",
   });
   const [certForm, setCertForm] = useState({ name: "", issuer: "" });
+  const [newSkill, setNewSkill] = useState("");
+
+  // UI States
   const [showNameForm, setShowNameForm] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [showOtpForm, setShowOtpForm] = useState(false);
   const [showSkillForm, setShowSkillForm] = useState(false);
   const [showCertForm, setShowCertForm] = useState(false);
-  const [newSkill, setNewSkill] = useState("");
-  const [showShareCard, setShowShareCard] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showWalletModal, setShowWalletModal] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
@@ -60,16 +675,19 @@ const Profile = () => {
           return;
         }
 
-        const [profileRes, reviewsRes] = await Promise.all([
+        const [profileRes, reviewsRes, coinsRes] = await Promise.all([
           axios.get(`${API_BASE}/users/profile`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
           axios.get(`${API_BASE}/reviews`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
+          axios.get(`${API_BASE}/users/coins`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
         ]);
 
-        setUser(profileRes.data);
+        setUser({ ...profileRes.data, coins: coinsRes.data.coins || 0 });
         setReviews(reviewsRes.data);
         setNameForm({ fullName: profileRes.data.fullName });
       } catch (err) {
@@ -79,11 +697,14 @@ const Profile = () => {
         } else {
           toast.error("Failed to load profile");
         }
+      } finally {
+        setLoading(false);
       }
     };
     fetchProfile();
   }, [navigate]);
 
+  // Handlers
   const handleNameChange = async (e) => {
     e.preventDefault();
     try {
@@ -176,7 +797,7 @@ const Profile = () => {
       );
       setUser((prev) => ({
         ...prev,
-        skills: [...prev.skills, { name: newSkill }],
+        skills: [...(prev.skills || []), { name: newSkill }],
       }));
       setNewSkill("");
       setShowSkillForm(false);
@@ -238,8 +859,7 @@ const Profile = () => {
     }
   };
 
-  const handleProfilePicUpload = async (e) => {
-    const file = e.target.files[0];
+  const handleProfilePicUpload = async (file) => {
     if (!file) return;
     setIsUploading(true);
     const formData = new FormData();
@@ -279,22 +899,35 @@ const Profile = () => {
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
     if (file && file.type.startsWith("image/")) {
-      handleProfilePicUpload({ target: { files: [file] } });
+      handleProfilePicUpload(file);
     }
   };
 
-  const handleShareProfile = () => setShowShareCard(true);
-  const closeShareCard = () => setShowShareCard(false);
+  const handleUpdateCoins = (newCoins) => {
+    setUser((prev) => ({ ...prev, coins: newCoins }));
+  };
 
-  if (!user) {
+  // Loading State
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white flex items-center justify-center">
-        <div className="text-2xl font-semibold text-[#1A2A4F]">
-          Loading your profile...
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ backgroundColor: theme.lighter }}
+      >
+        <div className="text-center">
+          <div
+            className="w-16 h-16 border-4 rounded-full animate-spin mx-auto mb-4"
+            style={{ borderColor: theme.light, borderTopColor: theme.primary }}
+          />
+          <p className="text-lg font-medium" style={{ color: theme.primary }}>
+            Loading your profile...
+          </p>
         </div>
       </div>
     );
   }
+
+  if (!user) return null;
 
   const averageRating = reviews.length
     ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(
@@ -311,8 +944,9 @@ const Profile = () => {
       value: isProvider ? user.gigsPosted || 0 : user.gigsCompleted || 0,
       icon: Briefcase,
     },
-    { label: "Rating", value: averageRating, icon: Star },
+    { label: "Rating", value: averageRating, icon: TrendingUp },
     { label: "Reviews", value: reviews.length, icon: Trophy },
+    { label: "Coins", value: user.coins || 0, icon: Coins },
   ];
 
   return (
@@ -320,279 +954,362 @@ const Profile = () => {
       <Toaster position="top-right" />
       <Navbar />
 
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 pt-20 pb-32">
-        <div className="max-w-7xl mx-auto px-6">
+      <div
+        className="min-h-screen pt-20 pb-24"
+        style={{ backgroundColor: theme.lighter }}
+      >
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
           {/* Hero Section */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-20">
-            {/* Profile Picture */}
-            <div className="flex justify-center md:justify-start">
-              <div className="relative group">
-                <div
-                  className={`w-48 h-48 rounded-3xl overflow-hidden shadow-2xl ring-8 ring-white transition-all duration-300 ${
-                    isDragging ? "ring-[#1A2A4F] scale-105" : ""
-                  }`}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                >
-                  {user.profilePicture ? (
-                    <img
-                      src={user.profilePicture}
-                      alt="Profile"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-[#1A2A4F] to-[#2A3A5F] flex items-center justify-center text-white text-8xl font-bold">
-                      {user.fullName[0].toUpperCase()}
+          <FadeIn>
+            <SectionCard className="mt-6">
+              <div className="flex flex-col md:flex-row gap-8 items-center md:items-start">
+                {/* Profile Picture */}
+                <div className="relative group flex-shrink-0">
+                  <div
+                    className={`w-32 h-32 md:w-40 md:h-40 rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${
+                      isDragging ? "ring-4 scale-105" : "ring-4"
+                    }`}
+                    style={{
+                      ringColor: isDragging ? theme.primary : theme.light,
+                    }}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                  >
+                    {user.profilePicture ? (
+                      <img
+                        src={user.profilePicture}
+                        alt="Profile"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div
+                        className="w-full h-full flex items-center justify-center text-5xl font-bold text-white"
+                        style={{ backgroundColor: theme.primary }}
+                      >
+                        {user.fullName?.[0]?.toUpperCase()}
+                      </div>
+                    )}
+                    <label className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
+                      {isUploading ? (
+                        <div className="w-10 h-10 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <Camera className="w-8 h-8 text-white" />
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        ref={fileInputRef}
+                        onChange={(e) =>
+                          handleProfilePicUpload(e.target.files[0])
+                        }
+                        className="hidden"
+                        disabled={isUploading}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* User Info */}
+                <div className="flex-1 text-center md:text-left">
+                  <div className="flex items-center gap-3 justify-center md:justify-start mb-2">
+                    <h1
+                      className="text-2xl md:text-3xl font-bold"
+                      style={{ color: theme.primary }}
+                    >
+                      {user.fullName}
+                    </h1>
+                    {user.isVerified && (
+                      <CheckCircle
+                        className="w-6 h-6"
+                        style={{ color: theme.primary }}
+                      />
+                    )}
+                  </div>
+
+                  <p
+                    className="text-lg font-medium mb-2"
+                    style={{ color: theme.primaryMedium }}
+                  >
+                    {user.role === "Both" ? "Provider & Freelancer" : user.role}
+                  </p>
+
+                  {user.college && (
+                    <div
+                      className="inline-block px-4 py-1.5 rounded-full text-sm font-medium mb-4"
+                      style={{
+                        backgroundColor: theme.lighter,
+                        color: theme.primary,
+                      }}
+                    >
+                      {user.college}
                     </div>
                   )}
-                  <label className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
-                    {isUploading ? (
-                      <div className="animate-spin h-12 w-12 border-4 border-white rounded-full border-t-transparent" />
-                    ) : (
-                      <Camera size={40} className="text-white" />
-                    )}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      ref={fileInputRef}
-                      onChange={handleProfilePicUpload}
-                      className="hidden"
-                      disabled={isUploading}
-                    />
-                  </label>
-                </div>
-              </div>
-            </div>
 
-            {/* User Info */}
-            <div className="space-y-6 text-center md:text-left">
-              <div>
-                <div className="flex items-center gap-4 justify-center md:justify-start">
-                  <h1 className="text-5xl font-bold text-[#1A2A4F]">
-                    {user.fullName}
-                  </h1>
-                  {user.isVerified && (
-                    <CheckCircle size={36} className="text-[#1A2A4F]" />
+                  {user.bio && (
+                    <p
+                      className="text-sm leading-relaxed max-w-xl mb-4"
+                      style={{ color: theme.primaryMedium }}
+                    >
+                      {user.bio}
+                    </p>
                   )}
-                </div>
-                <p className="text-2xl font-medium text-[#1A2A4F]/80 mt-3">
-                  {user.role === "Both" ? "Provider & Freelancer" : user.role}
-                </p>
-                {user.college && (
-                  <div className="inline-block mt-5 px-6 py-2 bg-[#1A2A4F]/10 text-[#1A2A4F] rounded-full text-lg font-semibold">
-                    {user.college}
-                  </div>
-                )}
-              </div>
 
-              {user.bio && (
-                <p className="text-lg text-[#1A2A4F]/80 leading-relaxed max-w-2xl">
-                  {user.bio}
-                </p>
-              )}
-
-              <div className="flex gap-5 justify-center md:justify-start pt-6">
-                {user.socialLinks?.linkedin && (
-                  <a
-                    href={user.socialLinks.linkedin}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-14 h-14 rounded-2xl bg-[#1A2A4F]/10 hover:bg-[#1A2A4F] text-[#1A2A4F] hover:text-white flex items-center justify-center transition-all hover:scale-110"
-                  >
-                    <Linkedin size={26} />
-                  </a>
-                )}
-                {user.socialLinks?.github && (
-                  <a
-                    href={user.socialLinks.github}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-14 h-14 rounded-2xl bg-[#1A2A4F]/10 hover:bg-[#1A2A4F] text-[#1A2A4F] hover:text-white flex items-center justify-center transition-all hover:scale-110"
-                  >
-                    <Github size={26} />
-                  </a>
-                )}
-                {user.socialLinks?.instagram && (
-                  <a
-                    href={user.socialLinks.instagram}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-14 h-14 rounded-2xl bg-[#1A2A4F]/10 hover:bg-[#1A2A4F] text-[#1A2A4F] hover:text-white flex items-center justify-center transition-all hover:scale-110"
-                  >
-                    <Instagram size={26} />
-                  </a>
-                )}
-              </div>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-8">
-              {stats.map((stat, i) => (
-                <div
-                  key={i}
-                  className="text-center p-8 rounded-3xl bg-white shadow-xl border border-[#1A2A4F]/10"
-                >
-                  <div className="text-5xl font-bold text-[#1A2A4F]">
-                    {stat.value}
-                  </div>
-                  <div className="flex items-center justify-center gap-3 mt-4 text-[#1A2A4F]/80">
-                    <stat.icon size={24} />
-                    <span className="text-lg font-medium">{stat.label}</span>
+                  {/* Social Links */}
+                  <div className="flex gap-3 justify-center md:justify-start">
+                    {user.socialLinks?.linkedin && (
+                      <a
+                        href={user.socialLinks.linkedin}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 hover:scale-110"
+                        style={{
+                          backgroundColor: theme.lighter,
+                          color: theme.primary,
+                        }}
+                      >
+                        <Linkedin className="w-5 h-5" />
+                      </a>
+                    )}
+                    {user.socialLinks?.github && (
+                      <a
+                        href={user.socialLinks.github}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 hover:scale-110"
+                        style={{
+                          backgroundColor: theme.lighter,
+                          color: theme.primary,
+                        }}
+                      >
+                        <Github className="w-5 h-5" />
+                      </a>
+                    )}
+                    {user.socialLinks?.instagram && (
+                      <a
+                        href={user.socialLinks.instagram}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 hover:scale-110"
+                        style={{
+                          backgroundColor: theme.lighter,
+                          color: theme.primary,
+                        }}
+                      >
+                        <Instagram className="w-5 h-5" />
+                      </a>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
+
+                {/* Actions */}
+                <div className="flex flex-col gap-3">
+                  <Button onClick={() => setShowWalletModal(true)}>
+                    <Wallet className="w-4 h-4" />
+                    Wallet
+                  </Button>
+                  <Button
+                    onClick={() => setShowShareModal(true)}
+                    variant="outline"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    Share
+                  </Button>
+                </div>
+              </div>
+            </SectionCard>
+          </FadeIn>
+
+          {/* Stats Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+            {stats.map((stat, i) => (
+              <StatCard key={i} {...stat} delay={0.1 + i * 0.05} />
+            ))}
           </div>
 
-          <div className="h-px bg-gradient-to-r from-transparent via-[#1A2A4F]/30 to-transparent my-20" />
+          {/* Main Content Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+            {/* Left Column - Performance */}
+            <div className="space-y-6">
+              {/* Performance Card */}
+              <FadeIn delay={0.2}>
+                <SectionCard>
+                  <SectionHeader icon={Trophy} title="Performance" />
 
-          {/* Main Content */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-            {/* Performance Card */}
-            <div className="space-y-10">
-              <div className="bg-white rounded-3xl shadow-2xl p-10 border border-[#1A2A4F]/10">
-                <div className="flex items-center gap-5 mb-10">
-                  <Trophy size={40} className="text-[#1A2A4F]" />
-                  <h2 className="text-3xl font-bold text-[#1A2A4F]">
-                    Performance
-                  </h2>
-                </div>
-
-                <div className="space-y-10">
-                  <div>
-                    <div className="flex justify-between items-center mb-4">
-                      <span className="text-xl font-semibold text-[#1A2A4F]">
-                        Average Rating
-                      </span>
-                      <span className="text-3xl font-bold text-[#1A2A4F]">
-                        {averageRating}/5
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      {[...Array(5)].map((_, i) => (
-                        <Star
-                          key={i}
-                          size={36}
-                          className={
-                            i < Math.round(averageRating)
-                              ? "text-[#1A2A4F] fill-[#1A2A4F]"
-                              : "text-[#1A2A4F]/20"
-                          }
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {isFreelancer && user.completionRate !== undefined && (
+                  <div className="space-y-6">
+                    {/* Rating */}
                     <div>
-                      <div className="flex justify-between items-center mb-4">
-                        <span className="text-xl font-semibold text-[#1A2A4F]">
-                          Completion Rate
+                      <div className="flex justify-between items-center mb-2">
+                        <span
+                          className="font-medium"
+                          style={{ color: theme.primary }}
+                        >
+                          Average Rating
                         </span>
-                        <span className="text-3xl font-bold text-[#1A2A4F]">
-                          {user.completionRate}%
+                        <span
+                          className="text-xl font-bold"
+                          style={{ color: theme.primary }}
+                        >
+                          {averageRating}/5
                         </span>
                       </div>
-                      <div className="w-full h-6 bg-[#1A2A4F]/10 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-[#1A2A4F] to-[#2A3A5F] rounded-full transition-all duration-1000"
-                          style={{ width: `${user.completionRate}%` }}
-                        />
+                      <div className="flex gap-1">
+                        {[...Array(5)].map((_, i) => (
+                          <div
+                            key={i}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold"
+                            style={{
+                              backgroundColor:
+                                i < Math.round(parseFloat(averageRating) || 0)
+                                  ? theme.primary
+                                  : theme.light,
+                              color:
+                                i < Math.round(parseFloat(averageRating) || 0)
+                                  ? theme.white
+                                  : theme.primaryMedium,
+                            }}
+                          >
+                            {i + 1}
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  )}
-                </div>
-              </div>
+
+                    {/* Completion Rate */}
+                    {isFreelancer && user.completionRate !== undefined && (
+                      <div>
+                        <div className="flex justify-between items-center mb-2">
+                          <span
+                            className="font-medium"
+                            style={{ color: theme.primary }}
+                          >
+                            Completion Rate
+                          </span>
+                          <span
+                            className="text-xl font-bold"
+                            style={{ color: theme.primary }}
+                          >
+                            {user.completionRate}%
+                          </span>
+                        </div>
+                        <div
+                          className="w-full h-3 rounded-full overflow-hidden"
+                          style={{ backgroundColor: theme.light }}
+                        >
+                          <motion.div
+                            className="h-full rounded-full"
+                            style={{ backgroundColor: theme.primary }}
+                            initial={{ width: 0 }}
+                            animate={{ width: `${user.completionRate}%` }}
+                            transition={{ duration: 1, delay: 0.5 }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </SectionCard>
+              </FadeIn>
+
+              {/* Coin Balance Card */}
+              <FadeIn delay={0.25}>
+                <SectionCard>
+                  <SectionHeader
+                    icon={Coins}
+                    title="Coin Balance"
+                    action={
+                      <button
+                        onClick={() => setShowWalletModal(true)}
+                        className="text-sm font-medium flex items-center gap-1"
+                        style={{ color: theme.primary }}
+                      >
+                        Manage <ChevronRight className="w-4 h-4" />
+                      </button>
+                    }
+                  />
+
+                  <div
+                    className="p-4 rounded-xl flex items-center justify-between"
+                    style={{ backgroundColor: theme.lighter }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-yellow-100">
+                        <Coins className="w-6 h-6 text-yellow-600" />
+                      </div>
+                      <div>
+                        <p
+                          className="text-sm"
+                          style={{ color: theme.primaryMedium }}
+                        >
+                          Available
+                        </p>
+                        <p
+                          className="text-2xl font-bold"
+                          style={{ color: theme.primary }}
+                        >
+                          {user.coins || 0}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => setShowWalletModal(true)}
+                      variant="secondary"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add
+                    </Button>
+                  </div>
+                </SectionCard>
+              </FadeIn>
             </div>
 
-            {/* Settings, Skills, Certifications */}
-            <div className="lg:col-span-2 space-y-10">
+            {/* Right Column - Settings, Skills, Certifications */}
+            <div className="lg:col-span-2 space-y-6">
               {/* Account Settings */}
-              <div className="bg-white rounded-3xl shadow-2xl p-10 border border-[#1A2A4F]/10">
-                <h2 className="text-3xl font-bold text-[#1A2A4F] mb-10 flex items-center gap-4">
-                  <User size={36} /> Account Settings
-                </h2>
+              <FadeIn delay={0.3}>
+                <SectionCard>
+                  <SectionHeader icon={User} title="Account Settings" />
 
-                <div className="space-y-8">
-                  {/* Name */}
-                  <div className="group rounded-2xl p-6 bg-[#1A2A4F]/5 hover:bg-[#1A2A4F]/10 transition-all border border-[#1A2A4F]/10">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-5">
-                        <div className="w-14 h-14 rounded-xl bg-[#1A2A4F]/10 flex items-center justify-center">
-                          <User size={28} className="text-[#1A2A4F]" />
-                        </div>
-                        <div>
-                          <h3 className="text-xl font-bold text-[#1A2A4F]">
-                            Full Name
-                          </h3>
-                          <p className="text-[#1A2A4F]/70">
-                            Update your display name
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => setShowNameForm(!showNameForm)}
-                        className="p-3 rounded-xl hover:bg-[#1A2A4F]/10 transition-all"
-                      >
-                        {showNameForm ? <X size={24} /> : <Edit2 size={24} />}
-                      </button>
-                    </div>
-                    {showNameForm && (
-                      <form
-                        onSubmit={handleNameChange}
-                        className="mt-6 space-y-4"
-                      >
-                        <input
-                          type="text"
+                  <div className="space-y-4">
+                    {/* Name Setting */}
+                    <SettingItem
+                      icon={User}
+                      title="Full Name"
+                      subtitle={user.fullName}
+                      isOpen={showNameForm}
+                      onToggle={() => setShowNameForm(!showNameForm)}
+                    >
+                      <form onSubmit={handleNameChange} className="space-y-3">
+                        <Input
+                          placeholder="Enter your full name"
                           value={nameForm.fullName}
                           onChange={(e) =>
                             setNameForm({ fullName: e.target.value })
                           }
-                          className="w-full px-5 py-4 rounded-xl border-2 border-[#1A2A4F]/20 focus:border-[#1A2A4F] focus:outline-none text-lg"
-                          placeholder="Enter your full name"
-                          required
                         />
-                        <button
-                          type="submit"
-                          className="w-full py-4 bg-[#1A2A4F] text-white font-bold rounded-xl hover:bg-[#2A3A5F] transition-all flex items-center justify-center gap-3"
-                        >
-                          <Check size={24} /> Save Name
-                        </button>
+                        <Button type="submit" className="w-full">
+                          <Check className="w-4 h-4" />
+                          Save Name
+                        </Button>
                       </form>
-                    )}
-                  </div>
+                    </SettingItem>
 
-                  {/* Email */}
-                  <div className="group rounded-2xl p-6 bg-[#1A2A4F]/5 hover:bg-[#1A2A4F]/10 transition-all border border-[#1A2A4F]/10">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-5">
-                        <div className="w-14 h-14 rounded-xl bg-[#1A2A4F]/10 flex items-center justify-center">
-                          <Mail size={28} className="text-[#1A2A4F]" />
-                        </div>
-                        <div>
-                          <h3 className="text-xl font-bold text-[#1A2A4F]">
-                            Email Address
-                          </h3>
-                          <p className="text-[#1A2A4F]/70">Change your email</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => setShowEmailForm(!showEmailForm)}
-                        className="p-3 rounded-xl hover:bg-[#1A2A4F]/10 transition-all"
-                      >
-                        {showEmailForm ? <X size={24} /> : <Edit2 size={24} />}
-                      </button>
-                    </div>
-                    {showEmailForm && (
+                    {/* Email Setting */}
+                    <SettingItem
+                      icon={Mail}
+                      title="Email Address"
+                      subtitle={user.email}
+                      isOpen={showEmailForm}
+                      onToggle={() => setShowEmailForm(!showEmailForm)}
+                    >
                       <form
                         onSubmit={
                           showOtpForm ? handleEmailVerify : handleEmailRequest
                         }
-                        className="mt-6 space-y-4"
+                        className="space-y-3"
                       >
-                        <input
+                        <Input
                           type="email"
+                          placeholder="New email address"
                           value={emailForm.newEmail}
                           onChange={(e) =>
                             setEmailForm({
@@ -601,13 +1318,10 @@ const Profile = () => {
                             })
                           }
                           disabled={showOtpForm}
-                          className="w-full px-5 py-4 rounded-xl border-2 border-[#1A2A4F]/20 focus:border-[#1A2A4F] focus:outline-none text-lg disabled:opacity-60"
-                          placeholder="New email address"
-                          required
                         />
                         {showOtpForm && (
-                          <input
-                            type="text"
+                          <Input
+                            placeholder="Enter 6-digit OTP"
                             value={emailForm.otp}
                             onChange={(e) =>
                               setEmailForm({
@@ -615,56 +1329,30 @@ const Profile = () => {
                                 otp: e.target.value,
                               })
                             }
-                            className="w-full px-5 py-4 rounded-xl border-2 border-[#1A2A4F]/20 focus:border-[#1A2A4F] focus:outline-none text-lg"
-                            placeholder="Enter 6-digit OTP"
-                            required
                           />
                         )}
-                        <button
-                          type="submit"
-                          className="w-full py-4 bg-[#1A2A4F] text-white font-bold rounded-xl hover:bg-[#2A3A5F] transition-all flex items-center justify-center gap-3"
-                        >
-                          <Check size={24} />
+                        <Button type="submit" className="w-full">
+                          <Check className="w-4 h-4" />
                           {showOtpForm ? "Verify OTP" : "Send OTP"}
-                        </button>
+                        </Button>
                       </form>
-                    )}
-                  </div>
+                    </SettingItem>
 
-                  {/* Password */}
-                  <div className="group rounded-2xl p-6 bg-[#1A2A4F]/5 hover:bg-[#1A2A4F]/10 transition-all border border-[#1A2A4F]/10">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-5">
-                        <div className="w-14 h-14 rounded-xl bg-[#1A2A4F]/10 flex items-center justify-center">
-                          <Lock size={28} className="text-[#1A2A4F]" />
-                        </div>
-                        <div>
-                          <h3 className="text-xl font-bold text-[#1A2A4F]">
-                            Password
-                          </h3>
-                          <p className="text-[#1A2A4F]/70">
-                            Update your password
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => setShowPasswordForm(!showPasswordForm)}
-                        className="p-3 rounded-xl hover:bg-[#1A2A4F]/10 transition-all"
-                      >
-                        {showPasswordForm ? (
-                          <X size={24} />
-                        ) : (
-                          <Edit2 size={24} />
-                        )}
-                      </button>
-                    </div>
-                    {showPasswordForm && (
+                    {/* Password Setting */}
+                    <SettingItem
+                      icon={Lock}
+                      title="Password"
+                      subtitle="••••••••"
+                      isOpen={showPasswordForm}
+                      onToggle={() => setShowPasswordForm(!showPasswordForm)}
+                    >
                       <form
                         onSubmit={handlePasswordChange}
-                        className="mt-6 space-y-4"
+                        className="space-y-3"
                       >
-                        <input
+                        <Input
                           type="password"
+                          placeholder="Current password"
                           value={passwordForm.currentPassword}
                           onChange={(e) =>
                             setPasswordForm({
@@ -672,12 +1360,10 @@ const Profile = () => {
                               currentPassword: e.target.value,
                             })
                           }
-                          className="w-full px-5 py-4 rounded-xl border-2 border-[#1A2A4F]/20 focus:border-[#1A2A4F] focus:outline-none text-lg"
-                          placeholder="Current password"
-                          required
                         />
-                        <input
+                        <Input
                           type="password"
+                          placeholder="New password"
                           value={passwordForm.newPassword}
                           onChange={(e) =>
                             setPasswordForm({
@@ -685,12 +1371,10 @@ const Profile = () => {
                               newPassword: e.target.value,
                             })
                           }
-                          className="w-full px-5 py-4 rounded-xl border-2 border-[#1A2A4F]/20 focus:border-[#1A2A4F] focus:outline-none text-lg"
-                          placeholder="New password"
-                          required
                         />
-                        <input
+                        <Input
                           type="password"
+                          placeholder="Confirm new password"
                           value={passwordForm.confirmPassword}
                           onChange={(e) =>
                             setPasswordForm({
@@ -698,225 +1382,227 @@ const Profile = () => {
                               confirmPassword: e.target.value,
                             })
                           }
-                          className="w-full px-5 py-4 rounded-xl border-2 border-[#1A2A4F]/20 focus:border-[#1A2A4F] focus:outline-none text-lg"
-                          placeholder="Confirm new password"
-                          required
                         />
-                        <button
-                          type="submit"
-                          className="w-full py-4 bg-[#1A2A4F] text-white font-bold rounded-xl hover:bg-[#2A3A5F] transition-all flex items-center justify-center gap-3"
-                        >
-                          <Check size={24} /> Update Password
-                        </button>
+                        <Button type="submit" className="w-full">
+                          <Check className="w-4 h-4" />
+                          Update Password
+                        </Button>
                       </form>
-                    )}
+                    </SettingItem>
                   </div>
-                </div>
-              </div>
+                </SectionCard>
+              </FadeIn>
 
               {/* Skills */}
-              <div className="bg-white rounded-3xl shadow-2xl p-10 border border-[#1A2A4F]/10">
-                <div className="flex items-center justify-between mb-8">
-                  <h2 className="text-3xl font-bold text-[#1A2A4F] flex items-center gap-4">
-                    <Zap size={36} /> Skills
-                  </h2>
-                  <button
-                    onClick={() => setShowSkillForm(!showSkillForm)}
-                    className="p-4 rounded-xl bg-[#1A2A4F] text-white hover:bg-[#2A3A5F] transition-all"
-                  >
-                    {showSkillForm ? <X size={24} /> : <Plus size={28} />}
-                  </button>
-                </div>
-
-                {showSkillForm && (
-                  <form onSubmit={handleAddSkill} className="flex gap-4 mb-8">
-                    <input
-                      type="text"
-                      value={newSkill}
-                      onChange={(e) => setNewSkill(e.target.value)}
-                      className="flex-1 px-6 py-4 rounded-xl border-2 border-[#1A2A4F]/20 focus:border-[#1A2A4F] focus:outline-none text-lg"
-                      placeholder="e.g. React, Python, Figma"
-                      required
-                    />
-                    <button
-                      type="submit"
-                      className="px-8 py-4 bg-[#1A2A4F] text-white font-bold rounded-xl hover:bg-[#2A3A5F] transition-all"
-                    >
-                      Add Skill
-                    </button>
-                  </form>
-                )}
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {user.skills?.map((skill) => (
-                    <div
-                      key={skill.name}
-                      className="group relative p-5 rounded-2xl bg-gradient-to-br from-[#1A2A4F]/5 to-[#1A2A4F]/10 border border-[#1A2A4F]/20 hover:border-[#1A2A4F]/40 transition-all"
-                    >
-                      <span className="text-lg font-semibold text-[#1A2A4F]">
-                        {skill.name}
-                      </span>
+              <FadeIn delay={0.35}>
+                <SectionCard>
+                  <SectionHeader
+                    icon={Zap}
+                    title="Skills"
+                    action={
                       <button
-                        onClick={() => handleDeleteSkill(skill.name)}
-                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:bg-red-50 p-2 rounded-lg"
+                        onClick={() => setShowSkillForm(!showSkillForm)}
+                        className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors"
+                        style={{
+                          backgroundColor: theme.primary,
+                          color: theme.white,
+                        }}
                       >
-                        <Trash2 size={18} />
+                        {showSkillForm ? (
+                          <X className="w-5 h-5" />
+                        ) : (
+                          <Plus className="w-5 h-5" />
+                        )}
                       </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                    }
+                  />
+
+                  <AnimatePresence>
+                    {showSkillForm && (
+                      <motion.form
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        onSubmit={handleAddSkill}
+                        className="flex gap-3 mb-4 overflow-hidden"
+                      >
+                        <Input
+                          placeholder="e.g. React, Python, Figma"
+                          value={newSkill}
+                          onChange={(e) => setNewSkill(e.target.value)}
+                          className="flex-1"
+                        />
+                        <Button type="submit">Add</Button>
+                      </motion.form>
+                    )}
+                  </AnimatePresence>
+
+                  <div className="flex flex-wrap gap-2">
+                    {user.skills?.map((skill) => (
+                      <motion.div
+                        key={skill.name}
+                        layout
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="group relative px-4 py-2 rounded-xl border transition-all duration-300 hover:shadow-md"
+                        style={{
+                          backgroundColor: theme.lighter,
+                          borderColor: theme.light,
+                        }}
+                      >
+                        <span
+                          className="font-medium"
+                          style={{ color: theme.primary }}
+                        >
+                          {skill.name}
+                        </span>
+                        <button
+                          onClick={() => handleDeleteSkill(skill.name)}
+                          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </motion.div>
+                    ))}
+                    {(!user.skills || user.skills.length === 0) && (
+                      <p
+                        className="text-sm"
+                        style={{ color: theme.primaryMedium }}
+                      >
+                        No skills added yet. Click + to add your skills.
+                      </p>
+                    )}
+                  </div>
+                </SectionCard>
+              </FadeIn>
 
               {/* Certifications */}
-              <div className="bg-white rounded-3xl shadow-2xl p-10 border border-[#1A2A4F]/10">
-                <div className="flex items-center justify-between mb-8">
-                  <h2 className="text-3xl font-bold text-[#1A2A4F] flex items-center gap-4">
-                    <Award size={36} /> Certifications
-                  </h2>
-                  <button
-                    onClick={() => setShowCertForm(!showCertForm)}
-                    disabled={user.certifications?.length >= 2}
-                    className="p-4 rounded-xl bg-[#1A2A4F] text-white hover:bg-[#2A3A5F] transition-all disabled:opacity-50"
-                  >
-                    {showCertForm ? <X size={24} /> : <Plus size={28} />}
-                  </button>
-                </div>
-
-                {showCertForm && (
-                  <form
-                    onSubmit={handleAddCertification}
-                    className="space-y-5 mb-8"
-                  >
-                    <input
-                      type="text"
-                      value={certForm.name}
-                      onChange={(e) =>
-                        setCertForm({ ...certForm, name: e.target.value })
-                      }
-                      className="w-full px-6 py-4 rounded-xl border-2 border-[#1A2A4F]/20 focus:border-[#1A2A4F] focus:outline-none text-lg"
-                      placeholder="Certification Name"
-                      required
-                    />
-                    <input
-                      type="text"
-                      value={certForm.issuer}
-                      onChange={(e) =>
-                        setCertForm({ ...certForm, issuer: e.target.value })
-                      }
-                      className="w-full px-6 py-4 rounded-xl border-2 border-[#1A2A4F]/20 focus:border-[#1A2A4F] focus:outline-none text-lg"
-                      placeholder="Issuing Organization"
-                      required
-                    />
-                    <button
-                      type="submit"
-                      className="w-full py-4 bg-[#1A2A4F] text-white font-bold rounded-xl hover:bg-[#2A3A5F] transition-all"
-                    >
-                      Add Certification
-                    </button>
-                  </form>
-                )}
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  {user.certifications?.map((cert) => (
-                    <div
-                      key={cert.name}
-                      className="group relative p-6 rounded-2xl bg-gradient-to-br from-[#1A2A4F]/5 to-[#1A2A4F]/10 border border-[#1A2A4F]/20 hover:border-[#1A2A4F]/40 transition-all"
-                    >
-                      <h4 className="text-xl font-bold text-[#1A2A4F]">
-                        {cert.name}
-                      </h4>
-                      <p className="text-[#1A2A4F]/80 mt-2">{cert.issuer}</p>
+              <FadeIn delay={0.4}>
+                <SectionCard>
+                  <SectionHeader
+                    icon={Award}
+                    title="Certifications"
+                    action={
                       <button
-                        onClick={() => handleDeleteCertification(cert.name)}
-                        className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:bg-red-50 p-2 rounded-lg"
+                        onClick={() => setShowCertForm(!showCertForm)}
+                        disabled={user.certifications?.length >= 2}
+                        className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors disabled:opacity-50"
+                        style={{
+                          backgroundColor: theme.primary,
+                          color: theme.white,
+                        }}
                       >
-                        <Trash2 size={20} />
+                        {showCertForm ? (
+                          <X className="w-5 h-5" />
+                        ) : (
+                          <Plus className="w-5 h-5" />
+                        )}
                       </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                    }
+                  />
+
+                  <AnimatePresence>
+                    {showCertForm && (
+                      <motion.form
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        onSubmit={handleAddCertification}
+                        className="space-y-3 mb-4 overflow-hidden"
+                      >
+                        <Input
+                          placeholder="Certification Name"
+                          value={certForm.name}
+                          onChange={(e) =>
+                            setCertForm({ ...certForm, name: e.target.value })
+                          }
+                        />
+                        <Input
+                          placeholder="Issuing Organization"
+                          value={certForm.issuer}
+                          onChange={(e) =>
+                            setCertForm({ ...certForm, issuer: e.target.value })
+                          }
+                        />
+                        <Button type="submit" className="w-full">
+                          Add Certification
+                        </Button>
+                      </motion.form>
+                    )}
+                  </AnimatePresence>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {user.certifications?.map((cert) => (
+                      <motion.div
+                        key={cert.name}
+                        layout
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="group relative p-4 rounded-xl border transition-all duration-300 hover:shadow-md"
+                        style={{
+                          backgroundColor: theme.lighter,
+                          borderColor: theme.light,
+                        }}
+                      >
+                        <h4
+                          className="font-semibold"
+                          style={{ color: theme.primary }}
+                        >
+                          {cert.name}
+                        </h4>
+                        <p
+                          className="text-sm mt-1"
+                          style={{ color: theme.primaryMedium }}
+                        >
+                          {cert.issuer}
+                        </p>
+                        <button
+                          onClick={() => handleDeleteCertification(cert.name)}
+                          className="absolute top-2 right-2 w-6 h-6 rounded-lg bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </motion.div>
+                    ))}
+                    {(!user.certifications ||
+                      user.certifications.length === 0) && (
+                      <p
+                        className="text-sm col-span-2"
+                        style={{ color: theme.primaryMedium }}
+                      >
+                        No certifications added yet. Click + to add (max 2).
+                      </p>
+                    )}
+                  </div>
+                </SectionCard>
+              </FadeIn>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Floating Share Button */}
-      <button
-        onClick={handleShareProfile}
-        className="fixed bottom-10 right-10 w-20 h-20 bg-[#1A2A4F] text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-all z-50"
-        title="Share Profile"
-      >
-        <Share2 size={36} />
-      </button>
+      {/* Modals */}
+      <AnimatePresence>
+        {showWalletModal && (
+          <CoinWalletModal
+            isOpen={showWalletModal}
+            onClose={() => setShowWalletModal(false)}
+            user={user}
+            onUpdateCoins={handleUpdateCoins}
+          />
+        )}
+      </AnimatePresence>
 
-      {/* Share Modal */}
-      {showShareCard && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-6"
-          onClick={closeShareCard}
-        >
-          <div
-            className="bg-white rounded-3xl shadow-3xl max-w-lg w-full overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="bg-gradient-to-r from-[#1A2A4F] to-[#2A3A5F] p-8 text-white">
-              <div className="flex items-center justify-between">
-                <h3 className="text-3xl font-bold">Share Your Profile</h3>
-                <button
-                  onClick={closeShareCard}
-                  className="p-2 hover:bg-white/20 rounded-xl transition"
-                >
-                  <X size={28} />
-                </button>
-              </div>
-            </div>
-            <div className="p-10">
-              <div className="bg-gradient-to-br from-[#1A2A4F]/5 to-[#1A2A4F]/10 rounded-2xl p-8 border border-[#1A2A4F]/20">
-                <div className="flex items-center gap-6 mb-8">
-                  {user.profilePicture ? (
-                    <img
-                      src={user.profilePicture}
-                      alt="Profile"
-                      className="w-24 h-24 rounded-2xl object-cover"
-                    />
-                  ) : (
-                    <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-[#1A2A4F] to-[#2A3A5F] flex items-center justify-center text-white text-5xl font-bold">
-                      {user.fullName[0]}
-                    </div>
-                  )}
-                  <div>
-                    <h4 className="text-3xl font-bold text-[#1A2A4F]">
-                      {user.fullName}
-                    </h4>
-                    <p className="text-xl text-[#1A2A4F]/80 mt-2">
-                      {user.role === "Both"
-                        ? "Provider & Freelancer"
-                        : user.role}
-                    </p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-6">
-                  {stats.map((stat, i) => (
-                    <div
-                      key={i}
-                      className="text-center p-6 bg-white rounded-2xl shadow-lg"
-                    >
-                      <div className="text-4xl font-bold text-[#1A2A4F]">
-                        {stat.value}
-                      </div>
-                      <div className="text-[#1A2A4F]/70 mt-2">{stat.label}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <button className="w-full mt-8 py-5 bg-[#1A2A4F] text-white text-xl font-bold rounded-2xl hover:bg-[#2A3A5F] transition-all">
-                Download Profile Card
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {showShareModal && (
+          <ShareProfileModal
+            isOpen={showShareModal}
+            onClose={() => setShowShareModal(false)}
+            user={user}
+            stats={stats}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 };

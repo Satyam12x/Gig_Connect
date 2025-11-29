@@ -60,7 +60,6 @@ const Navbar = () => {
       try {
         const token = localStorage.getItem("token");
         if (!token) {
-          // If no token and trying to access protected routes, redirect to landing
           if (
             location.pathname !== "/" &&
             location.pathname !== "/login" &&
@@ -75,7 +74,6 @@ const Navbar = () => {
         });
         setUser(res.data);
 
-        // If logged in and on landing page, redirect to home
         if (location.pathname === "/") {
           navigate("/home");
         }
@@ -121,7 +119,6 @@ const Navbar = () => {
     };
   }, [isMobileMenuOpen]);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (isDropdownOpen && !e.target.closest(".profile-dropdown")) {
@@ -136,7 +133,6 @@ const Navbar = () => {
 
   return (
     <>
-      {/* Fixed Navbar */}
       <nav
         className={`fixed w-full top-0 z-50 transition-all duration-300 ${
           isScrolled
@@ -146,7 +142,6 @@ const Navbar = () => {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            {/* Logo */}
             <Link
               to={user ? "/home" : "/"}
               className="flex-shrink-0 group cursor-pointer"
@@ -159,7 +154,6 @@ const Navbar = () => {
               </h1>
             </Link>
 
-            {/* Desktop Navigation - Only show when logged in */}
             {user && (
               <div className="hidden md:flex items-center space-x-1">
                 {navItems.map((item) => {
@@ -189,7 +183,6 @@ const Navbar = () => {
               </div>
             )}
 
-            {/* Desktop Profile & Auth */}
             <div className="hidden md:flex items-center space-x-4">
               {user ? (
                 <div className="relative profile-dropdown">
@@ -197,22 +190,24 @@ const Navbar = () => {
                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                     className="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-[#1A2A4F]/5 transition-all duration-300 group"
                   >
-                    {user.profilePicture ? (
-                      <img
-                        src={user.profilePicture}
-                        alt={user.fullName}
-                        className="w-10 h-10 rounded-full object-cover ring-2 ring-transparent group-hover:ring-[#1A2A4F]/30 transition-all duration-300"
-                      />
-                    ) : (
-                      <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md"
-                        style={{
-                          background: `linear-gradient(135deg, ${NAVY}, #2d3d63)`,
-                        }}
-                      >
-                        {user.fullName?.charAt(0).toUpperCase()}
-                      </div>
-                    )}
+                    <Link to="/profile" className="flex-shrink-0">
+                      {user.profilePicture ? (
+                        <img
+                          src={user.profilePicture}
+                          alt={user.fullName}
+                          className="w-10 h-10 rounded-full object-cover ring-2 ring-transparent group-hover:ring-[#1A2A4F]/30 transition-all duration-300"
+                        />
+                      ) : (
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md"
+                          style={{
+                            background: `linear-gradient(135deg, ${NAVY}, #2d3d63)`,
+                          }}
+                        >
+                          {user.fullName?.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </Link>
                     <div className="text-left">
                       <p
                         className="text-sm font-semibold"
@@ -220,9 +215,15 @@ const Navbar = () => {
                       >
                         {user.fullName?.split(" ")[0]}
                       </p>
-                      <p className="text-xs text-gray-500">
-                        {user.role || "User"}
-                      </p>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-amber-600 font-semibold">
+                          🪙 {user.coins || 0}
+                        </span>
+                        <span className="text-xs text-gray-400">•</span>
+                        <span className="text-xs text-gray-500">
+                          {user.role || "User"}
+                        </span>
+                      </div>
                     </div>
                     <ChevronDown
                       size={16}
@@ -232,7 +233,6 @@ const Navbar = () => {
                     />
                   </button>
 
-                  {/* Dropdown */}
                   <div
                     className={`absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-gray-100 transition-all duration-200 overflow-hidden ${
                       isDropdownOpen
@@ -253,6 +253,11 @@ const Navbar = () => {
                       <p className="text-xs text-gray-500 truncate">
                         {user.email}
                       </p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="text-xs text-amber-600 font-semibold bg-amber-50 px-2 py-1 rounded-full">
+                          🪙 {user.coins || 0} coins
+                        </span>
+                      </div>
                     </div>
 
                     <Link
@@ -301,7 +306,6 @@ const Navbar = () => {
               )}
             </div>
 
-            {/* Mobile Menu Button */}
             <button
               onClick={handleMobileMenuToggle}
               className="md:hidden p-2 rounded-lg transition-colors duration-300 hover:bg-[#1A2A4F]/10"
@@ -314,7 +318,6 @@ const Navbar = () => {
         </div>
       </nav>
 
-      {/* Mobile Menu Overlay with Plane Animation */}
       {isAnimating && (
         <>
           <div
@@ -324,7 +327,6 @@ const Navbar = () => {
             onClick={() => setIsMobileMenuOpen(false)}
           />
 
-          {/* Flying Plane Animation */}
           <div
             className={`fixed z-50 md:hidden pointer-events-none ${
               isMobileMenuOpen
@@ -354,7 +356,6 @@ const Navbar = () => {
         </>
       )}
 
-      {/* Mobile Drawer */}
       <div
         className={`fixed top-0 right-0 h-full w-4/5 max-w-sm bg-white shadow-2xl transform transition-transform duration-500 ease-in-out z-50 md:hidden ${
           isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
@@ -378,22 +379,28 @@ const Navbar = () => {
 
         {user && (
           <div className="flex items-center px-4 py-4 bg-gradient-to-r from-[#1A2A4F]/5 to-transparent border-b border-gray-100">
-            {user.profilePicture ? (
-              <img
-                src={user.profilePicture}
-                alt={user.fullName}
-                className="w-14 h-14 rounded-full object-cover mr-3 ring-2 ring-[#1A2A4F]/20 shadow-md"
-              />
-            ) : (
-              <div
-                className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold mr-3 shadow-md"
-                style={{
-                  background: `linear-gradient(135deg, ${NAVY}, #2d3d63)`,
-                }}
-              >
-                {user.fullName?.charAt(0).toUpperCase()}
-              </div>
-            )}
+            <Link
+              to="/profile"
+              className="flex-shrink-0 mr-3"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              {user.profilePicture ? (
+                <img
+                  src={user.profilePicture}
+                  alt={user.fullName}
+                  className="w-14 h-14 rounded-full object-cover ring-2 ring-[#1A2A4F]/20 shadow-md"
+                />
+              ) : (
+                <div
+                  className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold shadow-md"
+                  style={{
+                    background: `linear-gradient(135deg, ${NAVY}, #2d3d63)`,
+                  }}
+                >
+                  {user.fullName?.charAt(0).toUpperCase()}
+                </div>
+              )}
+            </Link>
             <div className="flex-1">
               <p
                 className="text-sm font-semibold font-sans"
@@ -404,9 +411,14 @@ const Navbar = () => {
               <p className="text-xs text-gray-600 font-sans truncate">
                 {user.email}
               </p>
-              <p className="text-xs text-gray-500 font-sans mt-1">
-                {user.role || "User"}
-              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded-full">
+                  🪙 {user.coins || 0} coins
+                </span>
+                <span className="text-xs text-gray-500 font-sans">
+                  {user.role || "User"}
+                </span>
+              </div>
             </div>
           </div>
         )}
@@ -495,7 +507,6 @@ const Navbar = () => {
         )}
       </div>
 
-      {/* Spacer */}
       <div className="h-16" />
 
       <style jsx>{`
