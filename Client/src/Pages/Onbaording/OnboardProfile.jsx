@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
@@ -55,6 +55,7 @@ export default function OnboardProfile() {
   const [direction, setDirection] = useState("forward");
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
+  const submitRef = useRef(false);
 
   const steps = [
     { id: "welcome", title: "Welcome", icon: Sparkles },
@@ -130,6 +131,8 @@ export default function OnboardProfile() {
   };
 
   const handleComplete = async () => {
+    if (submitRef.current) return;
+    submitRef.current = true;
     setLoading(true);
     const form = new FormData();
     if (data.role) form.append("role", data.role);
@@ -165,6 +168,7 @@ export default function OnboardProfile() {
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed to save profile");
     } finally {
+      submitRef.current = false;
       setLoading(false);
     }
   };
