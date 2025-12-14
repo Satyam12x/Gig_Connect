@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
@@ -212,6 +212,9 @@ const GigDetails = () => {
 
   // --- HANDLERS ---
 
+  const applyInFlightRef = useRef(false);
+  const appActionInFlightRef = useRef({});
+
   const handleApply = async () => {
     if (!userId) {
       toast.error("Please log in to apply for gigs.");
@@ -229,6 +232,9 @@ const GigDetails = () => {
       return;
     }
 
+    // guard to prevent duplicate apply requests
+    if (applyInFlightRef.current) return;
+    applyInFlightRef.current = true;
     setIsApplying(true);
     try {
       const response = await axios.post(
@@ -250,6 +256,8 @@ const GigDetails = () => {
       console.error("Error applying:", error);
       toast.error(error.response?.data?.error || "Failed to apply.");
       setIsApplying(false);
+    } finally {
+      applyInFlightRef.current = false;
     }
   };
 
@@ -258,6 +266,9 @@ const GigDetails = () => {
     applicantId,
     status
   ) => {
+    // guard per-application to prevent duplicate actions
+    if (appActionInFlightRef.current[applicationId]) return;
+    appActionInFlightRef.current[applicationId] = true;
     setIsProcessing((prev) => ({ ...prev, [applicationId]: true }));
 
     try {
@@ -303,6 +314,7 @@ const GigDetails = () => {
         error.response?.data?.error || "Failed to update application."
       );
     } finally {
+      appActionInFlightRef.current[applicationId] = false;
       setIsProcessing((prev) => ({ ...prev, [applicationId]: false }));
     }
   };

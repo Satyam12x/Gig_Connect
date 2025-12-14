@@ -1,5 +1,5 @@
 // src/pages/auth/OtpVerify.jsx
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
@@ -11,9 +11,12 @@ export default function OtpVerify() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
+  const submitRef = useRef(false);
 
   const submit = async (e) => {
     e.preventDefault();
+    if (submitRef.current) return;
+    submitRef.current = true;
     setLoading(true);
     try {
       await axios.post(
@@ -26,6 +29,7 @@ export default function OtpVerify() {
     } catch (err) {
       toast.error(err.response?.data?.error || "Invalid OTP");
     } finally {
+      submitRef.current = false;
       setLoading(false);
     }
   };

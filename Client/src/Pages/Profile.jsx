@@ -250,6 +250,7 @@ const CoinWalletModal = ({ isOpen, onClose, user, onUpdateCoins }) => {
   const [recipientId, setRecipientId] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const actionLockRef = useRef(false);
 
   const coinPackages = [
     { coins: 100, price: 99, popular: false },
@@ -259,6 +260,9 @@ const CoinWalletModal = ({ isOpen, onClose, user, onUpdateCoins }) => {
   ];
 
   const handlePurchase = async (amount) => {
+    // prevent duplicate quick clicks
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
     setIsLoading(true);
     try {
       const token = localStorage.getItem("token");
@@ -273,6 +277,7 @@ const CoinWalletModal = ({ isOpen, onClose, user, onUpdateCoins }) => {
     } catch (err) {
       toast.error(err.response?.data?.error || "Purchase failed");
     } finally {
+      actionLockRef.current = false;
       setIsLoading(false);
     }
   };
@@ -280,6 +285,8 @@ const CoinWalletModal = ({ isOpen, onClose, user, onUpdateCoins }) => {
   const handleTransfer = async (e) => {
     e.preventDefault();
     if (!recipientId || !transferAmount) return;
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
     setIsLoading(true);
     try {
       const token = localStorage.getItem("token");
@@ -299,6 +306,7 @@ const CoinWalletModal = ({ isOpen, onClose, user, onUpdateCoins }) => {
     } catch (err) {
       toast.error(err.response?.data?.error || "Transfer failed");
     } finally {
+      actionLockRef.current = false;
       setIsLoading(false);
     }
   };
@@ -665,6 +673,7 @@ const Profile = () => {
 
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
+  const actionLockRef = useRef(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -707,6 +716,8 @@ const Profile = () => {
   // Handlers
   const handleNameChange = async (e) => {
     e.preventDefault();
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
     try {
       const token = localStorage.getItem("token");
       await axios.put(
@@ -719,11 +730,15 @@ const Profile = () => {
       toast.success("Name updated successfully!");
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed to update name");
+    } finally {
+      actionLockRef.current = false;
     }
   };
 
   const handleEmailRequest = async (e) => {
     e.preventDefault();
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
     try {
       const token = localStorage.getItem("token");
       await axios.post(
@@ -735,11 +750,15 @@ const Profile = () => {
       toast.success("OTP sent to your new email!");
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed to send OTP");
+    } finally {
+      actionLockRef.current = false;
     }
   };
 
   const handleEmailVerify = async (e) => {
     e.preventDefault();
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
     try {
       const token = localStorage.getItem("token");
       await axios.post(
@@ -754,6 +773,8 @@ const Profile = () => {
       toast.success("Email updated successfully!");
     } catch (err) {
       toast.error(err.response?.data?.error || "Invalid OTP");
+    } finally {
+      actionLockRef.current = false;
     }
   };
 
@@ -763,6 +784,8 @@ const Profile = () => {
       toast.error("Passwords do not match");
       return;
     }
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
     try {
       const token = localStorage.getItem("token");
       await axios.put(
@@ -782,12 +805,16 @@ const Profile = () => {
       toast.success("Password changed successfully!");
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed to change password");
+    } finally {
+      actionLockRef.current = false;
     }
   };
 
   const handleAddSkill = async (e) => {
     e.preventDefault();
     if (!newSkill.trim()) return;
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
     try {
       const token = localStorage.getItem("token");
       await axios.post(
@@ -804,6 +831,8 @@ const Profile = () => {
       toast.success("Skill added!");
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed to add skill");
+    } finally {
+      actionLockRef.current = false;
     }
   };
 
@@ -826,6 +855,8 @@ const Profile = () => {
   const handleAddCertification = async (e) => {
     e.preventDefault();
     if (!certForm.name.trim() || !certForm.issuer.trim()) return;
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
     try {
       const token = localStorage.getItem("token");
       await axios.post(`${API_BASE}/users/certifications`, certForm, {
@@ -840,6 +871,8 @@ const Profile = () => {
       toast.success("Certification added!");
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed to add certification");
+    } finally {
+      actionLockRef.current = false;
     }
   };
 
@@ -861,6 +894,8 @@ const Profile = () => {
 
   const handleProfilePicUpload = async (file) => {
     if (!file) return;
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
     setIsUploading(true);
     const formData = new FormData();
     formData.append("profilePicture", file);
@@ -884,6 +919,7 @@ const Profile = () => {
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = null;
+      actionLockRef.current = false;
     }
   };
 

@@ -432,6 +432,8 @@ const PurchaseCoins = () => {
   const [testMode, setTestMode] = useState(false);
   const [currentTransactionId, setCurrentTransactionId] = useState(null);
 
+  const processingRef = React.useRef(false);
+
   useEffect(() => {
     fetchData();
     loadRazorpayScript();
@@ -494,7 +496,9 @@ const PurchaseCoins = () => {
       toast.error("Please select a package");
       return;
     }
-
+    // prevent duplicate purchases
+    if (processingRef.current) return;
+    processingRef.current = true;
     setIsProcessing(true);
 
     try {
@@ -517,6 +521,7 @@ const PurchaseCoins = () => {
             duration: 5000,
           }
         );
+        processingRef.current = false;
         setIsProcessing(false);
         return;
       }
@@ -546,15 +551,20 @@ const PurchaseCoins = () => {
             setUserCoins(verifyRes.data.coins);
             setShowSuccess(true);
             setCurrentTransactionId(null);
-            fetchData();
+            await fetchData();
+            processingRef.current = false;
+            setIsProcessing(false);
           } catch (err) {
             toast.error("Payment verification failed");
+            processingRef.current = false;
+            setIsProcessing(false);
           }
         },
         prefill: {},
         theme: { color: theme.primary },
         modal: {
           ondismiss: () => {
+            processingRef.current = false;
             setIsProcessing(false);
             toast.error("Payment cancelled");
           },
@@ -565,6 +575,7 @@ const PurchaseCoins = () => {
       razorpay.open();
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed to initiate payment");
+      processingRef.current = false;
       setIsProcessing(false);
     }
   };
@@ -574,7 +585,9 @@ const PurchaseCoins = () => {
       toast.error("Please create an order first");
       return;
     }
-
+    // prevent duplicate test completions
+    if (processingRef.current) return;
+    processingRef.current = true;
     setIsProcessing(true);
 
     try {
@@ -594,6 +607,7 @@ const PurchaseCoins = () => {
     } catch (err) {
       toast.error(err.response?.data?.error || "Test payment failed");
     } finally {
+      processingRef.current = false;
       setIsProcessing(false);
     }
   };

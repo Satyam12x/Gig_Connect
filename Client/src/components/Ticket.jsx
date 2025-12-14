@@ -399,6 +399,7 @@ const Ticket = () => {
   const [file, setFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [isSending, setIsSending] = useState(false);
+  const sendInFlightRef = useRef(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
 
@@ -630,6 +631,8 @@ const Ticket = () => {
       toast.error("Please enter a message or attach a file.");
       return;
     }
+    if (sendInFlightRef.current) return;
+    sendInFlightRef.current = true;
     setIsSending(true);
     try {
       const endpoint = file
@@ -660,6 +663,7 @@ const Ticket = () => {
     } catch (error) {
       toast.error(error.response?.data?.error || "Failed to send message");
     } finally {
+      sendInFlightRef.current = false;
       setIsSending(false);
     }
   };

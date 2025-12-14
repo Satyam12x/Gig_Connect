@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
@@ -18,6 +18,7 @@ export default function SignupEmail() {
   });
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
+  const submitRef = useRef(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -35,6 +36,8 @@ export default function SignupEmail() {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (submitRef.current) return;
+    submitRef.current = true;
     setLoading(true);
     try {
       const { data } = await axios.post(`${API}/auth/signup`, form);
@@ -44,6 +47,7 @@ export default function SignupEmail() {
     } catch (err) {
       toast.error(err.response?.data?.error || "Signup failed. Try again.");
     } finally {
+      submitRef.current = false;
       setLoading(false);
     }
   };

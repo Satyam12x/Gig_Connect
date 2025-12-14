@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast, Toaster } from "react-hot-toast";
@@ -98,6 +98,8 @@ const CreateGig = () => {
   const [aiLoading, setAiLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
+  const submitInFlightRef = useRef(false);
+  const aiInFlightRef = useRef(false);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -182,6 +184,8 @@ const CreateGig = () => {
       toast.error("Please enter a title before generating a description");
       return;
     }
+    if (aiInFlightRef.current) return;
+    aiInFlightRef.current = true;
     setAiLoading(true);
     try {
       const token = localStorage.getItem("token");
@@ -212,6 +216,7 @@ const CreateGig = () => {
         err.response?.data?.error || "Failed to generate description"
       );
     } finally {
+      aiInFlightRef.current = false;
       setAiLoading(false);
     }
   };
@@ -225,6 +230,8 @@ const CreateGig = () => {
       return;
     }
 
+    if (submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
     setLoading(true);
 
     const data = new FormData();
@@ -265,6 +272,7 @@ const CreateGig = () => {
         "Failed to create gig";
       toast.error(errorMessage);
     } finally {
+      submitInFlightRef.current = false;
       setLoading(false);
     }
   };

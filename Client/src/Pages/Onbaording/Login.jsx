@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
@@ -12,6 +12,7 @@ const Login = () => {
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const submitLockRef = useRef(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -35,6 +36,8 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
     setIsLoading(true);
 
     try {
@@ -58,6 +61,7 @@ const Login = () => {
       setError(msg);
       toast.error(msg);
     } finally {
+      submitLockRef.current = false;
       setIsLoading(false);
     }
   };

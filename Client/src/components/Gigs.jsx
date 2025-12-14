@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Search,
@@ -88,6 +88,8 @@ const Gigs = () => {
   const [showSavedOnly, setShowSavedOnly] = useState(false);
 
   const getToken = () => localStorage.getItem("token");
+
+  const applyInFlightRef = useRef({});
 
   // Initial Token Decode
   useEffect(() => {
@@ -195,7 +197,9 @@ const Gigs = () => {
       alert("Only Freelancers can apply to gigs!");
       return;
     }
-
+    // prevent duplicate submissions (guard with ref because state updates are async)
+    if (applyInFlightRef.current[gigId]) return;
+    applyInFlightRef.current[gigId] = true;
     setIsApplying((prev) => ({ ...prev, [gigId]: true }));
     try {
       const res = await fetch(`${API_BASE}/gigs/${gigId}/apply`, {
@@ -220,6 +224,7 @@ const Gigs = () => {
       console.error("Apply error:", err);
       alert("Network error. Please try again.");
     } finally {
+      applyInFlightRef.current[gigId] = false;
       setIsApplying((prev) => ({ ...prev, [gigId]: false }));
     }
   };

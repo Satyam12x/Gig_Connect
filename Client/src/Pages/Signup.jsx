@@ -1,5 +1,5 @@
 // src/pages/Signup.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
@@ -39,6 +39,7 @@ const Signup = () => {
 
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
+  const formInFlightRef = useRef(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -98,6 +99,8 @@ const Signup = () => {
   // ────── EMAIL SIGNUP ──────
   const submitEmail = async (e) => {
     e.preventDefault();
+    if (formInFlightRef.current) return;
+    formInFlightRef.current = true;
     setLoading(true);
     try {
       const { data } = await axios.post(`${API_BASE}/auth/signup`, form);
@@ -108,6 +111,7 @@ const Signup = () => {
     } catch (err) {
       toast.error(err.response?.data?.error || "Signup failed");
     } finally {
+      formInFlightRef.current = false;
       setLoading(false);
     }
   };
@@ -115,6 +119,8 @@ const Signup = () => {
   // ────── OTP VERIFY ──────
   const submitOtp = async (e) => {
     e.preventDefault();
+    if (formInFlightRef.current) return;
+    formInFlightRef.current = true;
     setLoading(true);
     const cur = token || localStorage.getItem("token");
     try {
@@ -128,6 +134,7 @@ const Signup = () => {
     } catch (err) {
       toast.error(err.response?.data?.error || "Invalid OTP");
     } finally {
+      formInFlightRef.current = false;
       setLoading(false);
     }
   };
@@ -135,6 +142,8 @@ const Signup = () => {
   // ────── ONBOARDING (single API call) ──────
   const submitOnboard = async (e) => {
     e.preventDefault();
+    if (formInFlightRef.current) return;
+    formInFlightRef.current = true;
     setLoading(true);
     const cur = token || localStorage.getItem("token");
 
@@ -170,6 +179,7 @@ const Signup = () => {
     } catch (err) {
       toast.error(err.response?.data?.error || "Onboarding failed");
     } finally {
+      formInFlightRef.current = false;
       setLoading(false);
     }
   };
