@@ -1,103 +1,51 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Heart,
-  Share2,
-  ExternalLink,
   Search,
-  Filter,
-  Zap,
   Bookmark,
-  TrendingUp,
-  User,
-  MoreHorizontal
+  Plus,
+  X,
+  Loader2,
+  Image as ImageIcon
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
-// --- MOCK DATA FOR HIGH IMPACT ---
-const MOCK_PROJECTS = [
-  {
-    id: 1,
-    title: "Fintech Dashboard",
-    author: "Sarah Jenkins",
-    authorAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150",
-    image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=800",
-    likes: 1200,
-    tags: ["UI/UX", "Web"],
-    featured: true,
-  },
-  {
-    id: 2,
-    title: "Eco Branding Kit",
-    author: "Mike Ross",
-    authorAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150",
-    image: "https://images.unsplash.com/photo-1600607686527-6fb886090705?auto=format&fit=crop&q=80&w=800",
-    likes: 850,
-    tags: ["Branding", "Design"],
-  },
-  {
-    id: 3,
-    title: "Neon 3D Abstract",
-    author: "Jessica Lee",
-    authorAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=150",
-    image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=800",
-    likes: 2100,
-    tags: ["3D", "Motion"],
-  },
-  {
-    id: 4,
-    title: "Travel App UI",
-    author: "David Chen",
-    authorAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150",
-    image: "https://images.unsplash.com/photo-1512486130939-2c4f79935e4f?auto=format&fit=crop&q=80&w=800",
-    likes: 400,
-    tags: ["Mobile", "App"],
-  },
-  {
-    id: 5,
-    title: "Coffee Shop Identity",
-    author: "Emily Blunt",
-    authorAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=150",
-    image: "https://images.unsplash.com/photo-1515630278258-407f66498911?auto=format&fit=crop&q=80&w=800",
-    likes: 900,
-    tags: ["Branding", "Print"],
-  },
-  {
-    id: 6,
-    title: "Fitness Tracker App",
-    author: "Tom Hiddleston",
-    authorAvatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=150",
-    image: "https://images.unsplash.com/photo-1551650975-87deedd944c3?auto=format&fit=crop&q=80&w=800",
-    likes: 1500,
-    tags: ["Mobile", "Health"],
-  },
-  {
-    id: 7,
-    title: "Editorial Illustration",
-    author: "Anna Wintour",
-    authorAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150",
-    image: "https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&q=80&w=800",
-    likes: 3200,
-    tags: ["Illustration", "Art"],
-  },
-  {
-    id: 8,
-    title: "Tech Icon Set",
-    author: "Chris Evans",
-    authorAvatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=150",
-    image: "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?auto=format&fit=crop&q=80&w=800",
-    likes: 600,
-    tags: ["Icons", "Design"],
-  }
-];
+const API_BASE = "http://localhost:5000/api";
 
 const CATEGORIES = ["All", "UI/UX", "Web", "Mobile", "Branding", "Illustrations", "Motion"];
 
-const ProjectCard = ({ project }) => {
+const ProjectCard = ({ project, onLike, currentUser }) => {
   const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(project.likes || 0);
   const [bookmarked, setBookmarked] = useState(false);
+
+  // Sync local like state with prop changes if needed, 
+  // though optimally we just trust the prop + local optimistic update
+  useEffect(() => {
+     setLikeCount(project.likes || 0);
+  }, [project.likes]);
+
+  const handleLike = async (e) => {
+    e.stopPropagation();
+    if (!currentUser) return; // simple guard
+    
+    // Optimistic update
+    const newLikedState = !liked;
+    setLiked(newLikedState);
+    setLikeCount(prev => newLikedState ? prev + 1 : prev - 1);
+
+    try {
+       await onLike(project._id);
+    } catch (error) {
+       // Revert on error
+       setLiked(!newLikedState);
+       setLikeCount(prev => newLikedState ? prev - 1 : prev + 1);
+    }
+  };
 
   return (
     <motion.div 
@@ -106,7 +54,7 @@ const ProjectCard = ({ project }) => {
       layout
       className="group flex flex-col gap-3 cursor-pointer"
     >
-      <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden shadow-sm transition-all duration-300 group-hover:shadow-lg group-hover:-translate-y-1">
+      <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden shadow-sm transition-all duration-300 group-hover:shadow-lg group-hover:-translate-y-1 bg-gray-100">
         <div 
           className="w-full h-full bg-center bg-no-repeat bg-cover transition-transform duration-500 group-hover:scale-110" 
           style={{ backgroundImage: `url("${project.image}")` }}
@@ -125,10 +73,10 @@ const ProjectCard = ({ project }) => {
         <div className="flex gap-3 items-center">
           <div 
             className="w-8 h-8 rounded-full bg-gray-200 bg-cover bg-center border border-gray-100" 
-            style={{ backgroundImage: `url("${project.authorAvatar}")` }} 
+            style={{ backgroundImage: `url("${project.authorAvatar || 'https://ui-avatars.com/api/?name=' + project.author}")` }} 
           />
           <div>
-            <p className="text-gray-900 font-bold text-base leading-tight group-hover:text-blue-600 transition-colors">
+            <p className="text-gray-900 font-bold text-base leading-tight group-hover:text-blue-600 transition-colors line-clamp-1">
               {project.title}
             </p>
             <p className="text-gray-500 text-sm font-normal">
@@ -138,15 +86,16 @@ const ProjectCard = ({ project }) => {
         </div>
         
         <button 
-          onClick={(e) => { e.stopPropagation(); setLiked(!liked); }}
+          onClick={handleLike}
           className="flex items-center gap-1 text-gray-500 hover:text-pink-500 transition-colors group/like"
+          title={!currentUser ? "Login to like" : "Like this project"}
         >
           <Heart 
             size={20} 
             className={`transition-colors ${liked ? "fill-pink-500 text-pink-500" : "group-hover/like:text-pink-500"}`} 
           />
           <span className="text-xs font-medium">
-            {(project.likes + (liked ? 1 : 0)).toLocaleString()}
+            {likeCount.toLocaleString()}
           </span>
         </button>
       </div>
@@ -155,11 +104,103 @@ const ProjectCard = ({ project }) => {
 };
 
 const Spotlight = () => {
+  const [projects, setProjects] = useState([]);
   const [filter, setFilter] = useState("All");
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [submissionLoading, setSubmissionLoading] = useState(false);
+  const [newProject, setNewProject] = useState({
+    title: "",
+    description: "",
+    image: "",
+    tags: "",
+  });
 
-  const filteredProjects = MOCK_PROJECTS.filter(p => 
-      filter === "All" || p.tags.some(tag => tag.toLowerCase().includes(filter.toLowerCase())) || p.title.toLowerCase().includes(filter.toLowerCase())
-  );
+  const navigate = useNavigate();
+
+  // Fetch User & Projects
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        // 1. Fetch User Profile if token exists
+        const token = localStorage.getItem("token");
+        if (token) {
+          try {
+            const userRes = await axios.get(`${API_BASE}/users/profile`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            setUser(userRes.data);
+          } catch (err) {
+            console.error("User fetch error", err);
+            // Optionally clear invalid token here
+          }
+        }
+
+        // 2. Fetch Projects
+        const projectsRes = await axios.get(`${API_BASE}/spotlight`);
+        setProjects(projectsRes.data);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const handleLike = async (projectId) => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+        navigate("/login");
+        return;
+    }
+    await axios.put(`${API_BASE}/spotlight/${projectId}/like`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+    });
+  };
+
+  const handleCreateProject = async (e) => {
+    e.preventDefault();
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      setSubmissionLoading(true);
+      const tagsArray = newProject.tags.split(',').map(tag => tag.trim()).filter(Boolean);
+      
+      const payload = {
+        ...newProject,
+        tags: tagsArray
+      };
+
+      const res = await axios.post(`${API_BASE}/spotlight`, payload, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setProjects([res.data, ...projects]);
+      setIsModalOpen(false);
+      setNewProject({ title: "", description: "", image: "", tags: "" });
+    } catch (error) {
+      console.error("Error creating project:", error);
+      alert("Failed to post project. Please try again.");
+    } finally {
+      setSubmissionLoading(false);
+    }
+  };
+
+  const filteredProjects = projects.filter(p => {
+      if (filter === "All") return true;
+      // Handle case where tags might be missing or different format
+      const pTags = Array.isArray(p.tags) ? p.tags : [];
+      return pTags.some(tag => tag.toLowerCase() === filter.toLowerCase()) || 
+             p.title?.toLowerCase().includes(filter.toLowerCase());
+  });
 
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans">
@@ -175,9 +216,20 @@ const Spotlight = () => {
                 Spotlight <span className="text-blue-600">Greatness</span>
               </h1>
               <p className="text-gray-500 text-lg font-normal leading-relaxed">
-                Curated work from elite freelancers around the globe. Discover, connect, and get inspired by the best in the industry.
+                Curated work from elite freelancers. Discover, connect, and get inspired.
               </p>
             </div>
+
+            {/* Post Button for Freelancers */}
+            {user && user.role === "Freelancer" && (
+              <button 
+                onClick={() => setIsModalOpen(true)}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-lg font-bold shadow-lg shadow-blue-600/20 transition-all hover:scale-105 active:scale-95"
+              >
+                <Plus size={20} />
+                Post Work
+              </button>
+            )}
           </div>
 
           {/* Chips / Filters */}
@@ -197,35 +249,143 @@ const Spotlight = () => {
             ))}
           </div>
 
-          {/* Image Grid / Gallery */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-10 min-h-[400px]">
-            <AnimatePresence mode="popLayout">
-              {filteredProjects.map((project) => (
-                <ProjectCard key={project.id} project={project} />
-              ))}
-            </AnimatePresence>
+          {/* Content Area */}
+          {loading ? (
+             <div className="flex justify-center items-center min-h-[400px]">
+                <Loader2 size={40} className="animate-spin text-gray-300" />
+             </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-10 min-h-[400px]">
+              <AnimatePresence mode="popLayout">
+                {filteredProjects.map((project) => (
+                  <ProjectCard 
+                    key={project._id || project.id} 
+                    project={project} 
+                    onLike={handleLike}
+                    currentUser={user}
+                  />
+                ))}
+              </AnimatePresence>
 
-            {filteredProjects.length === 0 && (
-                <div className="col-span-full flex flex-col items-center justify-center py-20 text-gray-500">
-                    <Search size={48} className="mb-4 opacity-20" />
-                    <p className="text-xl font-medium">No projects found matching your filter.</p>
-                </div>
-            )}
-          </div>
+              {filteredProjects.length === 0 && (
+                  <div className="col-span-full flex flex-col items-center justify-center py-20 text-gray-500">
+                      <Search size={48} className="mb-4 opacity-20" />
+                      <p className="text-xl font-medium">No projects found matching your filter.</p>
+                  </div>
+              )}
+            </div>
+          )}
 
-          {/* Load More */}
-          <div className="flex px-4 py-12 justify-center">
-            <button className="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-8 bg-white border border-gray-200 text-gray-900 text-base font-bold hover:bg-gray-50 transition-all shadow-sm">
-              <span className="truncate">Load More Work</span>
-            </button>
-          </div>
+          {/* Load More - Optional / Placeholder */}
+          {!loading && filteredProjects.length > 0 && (
+            <div className="flex px-4 py-12 justify-center">
+                <button className="text-gray-400 hover:text-gray-900 font-medium transition-colors">
+                    End of results
+                </button>
+            </div>
+          )}
 
         </div>
       </main>
       
       <Footer />
+
+      {/* Add Project Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div 
+             className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+             onClick={() => setIsModalOpen(false)}
+          />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+          >
+            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-900">Share Your Work</h2>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 p-1"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateProject} className="p-6 space-y-5">
+               <div>
+                 <label className="block text-sm font-semibold text-gray-700 mb-1">Project Title</label>
+                 <input 
+                    type="text" 
+                    required
+                    value={newProject.title}
+                    onChange={(e) => setNewProject({...newProject, title: e.target.value})}
+                    placeholder="e.g. Modern Banking App"
+                    className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                 />
+               </div>
+
+               <div>
+                 <label className="block text-sm font-semibold text-gray-700 mb-1">Image URL</label>
+                 <div className="flex gap-2">
+                    <input 
+                        type="url" 
+                        required
+                        value={newProject.image}
+                        onChange={(e) => setNewProject({...newProject, image: e.target.value})}
+                        placeholder="https://..."
+                        className="flex-1 px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    />
+                    <div className="w-10 h-10 shrink-0 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200 overflow-hidden">
+                        {newProject.image ? (
+                             <img src={newProject.image} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                             <ImageIcon size={20} className="text-gray-400" />
+                        )}
+                    </div>
+                 </div>
+                 <p className="text-xs text-gray-400 mt-1">Direct link to your project screenshot.</p>
+               </div>
+
+               <div>
+                 <label className="block text-sm font-semibold text-gray-700 mb-1">Tags</label>
+                 <input 
+                    type="text" 
+                    value={newProject.tags}
+                    onChange={(e) => setNewProject({...newProject, tags: e.target.value})}
+                    placeholder="e.g. UI/UX, Mobile, Fintech (comma separated)"
+                    className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                 />
+               </div>
+
+               <div>
+                 <label className="block text-sm font-semibold text-gray-700 mb-1">Description (Optional)</label>
+                 <textarea 
+                    value={newProject.description}
+                    onChange={(e) => setNewProject({...newProject, description: e.target.value})}
+                    placeholder="Tell us a bit about this project..."
+                    className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all min-h-[100px] resize-none"
+                 />
+               </div>
+
+               <div className="pt-2">
+                 <button 
+                    type="submit"
+                    disabled={submissionLoading}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-lg shadow-blue-600/20 transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex justify-center gap-2"
+                 >
+                    {submissionLoading && <Loader2 size={20} className="animate-spin" />}
+                    {submissionLoading ? "Publishing..." : "Publish Project"}
+                 </button>
+               </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default Spotlight;
+
