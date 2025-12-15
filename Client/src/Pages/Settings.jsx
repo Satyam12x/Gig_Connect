@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
 import { 
   User, 
   Lock, 
@@ -15,29 +16,73 @@ import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
+const API_BASE = "http://localhost:5000/api";
+
 const Settings = () => {
   const [activeTab, setActiveTab] = useState("profile");
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
 
-  // Mock user data - normally fetched from API
   const [formData, setFormData] = useState({
-    fullName: "Satyam Pandey",
-    email: "satyam@example.com",
-    bio: "Full Stack Developer looking for exciting gigs.",
-    phone: "+91 98765 43210",
+    fullName: "",
+    email: "",
+    bio: "",
+    phone: "",
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
     emailNotifications: true,
     marketingEmails: false,
-    publicProfile: true
+    publicProfile: true,
+    profilePicture: null
   });
 
-  const handleSave = (e) => {
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+        
+        const res = await axios.get(`${API_BASE}/users/profile`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        const user = res.data;
+        setFormData(prev => ({
+          ...prev,
+          fullName: user.fullName || "",
+          email: user.email || "",
+          bio: user.bio || "",
+          phone: user.phone || "",
+          emailNotifications: user.emailNotifications ?? true,
+          marketingEmails: user.marketingEmails ?? false,
+          publicProfile: user.publicProfile ?? true,
+          profilePicture: user.profilePicture || null,
+          role: user.role
+        }));
+      } catch (err) {
+        console.error("Error fetching settings:", err);
+      } finally {
+        setFetching(false);
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  const handleSave = async (e) => {
     e.preventDefault();
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => setLoading(false), 1500);
+    try {
+      const token = localStorage.getItem("token");
+      await axios.put(`${API_BASE}/users/profile`, formData, {
+         headers: { Authorization: `Bearer ${token}` }
+      });
+      // Optionally show success toast here
+    } catch (err) {
+      console.error("Error saving settings:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const tabs = [
@@ -46,6 +91,14 @@ const Settings = () => {
     { id: "security", label: "Security", icon: Shield },
     { id: "notifications", label: "Notifications", icon: Bell },
   ];
+
+  if (fetching) {
+     return (
+       <div className="min-h-screen flex items-center justify-center">
+         <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+       </div>
+     );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-900">
@@ -117,9 +170,14 @@ const Settings = () => {
 
                       <div className="flex flex-col md:flex-row gap-6 items-start">
                         <div className="w-full md:w-auto flex flex-col items-center gap-4">
-                          <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center text-3xl font-bold text-gray-400 overflow-hidden border-4 border-white shadow-md">
-                            {/* Placeholder for avatar */}
-                            SP
+                          <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border-4 border-white shadow-md">
+                            {formData.profilePicture ? (
+                               <img src={formData.profilePicture} alt="Profile" className="w-full h-full object-cover" />
+                            ) : (
+                               <span className="text-3xl font-bold text-gray-400">
+                                 {formData.fullName?.charAt(0).toUpperCase() || "U"}
+                               </span>
+                            )}
                           </div>
                           <button type="button" className="text-sm font-semibold text-blue-600 hover:text-blue-700">
                             Change Avatar
