@@ -111,6 +111,7 @@ const Spotlight = () => {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submissionLoading, setSubmissionLoading] = useState(false);
+  const [generatingAI, setGeneratingAI] = useState(false);
   
   // Form State
   const [title, setTitle] = useState("");
@@ -124,6 +125,7 @@ const Spotlight = () => {
 
   // Fetch User & Projects
   useEffect(() => {
+    // ... (keep existing fetch logic)
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -150,6 +152,7 @@ const Spotlight = () => {
   }, []);
 
   const handleLike = async (projectId) => {
+    // ... (keep existing like logic)
     const token = localStorage.getItem("token");
     if (!token) {
         navigate("/login");
@@ -161,9 +164,10 @@ const Spotlight = () => {
   };
 
   const handleImageChange = (e) => {
+    // ... (keep existing image logic)
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      if (file.size > 5 * 1024 * 1024) { 
         alert("File size too large (max 5MB)");
         return;
       }
@@ -176,7 +180,47 @@ const Spotlight = () => {
     }
   };
 
+  const handleGenerateAI = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    
+    // We need at least a title OR an image to generate context
+    if (!title && !imageFile) {
+        alert("Please provide a Project Title or Upload an Image first to generate details.");
+        return;
+    }
+
+    try {
+        setGeneratingAI(true);
+        const formData = new FormData();
+        if (title) formData.append("title", title);
+        if (imageFile) formData.append("image", imageFile);
+
+        const res = await axios.post(`${API_BASE}/spotlight/generate`, formData, {
+            headers: { 
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "multipart/form-data" 
+            }
+        });
+
+        const { title: suggestedTitle, description: aiDescription, tags: aiTags, category } = res.data;
+
+        if (suggestedTitle && !title) setTitle(suggestedTitle);
+        if (aiDescription) setDescription(aiDescription);
+        if (aiTags && Array.isArray(aiTags)) setTags(aiTags.join(", "));
+        
+        // If we had a category field in the form, we would set it here too
+        
+    } catch (error) {
+        console.error("AI Generation failed:", error);
+        alert("Failed to generate details. Please try again.");
+    } finally {
+        setGeneratingAI(false);
+    }
+  };
+
   const handleCreateProject = async (e) => {
+    // ... (keep existing create logic)
     e.preventDefault();
     const token = localStorage.getItem("token");
     if (!token || !imageFile) return;
@@ -185,15 +229,10 @@ const Spotlight = () => {
       setSubmissionLoading(true);
       const tagsArray = tags.split(',').map(tag => tag.trim()).filter(Boolean);
       
-      // Use FormData for file upload
       const formData = new FormData();
       formData.append("title", title);
       formData.append("description", description);
-      
-      // Send tags as a simple comma-separated string
-      // This matches the format the backend likely expects if reusing similar logic or basic splitting
       formData.append("tags", tagsArray.join(",")); 
-      
       formData.append("image", imageFile); 
 
       const res = await axios.post(`${API_BASE}/spotlight`, formData, {
@@ -206,7 +245,6 @@ const Spotlight = () => {
       setProjects([res.data, ...projects]);
       setIsModalOpen(false);
       
-      // Reset form
       setTitle("");
       setDescription("");
       setTags("");
@@ -221,6 +259,7 @@ const Spotlight = () => {
   };
 
   const filteredProjects = projects.filter(p => {
+    // ... (keep existing filter logic)
       if (filter === "All") return true;
       const pTags = Array.isArray(p.tags) ? p.tags : [];
       return pTags.some(tag => tag.toLowerCase() === filter.toLowerCase()) || 
@@ -233,8 +272,7 @@ const Spotlight = () => {
 
       <main className="flex-1 flex justify-center py-6 md:py-10 px-4 md:px-10">
         <div className="flex flex-col w-full max-w-[1280px]">
-          
-          {/* Page Heading & Hero */}
+          {/* ... (keep existing Hero and Filters) */}
           <div className="flex flex-wrap justify-between items-end gap-6 pb-8 border-b border-gray-200 mb-8 mt-6">
             <div className="flex max-w-2xl flex-col gap-3">
               <h1 className="text-gray-900 text-4xl md:text-5xl font-black leading-tight tracking-tight">
@@ -245,7 +283,6 @@ const Spotlight = () => {
               </p>
             </div>
 
-            {/* Post Button for Freelancers */}
             {user && user.role === "Freelancer" && (
               <button 
                 onClick={() => setIsModalOpen(true)}
@@ -258,7 +295,6 @@ const Spotlight = () => {
             )}
           </div>
 
-          {/* Chips / Filters */}
           <div className="flex gap-3 pb-8 flex-wrap overflow-x-auto no-scrollbar">
             {CATEGORIES.map((cat) => (
                <button
@@ -302,16 +338,15 @@ const Spotlight = () => {
               )}
             </div>
           )}
-
-          {/* Load More - Optional / Placeholder */}
-          {!loading && filteredProjects.length > 0 && (
+          
+           {/* Load More - Optional / Placeholder */}
+           {!loading && filteredProjects.length > 0 && (
             <div className="flex px-4 py-12 justify-center">
                 <button className="text-gray-400 hover:text-gray-900 font-medium transition-colors">
                     End of results
                 </button>
             </div>
           )}
-
         </div>
       </main>
       
@@ -341,11 +376,28 @@ const Spotlight = () => {
             </div>
             
             <form onSubmit={handleCreateProject} className="p-6 space-y-5">
+               {/* AI Generation Header */}
+               <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-indigo-900">AI Assistant</h3>
+                    <p className="text-xs text-indigo-700">Auto-generate details from your title or image.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleGenerateAI}
+                    disabled={generatingAI}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-white text-indigo-600 text-xs font-bold rounded-lg border border-indigo-200 shadow-sm hover:bg-indigo-50 transition-colors disabled:opacity-50"
+                  >
+                    {generatingAI ? <Loader2 size={14} className="animate-spin" /> : <span className="text-lg">✨</span>}
+                    {generatingAI ? "Dreaming..." : "Auto-Fill"}
+                  </button>
+               </div>
+
                <div>
                  <label className="block text-sm font-semibold text-gray-700 mb-1">Project Title</label>
                  <input 
                     type="text" 
-                    required
+                    required={!title} // Requirement handled by logic
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="e.g. Modern Banking App"

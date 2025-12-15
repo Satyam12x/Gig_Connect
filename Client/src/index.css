@@ -3,7 +3,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ========== BASE STYLES ========== */
+
 @layer base {
   html {
     scroll-behavior: smooth;
@@ -19,7 +19,7 @@
   }
 }
 
-/* ========== CUSTOM ANIMATIONS ========== */
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
