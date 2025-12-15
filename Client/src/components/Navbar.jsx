@@ -1,26 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import {
-  Home,
-  Briefcase,
-  MessageCircle,
+  LayoutDashboard,
+  BriefcaseBusiness,
+  MessageSquareText,
   Bell,
   Menu,
   X,
   LogOut,
   User,
   Settings,
-  Zap,
+  Sparkles,
   ChevronDown
 } from "lucide-react";
 
 const API_BASE = "http://localhost:5000/api";
 const NAVY = "#1A2A4F";
 
-const Navbar = () => {
+const Navbar = memo(() => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -31,16 +31,16 @@ const Navbar = () => {
   const location = useLocation();
 
   const navItems = [
-    { icon: Home, label: "Home", to: "/home", id: "home" },
-    { icon: Briefcase, label: "Gigs", to: "/gigs", id: "gigs" },
+    { icon: LayoutDashboard, label: "Home", to: "/home", id: "home" },
+    { icon: BriefcaseBusiness, label: "Gigs", to: "/gigs", id: "gigs" },
     {
-      icon: MessageCircle,
+      icon: MessageSquareText,
       label: "Messages",
       to: "/global-chat",
       id: "messages",
     },
     {
-      icon: Zap,
+      icon: Sparkles,
       label: "Spotlight",
       to: "/spotlight",
       id: "spotlight",
@@ -550,6 +550,6 @@ const Navbar = () => {
       `}</style>
     </>
   );
-};
+});
 
 export default Navbar;

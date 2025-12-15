@@ -19,6 +19,7 @@ const Home = lazy(() => import("./Pages/Home"));
 const GlobalChat = lazy(() => import("./Pages/GlobalChat"));
 const PurchaseCoins = lazy(() => import("./Pages/PurchaseCoins"));
 const Spotlight = lazy(() => import("./Pages/Spotlight"));
+const Settings = lazy(() => import("./Pages/Settings"));
 
 // Lazy Loaded Auth Pages
 const SignupEmail = lazy(() => import("./Pages/Onbaording/SignupEmail"));
@@ -197,6 +198,17 @@ const App = () => {
               <ProtectedRoute>
                 <PageWrapper>
                   <Profile />
+                </PageWrapper>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <PageWrapper customTitle="Settings | Gig Connect">
+                  <Settings />
                 </PageWrapper>
               </ProtectedRoute>
             }

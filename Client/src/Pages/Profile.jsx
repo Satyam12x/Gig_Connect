@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -33,6 +33,7 @@ import {
   Copy,
   Download,
   ExternalLink,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import Navbar from "../components/Navbar";
@@ -649,21 +650,10 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
 
   // Form States
-  const [nameForm, setNameForm] = useState({ fullName: "" });
-  const [emailForm, setEmailForm] = useState({ newEmail: "", otp: "" });
-  const [passwordForm, setPasswordForm] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
-  });
   const [certForm, setCertForm] = useState({ name: "", issuer: "" });
   const [newSkill, setNewSkill] = useState("");
 
   // UI States
-  const [showNameForm, setShowNameForm] = useState(false);
-  const [showEmailForm, setShowEmailForm] = useState(false);
-  const [showPasswordForm, setShowPasswordForm] = useState(false);
-  const [showOtpForm, setShowOtpForm] = useState(false);
   const [showSkillForm, setShowSkillForm] = useState(false);
   const [showCertForm, setShowCertForm] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -698,7 +688,7 @@ const Profile = () => {
 
         setUser({ ...profileRes.data, coins: coinsRes.data.coins || 0 });
         setReviews(reviewsRes.data);
-        setNameForm({ fullName: profileRes.data.fullName });
+
       } catch (err) {
         if (err.response?.status === 401) {
           localStorage.removeItem("token");
@@ -714,101 +704,7 @@ const Profile = () => {
   }, [navigate]);
 
   // Handlers
-  const handleNameChange = async (e) => {
-    e.preventDefault();
-    if (actionLockRef.current) return;
-    actionLockRef.current = true;
-    try {
-      const token = localStorage.getItem("token");
-      await axios.put(
-        `${API_BASE}/users/profile`,
-        { fullName: nameForm.fullName },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setUser((prev) => ({ ...prev, fullName: nameForm.fullName }));
-      setShowNameForm(false);
-      toast.success("Name updated successfully!");
-    } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to update name");
-    } finally {
-      actionLockRef.current = false;
-    }
-  };
 
-  const handleEmailRequest = async (e) => {
-    e.preventDefault();
-    if (actionLockRef.current) return;
-    actionLockRef.current = true;
-    try {
-      const token = localStorage.getItem("token");
-      await axios.post(
-        `${API_BASE}/users/request-email-otp`,
-        { newEmail: emailForm.newEmail },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setShowOtpForm(true);
-      toast.success("OTP sent to your new email!");
-    } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to send OTP");
-    } finally {
-      actionLockRef.current = false;
-    }
-  };
-
-  const handleEmailVerify = async (e) => {
-    e.preventDefault();
-    if (actionLockRef.current) return;
-    actionLockRef.current = true;
-    try {
-      const token = localStorage.getItem("token");
-      await axios.post(
-        `${API_BASE}/users/verify-email-otp`,
-        { newEmail: emailForm.newEmail, otp: emailForm.otp },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setUser((prev) => ({ ...prev, email: emailForm.newEmail }));
-      setShowEmailForm(false);
-      setShowOtpForm(false);
-      setEmailForm({ newEmail: "", otp: "" });
-      toast.success("Email updated successfully!");
-    } catch (err) {
-      toast.error(err.response?.data?.error || "Invalid OTP");
-    } finally {
-      actionLockRef.current = false;
-    }
-  };
-
-  const handlePasswordChange = async (e) => {
-    e.preventDefault();
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
-    }
-    if (actionLockRef.current) return;
-    actionLockRef.current = true;
-    try {
-      const token = localStorage.getItem("token");
-      await axios.put(
-        `${API_BASE}/users/password`,
-        {
-          currentPassword: passwordForm.currentPassword,
-          newPassword: passwordForm.newPassword,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setShowPasswordForm(false);
-      setPasswordForm({
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-      });
-      toast.success("Password changed successfully!");
-    } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to change password");
-    } finally {
-      actionLockRef.current = false;
-    }
-  };
 
   const handleAddSkill = async (e) => {
     e.preventDefault();
@@ -1300,133 +1196,23 @@ const Profile = () => {
 
             {/* Right Column - Settings, Skills, Certifications */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Account Settings */}
+              {/* Account Settings Link */}
               <FadeIn delay={0.3}>
-                <SectionCard>
-                  <SectionHeader icon={User} title="Account Settings" />
-
-                  <div className="space-y-4">
-                    {/* Name Setting */}
-                    <SettingItem
-                      icon={User}
-                      title="Full Name"
-                      subtitle={user.fullName}
-                      isOpen={showNameForm}
-                      onToggle={() => setShowNameForm(!showNameForm)}
-                    >
-                      <form onSubmit={handleNameChange} className="space-y-3">
-                        <Input
-                          placeholder="Enter your full name"
-                          value={nameForm.fullName}
-                          onChange={(e) =>
-                            setNameForm({ fullName: e.target.value })
-                          }
-                        />
-                        <Button type="submit" className="w-full">
-                          <Check className="w-4 h-4" />
-                          Save Name
-                        </Button>
-                      </form>
-                    </SettingItem>
-
-                    {/* Email Setting */}
-                    <SettingItem
-                      icon={Mail}
-                      title="Email Address"
-                      subtitle={user.email}
-                      isOpen={showEmailForm}
-                      onToggle={() => setShowEmailForm(!showEmailForm)}
-                    >
-                      <form
-                        onSubmit={
-                          showOtpForm ? handleEmailVerify : handleEmailRequest
-                        }
-                        className="space-y-3"
-                      >
-                        <Input
-                          type="email"
-                          placeholder="New email address"
-                          value={emailForm.newEmail}
-                          onChange={(e) =>
-                            setEmailForm({
-                              ...emailForm,
-                              newEmail: e.target.value,
-                            })
-                          }
-                          disabled={showOtpForm}
-                        />
-                        {showOtpForm && (
-                          <Input
-                            placeholder="Enter 6-digit OTP"
-                            value={emailForm.otp}
-                            onChange={(e) =>
-                              setEmailForm({
-                                ...emailForm,
-                                otp: e.target.value,
-                              })
-                            }
-                          />
-                        )}
-                        <Button type="submit" className="w-full">
-                          <Check className="w-4 h-4" />
-                          {showOtpForm ? "Verify OTP" : "Send OTP"}
-                        </Button>
-                      </form>
-                    </SettingItem>
-
-                    {/* Password Setting */}
-                    <SettingItem
-                      icon={Lock}
-                      title="Password"
-                      subtitle="••••••••"
-                      isOpen={showPasswordForm}
-                      onToggle={() => setShowPasswordForm(!showPasswordForm)}
-                    >
-                      <form
-                        onSubmit={handlePasswordChange}
-                        className="space-y-3"
-                      >
-                        <Input
-                          type="password"
-                          placeholder="Current password"
-                          value={passwordForm.currentPassword}
-                          onChange={(e) =>
-                            setPasswordForm({
-                              ...passwordForm,
-                              currentPassword: e.target.value,
-                            })
-                          }
-                        />
-                        <Input
-                          type="password"
-                          placeholder="New password"
-                          value={passwordForm.newPassword}
-                          onChange={(e) =>
-                            setPasswordForm({
-                              ...passwordForm,
-                              newPassword: e.target.value,
-                            })
-                          }
-                        />
-                        <Input
-                          type="password"
-                          placeholder="Confirm new password"
-                          value={passwordForm.confirmPassword}
-                          onChange={(e) =>
-                            setPasswordForm({
-                              ...passwordForm,
-                              confirmPassword: e.target.value,
-                            })
-                          }
-                        />
-                        <Button type="submit" className="w-full">
-                          <Check className="w-4 h-4" />
-                          Update Password
-                        </Button>
-                      </form>
-                    </SettingItem>
-                  </div>
-                </SectionCard>
+                 <div className="bg-white rounded-2xl border border-blue-100 p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-4">
+                       <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+                          <SettingsIcon size={24} /> 
+                       </div>
+                       <div>
+                          <h3 className="text-lg font-bold text-[#1A2A4F]">Account Settings</h3>
+                          <p className="text-gray-500 text-sm">Update your password, email, and preferences.</p>
+                       </div>
+                    </div>
+                    <Link to="/settings" className="px-6 py-2.5 bg-[#1A2A4F] text-white rounded-xl font-semibold hover:bg-[#2A3A5F] transition-colors flex items-center gap-2">
+                       <SettingsIcon size={18} />
+                       Manage Account
+                    </Link>
+                 </div>
               </FadeIn>
 
               {/* Skills */}
