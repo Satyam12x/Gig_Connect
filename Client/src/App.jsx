@@ -18,6 +18,7 @@ import Profile from "./Pages/Profile";
 import Home from "./Pages/Home";
 import GlobalChat from "./Pages/GlobalChat";
 import PurchaseCoins from "./Pages/PurchaseCoins";
+import Spotlight from "./Pages/Spotlight";
 
 // Auth Pages
 import SignupEmail from "./Pages/Onbaording/SignupEmail";
@@ -167,6 +168,17 @@ const App = () => {
             <ProtectedRoute>
               <PageWrapper>
                 <Home />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/spotlight"
+          element={
+            <ProtectedRoute>
+              <PageWrapper customTitle="Spotlight | Gig Connect">
+                <Spotlight />
               </PageWrapper>
             </ProtectedRoute>
           }

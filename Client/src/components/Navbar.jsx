@@ -11,9 +11,9 @@ import {
   Menu,
   X,
   LogOut,
-  ChevronDown,
   User,
   Settings,
+  Zap,
 } from "lucide-react";
 
 const API_BASE = "http://localhost:5000/api";
@@ -39,11 +39,10 @@ const Navbar = () => {
       id: "messages",
     },
     {
-      icon: Bell,
-      label: "Notifications",
-      to: "/notifications",
-      id: "notifications",
-      badge: notificationCount,
+      icon: Zap,
+      label: "Spotlight",
+      to: "/spotlight",
+      id: "spotlight",
     },
   ];
 

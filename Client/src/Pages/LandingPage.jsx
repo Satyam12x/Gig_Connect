@@ -11,7 +11,7 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { theme, config } from "../constants";
 
-// ============= UTILITY COMPONENTS =============
+
 const FadeIn = ({ children, delay = 0, direction = "up" }) => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-50px" });
@@ -81,7 +81,6 @@ const FloatingParticles = () => (
   </div>
 );
 
-// ============= INTRO ANIMATION =============
 const IntroAnimation = ({ onComplete }) => {
   const [progress, setProgress] = useState(0);
 
@@ -300,7 +299,7 @@ const HeroSection = () => {
   );
 };
 
-// ============= FEATURES SECTION =============
+
 const FeaturesSection = () => {
   const features = [
     { icon: Target, title: "Smart Matching", description: "Our intelligent system connects you with the perfect freelancer based on skills and requirements.", color: "#3B82F6" },
@@ -353,7 +352,7 @@ const FeaturesSection = () => {
   );
 };
 
-// ============= HOW IT WORKS =============
+
 const HowItWorksSection = () => {
   const steps = [
     { number: "01", title: "Create Your Profile", description: "Sign up and showcase your skills or describe the service you need.", icon: Users2 },
@@ -402,7 +401,7 @@ const HowItWorksSection = () => {
   );
 };
 
-// ============= CTA SECTION =============
+
 const CTASection = () => {
   return (
     <section className="py-24 relative overflow-hidden" style={{ backgroundColor: theme.primary }}>
@@ -446,7 +445,7 @@ const CTASection = () => {
   );
 };
 
-// ============= MAIN COMPONENT =============
+
 const LandingPage = () => {
   const [showIntro, setShowIntro] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
