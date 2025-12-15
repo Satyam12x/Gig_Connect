@@ -1,13 +1,11 @@
 import React from "react";
 import { theme } from "../../constants";
 
-/**
- * Reusable Badge component for tags and labels
- */
+
 const Badge = ({
   children,
-  variant = "default", // default, primary, success, warning
-  size = "md", // sm, md, lg
+  variant = "default", 
+  size = "md",
   className = "",
   ...props
 }) => {
