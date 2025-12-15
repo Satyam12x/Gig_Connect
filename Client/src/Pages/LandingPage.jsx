@@ -163,310 +163,137 @@ const IntroAnimation = ({ onComplete }) => {
 
 // ============= HERO SECTION =============
 const HeroSection = () => {
-  const stats = [
-    { value: "50,000+", label: "Active Users", icon: Users2 },
-    { value: "100,000+", label: "Gigs Completed", icon: CheckCircle2 },
-    { value: "500+", label: "Universities", icon: GraduationCap },
-  ];
-
   return (
-    <section className="relative min-h-screen flex items-center pt-16 overflow-hidden">
-      {/* Diagonal Background Split */}
-      <div className="absolute inset-0">
-        {/* Top diagonal section - white */}
-        <div className="absolute inset-0 bg-white" />
-        
-        {/* Bottom diagonal section - colored */}
-        <motion.div
-          className="absolute inset-0 origin-top-left"
-          style={{
-            background: `linear-gradient(135deg, ${theme.lighter} 0%, ${theme.white} 100%)`,
-            clipPath: "polygon(0 40%, 100% 25%, 100% 100%, 0 100%)",
-          }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.8 }}
-        />
+    <section className="relative pt-24 pb-12 overflow-hidden bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col lg:flex-row gap-12 items-center">
+          
+          {/* Hero Content */}
+          <div className="flex-1 w-full flex flex-col gap-8">
+            <div className="flex flex-col gap-4 text-left">
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-[1.1] tracking-tight text-gray-900" style={{ fontFamily: '"Spline Sans", sans-serif' }}>
+                Work with the best, <br />
+                <span style={{ color: theme.primary }}>anywhere.</span>
+              </h1>
+              <p className="text-lg text-gray-600 font-medium leading-relaxed max-w-lg">
+                Connect with top-tier student freelancers for your next project in minutes.
+              </p>
+            </div>
 
-        {/* Decorative circles */}
-        <motion.div
-          className="absolute top-20 right-10 w-64 h-64 rounded-full opacity-30 blur-3xl"
-          style={{ backgroundColor: theme.accent }}
-          animate={{
-            scale: [1, 1.2, 1],
-            x: [0, 20, 0],
-            y: [0, -20, 0],
-          }}
-          transition={{
-            duration: 8,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-        
-        <motion.div
-          className="absolute bottom-32 left-20 w-96 h-96 rounded-full opacity-20 blur-3xl"
-          style={{ backgroundColor: theme.primary }}
-          animate={{
-            scale: [1, 1.3, 1],
-            x: [0, -20, 0],
-            y: [0, 20, 0],
-          }}
-          transition={{
-            duration: 10,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-
-        {/* Dotted pattern overlay */}
-        <div
-          className="absolute inset-0 opacity-5"
-          style={{
-            backgroundImage: `radial-gradient(circle, ${theme.primary} 1px, transparent 1px)`,
-            backgroundSize: "30px 30px",
-          }}
-        />
-      </div>
-
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full z-10">
-        <div className="grid lg:grid-cols-12 gap-8 items-center">
-          {/* Left Content - Takes 7 columns */}
-          <div className="lg:col-span-7 space-y-8">
-            {/* Floating badge */}
-            <FadeIn delay={0.1}>
-              <motion.div
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur-sm border"
-                style={{
-                  backgroundColor: "rgba(255, 255, 255, 0.9)",
-                  borderColor: theme.primary,
-                  borderWidth: 1.5,
-                }}
-                whileHover={{ scale: 1.05, y: -2 }}
-              >
-                <Star className="w-4 h-4" style={{ color: "#FFD700", fill: "#FFD700" }} />
-                <span className="text-sm font-semibold" style={{ color: theme.primary }}>
-                  Trusted by 500+ Universities
-                </span>
-              </motion.div>
-            </FadeIn>
-
-            {/* Main heading with creative layout */}
-            <FadeIn delay={0.2}>
-              <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <motion.div
-                    className="w-2 h-16 rounded-full"
-                    style={{ background: theme.gradients.primary }}
-                    animate={{ height: [60, 80, 60] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  />
-                  <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black leading-tight">
-                    <span style={{ color: theme.primary }}>Your Campus,</span>
-                  </h1>
-                </div>
-                <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black leading-tight pl-0 lg:pl-6">
-                  <span
-                    className="bg-clip-text text-transparent"
-                    style={{
-                      backgroundImage: theme.gradients.primary,
-                    }}
-                  >
-                    Unlimited Talent
-                  </span>
-                </h1>
-              </div>
-            </FadeIn>
-
-            {/* Description with highlight */}
-            <FadeIn delay={0.3}>
-              <div className="space-y-3 lg:pl-6">
-                <p className="text-xl leading-relaxed" style={{ color: theme.primaryLight }}>
-                  Connect with <span className="font-bold" style={{ color: theme.primary }}>skilled students</span> for 
-                  web development, design, tutoring, and more.
-                </p>
-                <p className="text-lg" style={{ color: theme.primaryMedium }}>
-                  The #1 freelancing platform built exclusively for student talent.
-                </p>
-              </div>
-            </FadeIn>
-
-            {/* Animated stats row */}
-            <FadeIn delay={0.4}>
-              <div className="flex flex-wrap gap-8 lg:pl-6 pt-4">
-                {stats.map((stat, i) => {
-                  const Icon = stat.icon;
-                  return (
-                    <motion.div
-                      key={i}
-                      className="flex items-center gap-3"
-                      whileHover={{ scale: 1.05, x: 5 }}
-                    >
-                      <div
-                        className="w-12 h-12 rounded-xl flex items-center justify-center"
-                        style={{ backgroundColor: theme.lighter }}
-                      >
-                        <Icon className="w-6 h-6" style={{ color: theme.accent }} />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold" style={{ color: theme.primary }}>
-                          <AnimatedCounter value={stat.value} />
-                        </p>
-                        <p className="text-xs" style={{ color: theme.primaryMedium }}>
-                          {stat.label}
-                        </p>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </FadeIn>
-
-            {/* CTA Buttons */}
-            <FadeIn delay={0.5}>
-              <div className="flex flex-wrap gap-4 lg:pl-6 pt-4">
-                <Link to="/signup">
-                  <motion.button
-                    className="group relative inline-flex items-center gap-2 px-10 py-5 rounded-2xl font-bold text-white text-lg overflow-hidden"
-                    style={{ backgroundColor: theme.primary }}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <span className="relative z-10">Get Started Free</span>
-                    <motion.div
-                      className="relative z-10"
-                      animate={{ x: [0, 5, 0] }}
-                      transition={{ duration: 1.5, repeat: Infinity }}
-                    >
-                      <ArrowRight className="w-5 h-5" />
-                    </motion.div>
-                    
-                    {/* Shine effect */}
-                    <motion.div
-                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-20"
-                      initial={{ x: "-100%" }}
-                      whileHover={{ x: "100%" }}
-                      transition={{ duration: 0.6 }}
-                    />
-                  </motion.button>
-                </Link>
-                
-                <motion.button
-                  className="inline-flex items-center gap-2 px-10 py-5 rounded-2xl font-bold border-2 text-lg backdrop-blur-sm"
-                  style={{
-                    color: theme.primary,
-                    borderColor: theme.primary,
-                    backgroundColor: "rgba(255, 255, 255, 0.8)",
-                  }}
-                  whileHover={{ scale: 1.05, backgroundColor: "rgba(255, 255, 255, 1)" }}
-                  whileTap={{ scale: 0.95 }}
+            {/* Dual CTA */}
+            <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+              <Link to="/search" className="flex-1">
+                <button 
+                  className="w-full flex cursor-pointer items-center justify-center overflow-hidden rounded-full h-14 px-8 text-white text-lg font-bold tracking-wide shadow-lg transition-transform active:scale-95 hover:opacity-90"
+                  style={{ backgroundColor: theme.primary, boxShadow: `0 10px 20px -5px ${theme.primary}50` }}
                 >
-                  <Play className="w-5 h-5" />
-                  Watch Demo
-                </motion.button>
+                  Find Talent
+                </button>
+              </Link>
+              <Link to="/apply" className="flex-1">
+                <button 
+                  className="w-full flex cursor-pointer items-center justify-center overflow-hidden rounded-full h-14 px-8 bg-white border text-lg font-bold tracking-wide transition-colors hover:bg-gray-50 active:scale-95"
+                  style={{ color: theme.primary, borderColor: "#e5e7eb" }}
+                >
+                  Apply to Work
+                </button>
+              </Link>
+            </div>
+
+            {/* Social Proof */}
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 p-6 bg-white rounded-2xl border border-gray-100 shadow-sm w-full max-w-lg">
+              <div className="flex items-center -space-x-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="relative z-10 w-12 h-12 rounded-full border-2 border-white overflow-hidden">
+                    <img 
+                      alt={`User ${i}`} 
+                      className="w-full h-full object-cover" 
+                      src={`https://i.pravatar.cc/150?img=${i + 10}`} 
+                    />
+                  </div>
+                ))}
+                <div className="relative z-0 w-12 h-12 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600">
+                  +5k
+                </div>
               </div>
-            </FadeIn>
+              <div className="flex flex-col items-center sm:items-start">
+                <p className="text-sm font-bold text-gray-900">Trusted by 10,000+ businesses</p>
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <Star key={s} className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            {/* Popular Categories */}
+            <div className="w-full">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: '"Spline Sans", sans-serif' }}>Popular Services</h3>
+                <Link to="/services" className="text-sm font-bold hover:underline" style={{ color: theme.primary }}>See all</Link>
+              </div>
+              <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
+                {[
+                  { icon: "palette", label: "Design", active: true },
+                  { icon: "code", label: "Development", active: false },
+                  { icon: "edit_note", label: "Writing", active: false },
+                  { icon: "campaign", label: "Marketing", active: false },
+                  { icon: "video_camera_back", label: "Video", active: false },
+                ].map((cat, idx) => (
+                  <button
+                    key={idx}
+                    className={`flex h-12 shrink-0 cursor-pointer items-center justify-center gap-x-2 rounded-full px-6 transition-all active:scale-95 border ${
+                      cat.active 
+                        ? 'text-white border-transparent' 
+                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                    }`}
+                    style={cat.active ? { backgroundColor: theme.primary } : {}}
+                  >
+                    <span className="material-symbols-outlined text-[20px]">{cat.icon}</span>
+                    <span className="text-sm font-bold">{cat.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
           </div>
 
-          {/* Right Content - Takes 5 columns - Image with creative treatment */}
-          <FadeIn delay={0.3} direction="left" className="lg:col-span-5 hidden lg:block">
-            <div className="relative">
-              {/* Main image container with unique shape */}
-              <motion.div
-                className="relative"
-                whileHover={{ scale: 1.02 }}
-                transition={{ duration: 0.3 }}
-              >
-                {/* Decorative elements behind image */}
-                <motion.div
-                  className="absolute -top-8 -right-8 w-32 h-32 rounded-3xl opacity-30"
-                  style={{ backgroundColor: theme.accent }}
-                  animate={{ rotate: [0, 90, 0] }}
-                  transition={{ duration: 20, repeat: Infinity }}
-                />
-                
-                <motion.div
-                  className="absolute -bottom-8 -left-8 w-40 h-40 rounded-full opacity-20"
-                  style={{ backgroundColor: theme.primary }}
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ duration: 8, repeat: Infinity }}
-                />
-
-                {/* Image with modern border treatment */}
-                <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white">
-                  <img
-                    src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=600&h=700&fit=crop"
-                    alt="Students collaborating"
-                    className="w-full h-[600px] object-cover"
-                  />
-                  
-                  {/* Gradient overlay */}
-                  <div
-                    className="absolute inset-0"
-                    style={{
-                      background: `linear-gradient(180deg, transparent 0%, rgba(26, 42, 79, 0.1) 100%)`,
-                    }}
-                  />
-                </div>
-
-                {/* Floating badge on image */}
-                <motion.div
-                  className="absolute top-6 right-6 px-4 py-3 rounded-2xl shadow-xl backdrop-blur-md"
-                  style={{ backgroundColor: "rgba(255, 255, 255, 0.95)" }}
-                  initial={{ opacity: 0, scale: 0.5 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 1, type: "spring" }}
-                  whileHover={{ scale: 1.1 }}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="flex -space-x-2">
-                      {[1, 2, 3].map((i) => (
-                        <div
-                          key={i}
-                          className="w-8 h-8 rounded-full border-2 border-white overflow-hidden"
-                        >
-                          <img
-                            src={`https://i.pravatar.cc/150?img=${i}`}
-                            alt="User"
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    <div className="pl-1">
-                      <div className="flex items-center gap-1">
-                        <Star className="w-3 h-3" style={{ color: "#FFD700", fill: "#FFD700" }} />
-                        <span className="text-sm font-bold" style={{ color: theme.primary }}>
-                          4.9
-                        </span>
+          {/* Hero Image / Featured Card */}
+          <div className="flex-1 w-full max-w-lg lg:max-w-none">
+            <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden shadow-xl">
+              <img 
+                src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=600&fit=crop" 
+                alt="Freelancers collaborating" 
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-black/10"></div>
+              
+              {/* Featured Freelancer Floating Card */}
+              <div className="absolute bottom-6 left-6 right-6 sm:left-auto sm:right-6 sm:w-80 bg-white/95 backdrop-blur-md p-4 rounded-xl shadow-lg border border-white/20">
+                <div className="flex items-start gap-4">
+                  <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-200 shrink-0">
+                    <img src="https://i.pravatar.cc/150?img=32" alt="Sarah Jensen" className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-bold text-gray-900 truncate">Sarah Jensen</h4>
+                        <p className="text-sm text-gray-500 truncate">UI/UX Designer</p>
                       </div>
-                      <p className="text-xs" style={{ color: theme.primaryMedium }}>
-                        50K+ Reviews
-                      </p>
+                      <div className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full">
+                        <Star className="w-3 h-3 text-yellow-600 fill-yellow-600" />
+                        <span className="text-xs font-bold text-gray-900">4.9</span>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                       <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">Figma</span>
+                       <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">Web</span>
                     </div>
                   </div>
-                </motion.div>
-
-                {/* Badge at bottom */}
-                <motion.div
-                  className="absolute bottom-6 left-6 px-5 py-3 rounded-2xl shadow-xl backdrop-blur-md"
-                  style={{ backgroundColor: theme.primary }}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 1.2 }}
-                  whileHover={{ scale: 1.05 }}
-                >
-                  <div className="flex items-center gap-3">
-                    <GraduationCap className="w-6 h-6 text-white" />
-                    <div>
-                      <p className="text-sm text-white/80">Trusted by</p>
-                      <p className="text-xl font-bold text-white">500+ Colleges</p>
-                    </div>
-                  </div>
-                </motion.div>
-              </motion.div>
+                </div>
+              </div>
             </div>
-          </FadeIn>
+          </div>
         </div>
       </div>
     </section>
