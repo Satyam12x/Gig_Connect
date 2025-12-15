@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -8,11 +8,13 @@ import {
   Plus,
   X,
   Loader2,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Upload
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import { theme } from "../constants";
 
 const API_BASE = "http://localhost:5000/api";
 
@@ -23,15 +25,13 @@ const ProjectCard = ({ project, onLike, currentUser }) => {
   const [likeCount, setLikeCount] = useState(project.likes || 0);
   const [bookmarked, setBookmarked] = useState(false);
 
-  // Sync local like state with prop changes if needed, 
-  // though optimally we just trust the prop + local optimistic update
   useEffect(() => {
      setLikeCount(project.likes || 0);
   }, [project.likes]);
 
   const handleLike = async (e) => {
     e.stopPropagation();
-    if (!currentUser) return; // simple guard
+    if (!currentUser) return; 
     
     // Optimistic update
     const newLikedState = !liked;
@@ -41,7 +41,6 @@ const ProjectCard = ({ project, onLike, currentUser }) => {
     try {
        await onLike(project._id);
     } catch (error) {
-       // Revert on error
        setLiked(!newLikedState);
        setLikeCount(prev => newLikedState ? prev - 1 : prev + 1);
     }
@@ -62,7 +61,7 @@ const ProjectCard = ({ project, onLike, currentUser }) => {
         <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
           <button 
             onClick={(e) => { e.stopPropagation(); setBookmarked(!bookmarked); }}
-            className={`bg-white/90 backdrop-blur-sm p-2 rounded-full hover:bg-white hover:text-blue-600 transition-colors shadow-md ${bookmarked ? 'text-blue-600' : 'text-gray-700'}`}
+            className={`bg-white/90 backdrop-blur-sm p-2 rounded-full hover:bg-white transition-colors shadow-md ${bookmarked ? 'text-[#1A2A4F]' : 'text-gray-700'}`}
           >
             <Bookmark size={20} className={bookmarked ? "fill-current" : ""} />
           </button>
@@ -76,7 +75,7 @@ const ProjectCard = ({ project, onLike, currentUser }) => {
             style={{ backgroundImage: `url("${project.authorAvatar || 'https://ui-avatars.com/api/?name=' + project.author}")` }} 
           />
           <div>
-            <p className="text-gray-900 font-bold text-base leading-tight group-hover:text-blue-600 transition-colors line-clamp-1">
+            <p className="text-gray-900 font-bold text-base leading-tight group-hover:text-[#1A2A4F] transition-colors line-clamp-1">
               {project.title}
             </p>
             <p className="text-gray-500 text-sm font-normal">
@@ -87,12 +86,12 @@ const ProjectCard = ({ project, onLike, currentUser }) => {
         
         <button 
           onClick={handleLike}
-          className="flex items-center gap-1 text-gray-500 hover:text-pink-500 transition-colors group/like"
+          className="flex items-center gap-1 text-gray-500 hover:text-[#E91E63] transition-colors group/like"
           title={!currentUser ? "Login to like" : "Like this project"}
         >
           <Heart 
             size={20} 
-            className={`transition-colors ${liked ? "fill-pink-500 text-pink-500" : "group-hover/like:text-pink-500"}`} 
+            className={`transition-colors ${liked ? "fill-[#E91E63] text-[#E91E63]" : "group-hover/like:text-[#E91E63]"}`} 
           />
           <span className="text-xs font-medium">
             {likeCount.toLocaleString()}
@@ -112,12 +111,14 @@ const Spotlight = () => {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submissionLoading, setSubmissionLoading] = useState(false);
-  const [newProject, setNewProject] = useState({
-    title: "",
-    description: "",
-    image: "",
-    tags: "",
-  });
+  
+  // Form State
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [tags, setTags] = useState("");
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState("");
+  const fileInputRef = useRef(null);
 
   const navigate = useNavigate();
 
@@ -126,8 +127,6 @@ const Spotlight = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        
-        // 1. Fetch User Profile if token exists
         const token = localStorage.getItem("token");
         if (token) {
           try {
@@ -137,11 +136,8 @@ const Spotlight = () => {
             setUser(userRes.data);
           } catch (err) {
             console.error("User fetch error", err);
-            // Optionally clear invalid token here
           }
         }
-
-        // 2. Fetch Projects
         const projectsRes = await axios.get(`${API_BASE}/spotlight`);
         setProjects(projectsRes.data);
       } catch (error) {
@@ -150,7 +146,6 @@ const Spotlight = () => {
         setLoading(false);
       }
     };
-
     fetchData();
   }, []);
 
@@ -165,27 +160,58 @@ const Spotlight = () => {
     });
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        alert("File size too large (max 5MB)");
+        return;
+      }
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleCreateProject = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!token || !imageFile) return;
 
     try {
       setSubmissionLoading(true);
-      const tagsArray = newProject.tags.split(',').map(tag => tag.trim()).filter(Boolean);
+      const tagsArray = tags.split(',').map(tag => tag.trim()).filter(Boolean);
       
-      const payload = {
-        ...newProject,
-        tags: tagsArray
-      };
+      // Use FormData for file upload
+      const formData = new FormData();
+      formData.append("title", title);
+      formData.append("description", description);
+      
+      // Send tags as a simple comma-separated string
+      // This matches the format the backend likely expects if reusing similar logic or basic splitting
+      formData.append("tags", tagsArray.join(",")); 
+      
+      formData.append("image", imageFile); 
 
-      const res = await axios.post(`${API_BASE}/spotlight`, payload, {
-        headers: { Authorization: `Bearer ${token}` }
+      const res = await axios.post(`${API_BASE}/spotlight`, formData, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data"
+        }
       });
 
       setProjects([res.data, ...projects]);
       setIsModalOpen(false);
-      setNewProject({ title: "", description: "", image: "", tags: "" });
+      
+      // Reset form
+      setTitle("");
+      setDescription("");
+      setTags("");
+      setImageFile(null);
+      setImagePreview("");
     } catch (error) {
       console.error("Error creating project:", error);
       alert("Failed to post project. Please try again.");
@@ -196,7 +222,6 @@ const Spotlight = () => {
 
   const filteredProjects = projects.filter(p => {
       if (filter === "All") return true;
-      // Handle case where tags might be missing or different format
       const pTags = Array.isArray(p.tags) ? p.tags : [];
       return pTags.some(tag => tag.toLowerCase() === filter.toLowerCase()) || 
              p.title?.toLowerCase().includes(filter.toLowerCase());
@@ -213,7 +238,7 @@ const Spotlight = () => {
           <div className="flex flex-wrap justify-between items-end gap-6 pb-8 border-b border-gray-200 mb-8 mt-6">
             <div className="flex max-w-2xl flex-col gap-3">
               <h1 className="text-gray-900 text-4xl md:text-5xl font-black leading-tight tracking-tight">
-                Spotlight <span className="text-blue-600">Greatness</span>
+                Spotlight <span style={{ color: theme.primary }}>Greatness</span>
               </h1>
               <p className="text-gray-500 text-lg font-normal leading-relaxed">
                 Curated work from elite freelancers. Discover, connect, and get inspired.
@@ -224,7 +249,8 @@ const Spotlight = () => {
             {user && user.role === "Freelancer" && (
               <button 
                 onClick={() => setIsModalOpen(true)}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-lg font-bold shadow-lg shadow-blue-600/20 transition-all hover:scale-105 active:scale-95"
+                className="flex items-center gap-2 text-white px-5 py-3 rounded-lg font-bold shadow-lg transition-all hover:scale-105 active:scale-95"
+                style={{ backgroundColor: theme.primary, boxShadow: `0 10px 15px -3px ${theme.primary}40` }}
               >
                 <Plus size={20} />
                 Post Work
@@ -240,9 +266,10 @@ const Spotlight = () => {
                   onClick={() => setFilter(cat)}
                   className={`flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-lg px-5 transition-all text-sm font-medium ${
                     filter === cat 
-                      ? "bg-gray-900 text-white shadow-sm active:scale-95" 
+                      ? "text-white shadow-sm active:scale-95" 
                       : "bg-white border border-gray-200 text-gray-900 hover:bg-gray-50"
                   }`}
+                  style={filter === cat ? { backgroundColor: theme.primary } : {}}
                >
                  {cat === "All" ? "All Work" : cat}
                </button>
@@ -319,61 +346,75 @@ const Spotlight = () => {
                  <input 
                     type="text" 
                     required
-                    value={newProject.title}
-                    onChange={(e) => setNewProject({...newProject, title: e.target.value})}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
                     placeholder="e.g. Modern Banking App"
-                    className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1A2A4F]/20 focus:border-[#1A2A4F] transition-all"
                  />
                </div>
 
                <div>
-                 <label className="block text-sm font-semibold text-gray-700 mb-1">Image URL</label>
-                 <div className="flex gap-2">
+                 <label className="block text-sm font-semibold text-gray-700 mb-1">Project Image</label>
+                 <div 
+                    className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-colors ${imagePreview ? 'border-[#1A2A4F] bg-blue-50/50' : 'border-gray-200 hover:border-[#1A2A4F] hover:bg-gray-50'}`}
+                    onClick={() => fileInputRef.current?.click()}
+                 >
                     <input 
-                        type="url" 
-                        required
-                        value={newProject.image}
-                        onChange={(e) => setNewProject({...newProject, image: e.target.value})}
-                        placeholder="https://..."
-                        className="flex-1 px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                      type="file" 
+                      ref={fileInputRef} 
+                      onChange={handleImageChange} 
+                      accept="image/*" 
+                      className="hidden" 
                     />
-                    <div className="w-10 h-10 shrink-0 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200 overflow-hidden">
-                        {newProject.image ? (
-                             <img src={newProject.image} alt="Preview" className="w-full h-full object-cover" />
-                        ) : (
-                             <ImageIcon size={20} className="text-gray-400" />
-                        )}
-                    </div>
+                    
+                    {imagePreview ? (
+                      <div className="relative w-full h-48 rounded-lg overflow-hidden">
+                        <img src={imagePreview} alt="Preview" className="w-full h-full object-contain" />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                            <span className="text-white font-medium flex items-center gap-2">
+                                <Upload size={18} /> Change Image
+                            </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="py-8 text-center text-gray-500">
+                         <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <ImageIcon size={24} className="text-gray-400" />
+                         </div>
+                         <p className="text-sm font-medium text-gray-700">Click to upload image</p>
+                         <p className="text-xs text-gray-400 mt-1">PNG, JPG up to 5MB</p>
+                      </div>
+                    )}
                  </div>
-                 <p className="text-xs text-gray-400 mt-1">Direct link to your project screenshot.</p>
                </div>
 
                <div>
                  <label className="block text-sm font-semibold text-gray-700 mb-1">Tags</label>
                  <input 
                     type="text" 
-                    value={newProject.tags}
-                    onChange={(e) => setNewProject({...newProject, tags: e.target.value})}
+                    value={tags}
+                    onChange={(e) => setTags(e.target.value)}
                     placeholder="e.g. UI/UX, Mobile, Fintech (comma separated)"
-                    className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1A2A4F]/20 focus:border-[#1A2A4F] transition-all"
                  />
                </div>
 
                <div>
                  <label className="block text-sm font-semibold text-gray-700 mb-1">Description (Optional)</label>
                  <textarea 
-                    value={newProject.description}
-                    onChange={(e) => setNewProject({...newProject, description: e.target.value})}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
                     placeholder="Tell us a bit about this project..."
-                    className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all min-h-[100px] resize-none"
+                    className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1A2A4F]/20 focus:border-[#1A2A4F] transition-all min-h-[100px] resize-none"
                  />
                </div>
 
                <div className="pt-2">
                  <button 
                     type="submit"
-                    disabled={submissionLoading}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-lg shadow-blue-600/20 transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex justify-center gap-2"
+                    disabled={submissionLoading || !imageFile}
+                    className="w-full text-white font-bold py-3 rounded-lg shadow-lg transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex justify-center gap-2"
+                    style={{ backgroundColor: theme.primary, boxShadow: `0 10px 15px -3px ${theme.primary}40` }}
                  >
                     {submissionLoading && <Loader2 size={20} className="animate-spin" />}
                     {submissionLoading ? "Publishing..." : "Publish Project"}

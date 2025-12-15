@@ -509,45 +509,6 @@ const Navbar = memo(() => {
 
       <div className="h-16" />
 
-      <style jsx>{`
-        @keyframes plane-fly-in {
-          0% {
-            left: -10%;
-            transform: translateY(-50%) rotate(-10deg);
-          }
-          50% {
-            left: 50%;
-            transform: translateY(-50%) rotate(0deg);
-          }
-          100% {
-            left: 100%;
-            transform: translateY(-50%) rotate(10deg);
-          }
-        }
-
-        @keyframes plane-fly-out {
-          0% {
-            left: 100%;
-            transform: translateY(-50%) rotate(10deg);
-          }
-          50% {
-            left: 50%;
-            transform: translateY(-50%) rotate(0deg);
-          }
-          100% {
-            left: -10%;
-            transform: translateY(-50%) rotate(-10deg);
-          }
-        }
-
-        .animate-plane-fly-in {
-          animation: plane-fly-in 0.8s ease-in-out forwards;
-        }
-
-        .animate-plane-fly-out {
-          animation: plane-fly-out 0.8s ease-in-out forwards;
-        }
-      `}</style>
     </>
   );
 });
