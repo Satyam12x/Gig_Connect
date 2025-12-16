@@ -1,6 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -28,6 +31,15 @@ export default defineConfig({
     strictPort: false,
     host: true,
     open: true,
+    proxy: {
+      // Proxy API requests to backend during development. Set BACKEND_URL in .env
+      "/api": {
+        target: process.env.BACKEND_URL || "http://localhost:5000",
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path,
+      },
+    },
   },
   
   // Preview server (for testing production build)
@@ -40,5 +52,10 @@ export default defineConfig({
   // Performance optimizations
   optimizeDeps: {
     include: ["react", "react-dom", "react-router-dom", "framer-motion"],
+  },
+  
+  // SSR options
+  ssr: {
+    noExternal: ['react-router-dom'],
   },
 });

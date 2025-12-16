@@ -1,6 +1,5 @@
 import React, { Suspense, lazy } from "react";
 import {
-  BrowserRouter as Router,
   Routes,
   Route,
   Navigate,
@@ -38,8 +37,18 @@ const UserProfile = lazy(() => import("./components/UserProfile"));
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const ProtectedRoute = ({ children }) => {
-  const token = localStorage.getItem("token");
   const location = useLocation();
+  const [isMounted, setIsMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return <LoadingFallback />;
+  }
+
+  const token = localStorage.getItem("token");
 
   if (!token) {
     return <Navigate to="/login" state={{ from: location }} replace />;
@@ -51,6 +60,7 @@ const ProtectedRoute = ({ children }) => {
 // ... Title Resolvers ...
 const gigTitleResolver = async (params) => {
   try {
+    if (typeof window === 'undefined') return "Gig Details";
     const token = localStorage.getItem("token");
     const response = await axios.get(`${API_BASE_URL}/api/gigs/${params.id}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -66,6 +76,7 @@ const gigTitleResolver = async (params) => {
 
 const ticketTitleResolver = async (params) => {
   try {
+    if (typeof window === 'undefined') return `Ticket #${params.id}`;
     const token = localStorage.getItem("token");
     const response = await axios.get(
       `${API_BASE_URL}/api/tickets/${params.id}`,
@@ -84,6 +95,7 @@ const ticketTitleResolver = async (params) => {
 
 const userTitleResolver = async (params) => {
   try {
+    if (typeof window === 'undefined') return "User Profile";
     const token = localStorage.getItem("token");
     const response = await axios.get(`${API_BASE_URL}/api/users/${params.id}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -105,7 +117,7 @@ const LoadingFallback = () => (
 
 const App = () => {
   return (
-    <Router>
+    <>
       <Toaster position="top-right" />
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
@@ -322,7 +334,7 @@ const App = () => {
           />
         </Routes>
       </Suspense>
-    </Router>
+    </>
   );
 };
 
