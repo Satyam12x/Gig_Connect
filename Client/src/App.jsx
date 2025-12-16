@@ -43,6 +43,7 @@ if (typeof window !== "undefined" && API_URL.includes("localhost")) {
   // eslint-disable-next-line no-console
   console.warn("Using fallback API URL:", API_URL);
 }
+import BuildConfigWarning from "./components/BuildConfigWarning";
 
 const ProtectedRoute = ({ children }) => {
   const location = useLocation();
@@ -125,6 +126,7 @@ const LoadingFallback = () => (
 const App = () => {
   return (
     <>
+      <BuildConfigWarning />
       <Toaster position="top-right" />
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
