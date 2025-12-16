@@ -33,7 +33,7 @@
     "react-hot-toast": "^2.6.0",
     "react-intersection-observer": "^10.0.0",
     "react-parallax-tilt": "^1.7.310",
-    "react-quill": "^2.0.0",
+    "lodash": "^4.17.21",
     "react-router-dom": "^7.9.4",
     "react-toastify": "^11.0.5",
     "react-tooltip": "^5.30.0",
