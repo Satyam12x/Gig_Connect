@@ -1,7 +1,9 @@
 // Application configuration
+import { API_URL } from "./api";
+
 export const config = {
   // API Configuration
-  apiUrl: import.meta.env.VITE_API_URL || "http://localhost:5000",
+  apiUrl: API_URL,
   apiTimeout: 30000, // 30 seconds
   
   // App Information

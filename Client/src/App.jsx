@@ -34,7 +34,15 @@ const Ticket = lazy(() => import("./components/Ticket"));
 const Tickets = lazy(() => import("./components/Tickets"));
 const UserProfile = lazy(() => import("./components/UserProfile"));
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+import { API_URL, API_BASE } from "./constants/api";
+
+if (typeof window !== "undefined" && API_URL.includes("localhost")) {
+  // Warn in dev when a fallback localhost URL is used during build
+  // so missing build-time VITE_* env vars are easier to spot in deployed bundles.
+  // This log will appear in the browser console.
+  // eslint-disable-next-line no-console
+  console.warn("Using fallback API URL:", API_URL);
+}
 
 const ProtectedRoute = ({ children }) => {
   const location = useLocation();
@@ -62,7 +70,7 @@ const gigTitleResolver = async (params) => {
   try {
     if (typeof window === 'undefined') return "Gig Details";
     const token = localStorage.getItem("token");
-    const response = await axios.get(`${API_BASE_URL}/api/gigs/${params.id}`, {
+    const response = await axios.get(`${API_BASE}/gigs/${params.id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (response.data && response.data.title) {
@@ -78,8 +86,7 @@ const ticketTitleResolver = async (params) => {
   try {
     if (typeof window === 'undefined') return `Ticket #${params.id}`;
     const token = localStorage.getItem("token");
-    const response = await axios.get(
-      `${API_BASE_URL}/api/tickets/${params.id}`,
+    const response = await axios.get(`${API_BASE}/tickets/${params.id}`,
       {
         headers: { Authorization: `Bearer ${token}` },
       }
@@ -97,7 +104,7 @@ const userTitleResolver = async (params) => {
   try {
     if (typeof window === 'undefined') return "User Profile";
     const token = localStorage.getItem("token");
-    const response = await axios.get(`${API_BASE_URL}/api/users/${params.id}`, {
+    const response = await axios.get(`${API_BASE}/users/${params.id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (response.data && response.data.name) {

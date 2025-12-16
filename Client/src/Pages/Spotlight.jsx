@@ -17,7 +17,7 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { theme } from "../constants";
 
-const API_BASE = import.meta.env.VITE_API_BASE || `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`;
+import { API_BASE } from "../constants/api";
 
 const CATEGORIES = ["All", "UI/UX", "Web", "Mobile", "Branding", "Illustrations", "Motion"];
 

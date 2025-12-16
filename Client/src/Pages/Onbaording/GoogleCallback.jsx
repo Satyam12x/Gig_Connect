@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
+import { API_BASE } from "../../constants/api";
 
 export default function GoogleCallback() {
   const navigate = useNavigate();
@@ -32,7 +33,7 @@ export default function GoogleCallback() {
       axios
         .get(
           `${
-            import.meta.env.VITE_API_BASE || "http://localhost:5000/api"
+            import.meta.env.VITE_API_BASE || API_BASE
           }/auth/check`,
           {
             headers: { Authorization: `Bearer ${token}` },

@@ -39,8 +39,8 @@ import io from "socket.io-client";
 import { debounce } from "lodash";
 import moment from "moment";
 
-const API_BASE = import.meta.env.VITE_API_BASE || `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`;
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000';
+import { API_BASE, API_URL } from "../constants/api";
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || API_URL;
 
 // Collapsible Status Flow Component
 const StatusFlow = ({ currentStatus, isCollapsed, onToggle }) => {

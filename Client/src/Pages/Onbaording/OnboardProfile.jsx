@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import useDocumentTitle from "../../hooks/useDocumentTitle";
 
-const API = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
+import { API_BASE as API } from "../../constants/api";
 
 const COLORS = {
   navy: "#1A2A4F",

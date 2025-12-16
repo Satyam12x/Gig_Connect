@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import { Eye, EyeOff } from "lucide-react";
 import useDocumentTitle from "../../hooks/useDocumentTitle";
 
-const API = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
+import { API_BASE as API } from "../../constants/api";
 
 export default function SignupEmail() {
   useDocumentTitle("Create Your Gig Connect Account");

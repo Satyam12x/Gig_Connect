@@ -5,7 +5,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { Eye, EyeOff } from "lucide-react";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
+import { API_BASE } from "../constants/api";
 
 const GOOGLE_AUTH_URL = `${API_BASE}/auth/google`;
 

@@ -4,7 +4,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import useDocumentTitle from "../../hooks/useDocumentTitle";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
+import { API_BASE } from "../../constants/api";
 
 const Login = () => {
   useDocumentTitle("Sign In to Your Account");

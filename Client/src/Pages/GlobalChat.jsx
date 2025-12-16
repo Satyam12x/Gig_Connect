@@ -18,7 +18,7 @@ import {
   Zap,
 } from "lucide-react";
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+import { API_URL as API_BASE } from "../constants/api";
 
 // Color theme matching your website
 const COLORS = {

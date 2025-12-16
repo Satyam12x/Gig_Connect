@@ -26,7 +26,8 @@ export default defineConfig({
     proxy: {
       // Proxy API requests to backend during development. Set BACKEND_URL in .env
       "/api": {
-        target: process.env.BACKEND_URL || "http://localhost:5000",
+        // Prefer VITE_API_URL (available during build if set). Fallback to BACKEND_URL or localhost.
+        target: process.env.VITE_API_URL || process.env.BACKEND_URL || "http://localhost:5000",
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path,

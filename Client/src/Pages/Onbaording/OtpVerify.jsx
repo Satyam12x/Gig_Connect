@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
 
-const API = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
+import { API_BASE as API } from "../../constants/api";
 
 export default function OtpVerify() {
   const [otp, setOtp] = useState("");

@@ -38,7 +38,7 @@ import {
 import toast, { Toaster } from "react-hot-toast";
 import Navbar from "../components/Navbar";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
+import { API_BASE } from "../constants/api";
 
 const theme = {
   primary: "#1A2A4F",
