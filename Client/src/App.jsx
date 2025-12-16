@@ -9,6 +9,8 @@ import { Toaster } from "react-hot-toast";
 import axios from "axios";
 import PageWrapper from "./components/PageWrapper";
 import EnhancedPageWrapper from "./components/EnhancedPageWrapper";
+import BuildConfigWarning from "./components/BuildConfigWarning";
+import { API_URL, API_BASE } from "./constants/api";
 
 // Lazy Loaded Pages
 const LandingPage = lazy(() => import("./Pages/LandingPage"));
@@ -34,30 +36,24 @@ const Ticket = lazy(() => import("./components/Ticket"));
 const Tickets = lazy(() => import("./components/Tickets"));
 const UserProfile = lazy(() => import("./components/UserProfile"));
 
-import { API_URL, API_BASE } from "./constants/api";
-
+/* ===========================
+   Dev Warning for API config
+=========================== */
 if (typeof window !== "undefined" && API_URL.includes("localhost")) {
-  // Warn in dev when a fallback localhost URL is used during build
-  // so missing build-time VITE_* env vars are easier to spot in deployed bundles.
-  // This log will appear in the browser console.
   // eslint-disable-next-line no-console
   console.warn("Using fallback API URL:", API_URL);
 }
-import BuildConfigWarning from "./components/BuildConfigWarning";
 
+/* ===========================
+   Protected Route
+=========================== */
 const ProtectedRoute = ({ children }) => {
   const location = useLocation();
-  const [isMounted, setIsMounted] = React.useState(false);
 
-  React.useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  if (!isMounted) {
-    return <LoadingFallback />;
-  }
-
-  const token = localStorage.getItem("token");
+  const token =
+    typeof window !== "undefined"
+      ? localStorage.getItem("token")
+      : null;
 
   if (!token) {
     return <Navigate to="/login" state={{ from: location }} replace />;
@@ -66,68 +62,72 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// ... Title Resolvers ...
+/* ===========================
+   Title Resolvers
+=========================== */
 const gigTitleResolver = async (params) => {
   try {
-    if (typeof window === 'undefined') return "Gig Details";
     const token = localStorage.getItem("token");
     const response = await axios.get(`${API_BASE}/gigs/${params.id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (response.data && response.data.title) {
-      return `${response.data.title} | Gig Details`;
-    }
-    return "Gig Details";
-  } catch (error) {
+
+    return response?.data?.title
+      ? `${response.data.title} | Gig Details`
+      : "Gig Details";
+  } catch {
     return "Gig Details";
   }
 };
 
 const ticketTitleResolver = async (params) => {
   try {
-    if (typeof window === 'undefined') return `Ticket #${params.id}`;
     const token = localStorage.getItem("token");
-    const response = await axios.get(`${API_BASE}/tickets/${params.id}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    );
-    if (response.data && response.data.title) {
-      return `${response.data.title} | Ticket`;
-    }
-    return `Ticket #${params.id}`;
-  } catch (error) {
+    const response = await axios.get(`${API_BASE}/tickets/${params.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    return response?.data?.title
+      ? `${response.data.title} | Ticket`
+      : `Ticket #${params.id}`;
+  } catch {
     return `Ticket #${params.id}`;
   }
 };
 
 const userTitleResolver = async (params) => {
   try {
-    if (typeof window === 'undefined') return "User Profile";
     const token = localStorage.getItem("token");
     const response = await axios.get(`${API_BASE}/users/${params.id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (response.data && response.data.name) {
-      return `${response.data.name} | Profile`;
-    }
-    return "User Profile";
-  } catch (error) {
+
+    return response?.data?.name
+      ? `${response.data.name} | Profile`
+      : "User Profile";
+  } catch {
     return "User Profile";
   }
 };
 
+/* ===========================
+   Loading Fallback
+=========================== */
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen bg-gray-50">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
   </div>
 );
 
+/* ===========================
+   App Component
+=========================== */
 const App = () => {
   return (
     <>
       <BuildConfigWarning />
       <Toaster position="top-right" />
+
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
           {/* Public Routes */}
@@ -139,6 +139,7 @@ const App = () => {
               </PageWrapper>
             }
           />
+
           <Route
             path="/login"
             element={
@@ -149,125 +150,20 @@ const App = () => {
           />
 
           {/* Auth Flow */}
-          <Route
-            path="/signup"
-            element={
-              <PageWrapper>
-                <SignupEmail />
-              </PageWrapper>
-            }
-          />
-          <Route
-            path="/signup/otp"
-            element={
-              <PageWrapper>
-                <OtpVerify />
-              </PageWrapper>
-            }
-          />
-          <Route
-            path="/signup/onboard"
-            element={
-              <PageWrapper>
-                <OnboardProfile />
-              </PageWrapper>
-            }
-          />
-          <Route
-            path="/onboard"
-            element={
-              <PageWrapper>
-                <OnboardProfile />
-              </PageWrapper>
-            }
-          />
-          <Route
-            path="/auth/google/callback"
-            element={
-              <PageWrapper>
-                <GoogleCallback />
-              </PageWrapper>
-            }
-          />
+          <Route path="/signup" element={<PageWrapper><SignupEmail /></PageWrapper>} />
+          <Route path="/signup/otp" element={<PageWrapper><OtpVerify /></PageWrapper>} />
+          <Route path="/signup/onboard" element={<PageWrapper><OnboardProfile /></PageWrapper>} />
+          <Route path="/onboard" element={<PageWrapper><OnboardProfile /></PageWrapper>} />
+          <Route path="/auth/google/callback" element={<PageWrapper><GoogleCallback /></PageWrapper>} />
 
           {/* Protected Routes */}
-          <Route
-            path="/home"
-            element={
-              <ProtectedRoute>
-                <PageWrapper>
-                  <Home />
-                </PageWrapper>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/spotlight"
-            element={
-              <ProtectedRoute>
-                <PageWrapper customTitle="Spotlight | Gig Connect">
-                  <Spotlight />
-                </PageWrapper>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <PageWrapper>
-                  <Profile />
-                </PageWrapper>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <PageWrapper customTitle="Settings | Gig Connect">
-                  <Settings />
-                </PageWrapper>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Purchase Coins Page */}
-          <Route
-            path="/purchase-coins"
-            element={
-              <ProtectedRoute>
-                <PageWrapper customTitle="Purchase Coins | Gig Connect">
-                  <PurchaseCoins />
-                </PageWrapper>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/create-gig"
-            element={
-              <ProtectedRoute>
-                <PageWrapper>
-                  <CreateGig />
-                </PageWrapper>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/gigs"
-            element={
-              <ProtectedRoute>
-                <PageWrapper>
-                  <Gigs />
-                </PageWrapper>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/home" element={<ProtectedRoute><PageWrapper><Home /></PageWrapper></ProtectedRoute>} />
+          <Route path="/spotlight" element={<ProtectedRoute><PageWrapper customTitle="Spotlight | Gig Connect"><Spotlight /></PageWrapper></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><PageWrapper><Profile /></PageWrapper></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><PageWrapper customTitle="Settings | Gig Connect"><Settings /></PageWrapper></ProtectedRoute>} />
+          <Route path="/purchase-coins" element={<ProtectedRoute><PageWrapper customTitle="Purchase Coins | Gig Connect"><PurchaseCoins /></PageWrapper></ProtectedRoute>} />
+          <Route path="/create-gig" element={<ProtectedRoute><PageWrapper><CreateGig /></PageWrapper></ProtectedRoute>} />
+          <Route path="/gigs" element={<ProtectedRoute><PageWrapper><Gigs /></PageWrapper></ProtectedRoute>} />
 
           <Route
             path="/gigs/:id"
@@ -283,16 +179,7 @@ const App = () => {
             }
           />
 
-          <Route
-            path="/tickets"
-            element={
-              <ProtectedRoute>
-                <PageWrapper>
-                  <Tickets />
-                </PageWrapper>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/tickets" element={<ProtectedRoute><PageWrapper><Tickets /></PageWrapper></ProtectedRoute>} />
 
           <Route
             path="/tickets/:id"
@@ -322,25 +209,10 @@ const App = () => {
             }
           />
 
-          <Route
-            path="/global-chat"
-            element={
-              <ProtectedRoute>
-                <PageWrapper>
-                  <GlobalChat />
-                </PageWrapper>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/global-chat" element={<ProtectedRoute><PageWrapper><GlobalChat /></PageWrapper></ProtectedRoute>} />
 
-          <Route
-            path="*"
-            element={
-              <PageWrapper customTitle="404 - Not Found">
-                <Navigate to="/" replace />
-              </PageWrapper>
-            }
-          />
+          {/* Catch-all */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
     </>
