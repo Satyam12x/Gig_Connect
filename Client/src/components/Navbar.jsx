@@ -17,7 +17,7 @@ import {
   ChevronDown
 } from "lucide-react";
 
-const API_BASE = "http://localhost:5000/api";
+const API_BASE = import.meta.env.VITE_API_BASE || `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`;
 const NAVY = "#1A2A4F";
 
 const Navbar = memo(() => {
