@@ -12,15 +12,7 @@ export default defineConfig({
   // Build optimizations
   build: {
     target: "esnext",
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          "react-vendor": ["react", "react-dom", "react-router-dom"],
-          "animation-vendor": ["framer-motion"],
-          "icons": ["lucide-react"],
-        },
-      },
-    },
+    rollupOptions: {},
     chunkSizeWarningLimit: 1000,
     sourcemap: false,
   },
