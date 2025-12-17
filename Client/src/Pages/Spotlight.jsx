@@ -207,23 +207,20 @@ const Spotlight = () => {
         setGeneratingAI(true);
         
         let reqData;
-        let headers = { Authorization: `Bearer ${token}` };
 
         if (imageFile) {
             // Multimodal: Use FormData
             reqData = new FormData();
             if (title) reqData.append("title", title);
             reqData.append("image", imageFile);
-            headers["Content-Type"] = "multipart/form-data";
         } else {
             // Text-only: Use JSON
             reqData = { title };
-            headers["Content-Type"] = "application/json";
         }
 
-        const res = await axios.post(`${API_BASE}/spotlight/generate`, reqData, { headers });
+        const data = await spotlightAPI.generateWithAI(reqData);
 
-        const { title: suggestedTitle, description: aiDescription, tags: aiTags, category } = res.data;
+        const { title: suggestedTitle, description: aiDescription, tags: aiTags, category } = data;
 
         if (suggestedTitle && !title) setTitle(suggestedTitle);
         if (aiDescription) setDescription(aiDescription);
@@ -231,7 +228,7 @@ const Spotlight = () => {
         
     } catch (error) {
         console.error("AI Generation failed:", error);
-        // alert("Failed to generate details. Please try again."); // Removed alert to be less intrusive
+        alert("Failed to generate details. Please try again.");
     } finally {
         setGeneratingAI(false);
     }
@@ -256,14 +253,9 @@ const Spotlight = () => {
       
       formData.append("image", imageFile); 
 
-      const res = await axios.post(`${API_BASE}/spotlight`, formData, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "multipart/form-data"
-        }
-      });
+      const newProject = await spotlightAPI.create(formData);
 
-      setProjects([res.data, ...projects]);
+      setProjects([newProject, ...projects]);
       setIsModalOpen(false);
       
       // Reset form
