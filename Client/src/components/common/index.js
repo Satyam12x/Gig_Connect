@@ -1,4 +1,9 @@
-// Re-export all common components
-export { default as Button } from './Button';
-export { default as Card } from './Card';
-export { default as Badge } from './Badge';
+/**
+ * Central export for common components
+ */
+
+export { Badge } from './Badge';
+export { Button } from './Button';
+export { Card } from './Card';
+export { SearchBar } from './SearchBar';
+export { DebouncedInput, DebouncedTextarea } from './Input';

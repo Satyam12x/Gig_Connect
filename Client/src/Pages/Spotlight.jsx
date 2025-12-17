@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Heart,
   Search,
@@ -17,7 +16,10 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { theme } from "../constants";
 
-import { API_BASE } from "../constants/api";
+// New imports
+import { spotlightAPI,authAPI } from "../api";
+import { DebouncedInput, DebouncedTextarea } from "../components/common";
+
 
 const CATEGORIES = ["All", "UI/UX", "Web", "Mobile", "Branding", "Illustrations", "Motion"];
 
@@ -149,16 +151,14 @@ const Spotlight = () => {
         const token = localStorage.getItem("token");
         if (token) {
           try {
-            const userRes = await axios.get(`${API_BASE}/users/profile`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            setUser(userRes.data);
+            const userData = await authAPI.getCurrentUser();
+            setUser(userData);
           } catch (err) {
             console.error("User fetch error", err);
           }
         }
-        const projectsRes = await axios.get(`${API_BASE}/spotlight`);
-        setProjects(projectsRes.data);
+        const projectsData = await spotlightAPI.getAll();
+        setProjects(projectsData);
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -174,9 +174,7 @@ const Spotlight = () => {
         navigate("/login");
         return;
     }
-    await axios.put(`${API_BASE}/spotlight/${projectId}/like`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-    });
+    await spotlightAPI.toggleLike(projectId);
   };
 
   const handleImageChange = (e) => {
@@ -403,14 +401,50 @@ const Spotlight = () => {
             </div>
             
             <form onSubmit={handleCreateProject} className="p-6 space-y-5">
-               <div>
-                 <div className="flex justify-between items-center mb-1">
-                    <label className="block text-sm font-semibold text-gray-700">Project Title</label>
-                    <AIAction onClick={handleGenerateAI} loading={generatingAI} />
+               {/* AI Generation Button - Single, Prominent */}
+               <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 rounded-xl p-4">
+                 <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-3">
+                     <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                       <Sparkles size={20} className="text-white" />
+                     </div>
+                     <div>
+                       <h3 className="text-sm font-bold text-gray-900">AI Auto-Generate</h3>
+                       <p className="text-xs text-gray-600">Let AI create title, tags, and description for you</p>
+                     </div>
+                   </div>
+                   <button
+                     type="button"
+                     onClick={handleGenerateAI}
+                     disabled={generatingAI || (!title && !imageFile)}
+                     className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2.5 rounded-lg font-semibold shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
+                   >
+                     {generatingAI ? (
+                       <>
+                         <Loader2 size={16} className="animate-spin" />
+                         <span>Generating...</span>
+                       </>
+                     ) : (
+                       <>
+                         <Sparkles size={16} />
+                         <span>Generate</span>
+                       </>
+                     )}
+                   </button>
                  </div>
+                 {(!title && !imageFile) && (
+                   <p className="text-xs text-amber-700 mt-3 flex items-center gap-1">
+                     <span>💡</span>
+                     <span>Add a title or upload an image first to use AI generation</span>
+                   </p>
+                 )}
+               </div>
+
+               <div>
+                 <label className="block text-sm font-semibold text-gray-700 mb-1">Project Title</label>
                  <input 
                     type="text" 
-                    required={!title} // Requirement handled by logic
+                    required={!title}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="e.g. Modern Banking App"
@@ -454,10 +488,7 @@ const Spotlight = () => {
                </div>
 
                <div>
-                 <div className="flex justify-between items-center mb-1">
-                    <label className="block text-sm font-semibold text-gray-700">Tags</label>
-                    <AIAction onClick={handleGenerateAI} loading={generatingAI} />
-                 </div>
+                 <label className="block text-sm font-semibold text-gray-700 mb-1">Tags</label>
                  <input 
                     type="text" 
                     value={tags}
@@ -468,10 +499,7 @@ const Spotlight = () => {
                </div>
 
                <div>
-                 <div className="flex justify-between items-center mb-1">
-                    <label className="block text-sm font-semibold text-gray-700">Description (Optional)</label>
-                    <AIAction onClick={handleGenerateAI} loading={generatingAI} />
-                 </div>
+                 <label className="block text-sm font-semibold text-gray-700 mb-1">Description (Optional)</label>
                  <textarea 
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
