@@ -181,7 +181,7 @@ const HeroSection = () => {
 
             {/* Dual CTA */}
             <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
-              <Link to="/search" className="flex-1">
+              <Link to="/login" className="flex-1">
                 <button 
                   className="w-full flex cursor-pointer items-center justify-center overflow-hidden rounded-full h-14 px-8 text-white text-lg font-bold tracking-wide shadow-lg transition-transform active:scale-95 hover:opacity-90"
                   style={{ backgroundColor: theme.primary, boxShadow: `0 10px 20px -5px ${theme.primary}50` }}
@@ -189,7 +189,7 @@ const HeroSection = () => {
                   Find Talent
                 </button>
               </Link>
-              <Link to="/apply" className="flex-1">
+              <Link to="/login" className="flex-1">
                 <button 
                   className="w-full flex cursor-pointer items-center justify-center overflow-hidden rounded-full h-14 px-8 bg-white border text-lg font-bold tracking-wide transition-colors hover:bg-gray-50 active:scale-95"
                   style={{ color: theme.primary, borderColor: "#e5e7eb" }}
@@ -229,7 +229,7 @@ const HeroSection = () => {
             <div className="w-full">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: '"Spline Sans", sans-serif' }}>Popular Services</h3>
-                <Link to="/services" className="text-sm font-bold hover:underline" style={{ color: theme.primary }}>See all</Link>
+                <Link to="/login" className="text-sm font-bold hover:underline" style={{ color: theme.primary }}>See all</Link>
               </div>
               <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
                 {[
@@ -239,18 +239,19 @@ const HeroSection = () => {
                   { icon: "campaign", label: "Marketing", active: false },
                   { icon: "video_camera_back", label: "Video", active: false },
                 ].map((cat, idx) => (
-                  <button
-                    key={idx}
-                    className={`flex h-12 shrink-0 cursor-pointer items-center justify-center gap-x-2 rounded-full px-6 transition-all active:scale-95 border ${
-                      cat.active 
-                        ? 'text-white border-transparent' 
-                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                    }`}
-                    style={cat.active ? { backgroundColor: theme.primary } : {}}
-                  >
-                    <span className="material-symbols-outlined text-[20px]">{cat.icon}</span>
-                    <span className="text-sm font-bold">{cat.label}</span>
-                  </button>
+                  <Link to="/login" key={idx}>
+                    <button
+                      className={`flex h-12 shrink-0 cursor-pointer items-center justify-center gap-x-2 rounded-full px-6 transition-all active:scale-95 border ${
+                        cat.active 
+                          ? 'text-white border-transparent' 
+                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      }`}
+                      style={cat.active ? { backgroundColor: theme.primary } : {}}
+                    >
+                      <span className="material-symbols-outlined text-[20px]">{cat.icon}</span>
+                      <span className="text-sm font-bold">{cat.label}</span>
+                    </button>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -420,7 +421,7 @@ const CTASection = () => {
             Join thousands of students and clients already transforming their ideas into reality on Gig Connect.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/signup">
+            <Link to="/login">
               <motion.button
                 className="inline-flex items-center gap-2 px-8 py-4 rounded-xl font-semibold"
                 style={{ backgroundColor: theme.white, color: theme.primary }}
@@ -430,7 +431,7 @@ const CTASection = () => {
                 <ArrowRight className="w-5 h-5" />
               </motion.button>
             </Link>
-            <Link to="/signup">
+            <Link to="/login">
               <motion.button
                 className="inline-flex items-center gap-2 px-8 py-4 rounded-xl font-semibold border-2 border-white text-white"
                 whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}
