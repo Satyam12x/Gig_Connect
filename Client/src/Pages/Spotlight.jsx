@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import { toast } from "react-hot-toast";
 import {
   Heart,
   Search,
@@ -8,7 +10,8 @@ import {
   X,
   Loader2,
   Image as ImageIcon,
-  Upload
+  Upload,
+  Sparkles
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "../components/Navbar";
@@ -17,6 +20,7 @@ import { theme } from "../constants";
 
 // New imports
 import { spotlightAPI, authAPI } from "../api";
+import { API_BASE } from "../constants/api";
 
 
 const CATEGORIES = ["All", "UI/UX", "Web", "Mobile", "Branding", "Illustrations", "Motion"];
@@ -174,31 +178,64 @@ const Spotlight = () => {
     }
   };
 
-  // Auto-generate description and tags when title changes (with debounce)
-  useEffect(() => {
+  // Manual generation handler (triggered by button click)
+  const handleGenerateAI = async () => {
     const token = localStorage.getItem("token");
-    if (!token || !title || title.trim().length < 3) return;
+    if (!token) {
+      toast.error("Please login to use AI features");
+      return;
+    }
+    
+    if (!title || title.trim().length < 3) {
+      alert("Please enter a project title (at least 3 characters)");
+      return;
+    }
 
-    const debounceTimer = setTimeout(async () => {
-      try {
-        setGeneratingAI(true);
-        const data = await spotlightAPI.generateWithAI(title.trim());
+    try {
+      setGeneratingAI(true);
+      
+      // Use the same AI endpoint as CreateGig
+      const prompt = `Based on this project title: "${title.trim()}", generate:
+1. A compelling, professional description (2-3 sentences) that showcases the project
+2. 3-5 relevant tags (single words or short phrases, comma-separated)
+
+Format your response as:
+DESCRIPTION: [your description here]
+TAGS: [tag1, tag2, tag3]`;
+
+      const response = await axios.post(
+        `${API_BASE}/ai/chat`,
+        { message: prompt },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (response.data.success && response.data.response) {
+        const aiResponse = response.data.response;
         
-        const { description: aiDescription, tags: aiTags } = data;
+        // Parse the AI response
+        const descMatch = aiResponse.match(/DESCRIPTION:\s*(.+?)(?=TAGS:|$)/s);
+        const tagsMatch = aiResponse.match(/TAGS:\s*(.+)/s);
         
-        if (aiDescription) setDescription(aiDescription);
-        if (aiTags && Array.isArray(aiTags)) setTags(aiTags.join(", "));
+        if (descMatch) {
+          setDescription(descMatch[1].trim());
+        }
+        if (tagsMatch) {
+          setTags(tagsMatch[1].trim());
+        }
         
-      } catch (error) {
-        console.error("AI Generation failed:", error);
-        // Silent failure - don't alert user for automatic generation
-      } finally {
-        setGeneratingAI(false);
+        alert("Description and tags generated successfully!");
+      } else {
+        alert("Failed to generate details");
       }
-    }, 1500); // Wait 1.5 seconds after user stops typing
-
-    return () => clearTimeout(debounceTimer);
-  }, [title]);
+    } catch (error) {
+      console.error("AI Generation failed:", error);
+      alert(error.response?.data?.error || "Failed to generate details. Please try again.");
+    } finally {
+      setGeneratingAI(false);
+    }
+  };
 
   const handleCreateProject = async (e) => {
     e.preventDefault();
@@ -359,25 +396,38 @@ const Spotlight = () => {
             </div>
             
             <form onSubmit={handleCreateProject} className="p-6 space-y-5">
-               {/* AI Status Indicator */}
-               {generatingAI && (
-                 <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 flex items-center gap-2">
-                   <Loader2 size={16} className="animate-spin text-indigo-600" />
-                   <span className="text-sm text-indigo-700">AI is generating description and tags...</span>
-                 </div>
-               )}
-
                <div>
                  <label className="block text-sm font-semibold text-gray-700 mb-1">Project Title</label>
-                 <input 
-                    type="text" 
-                    required
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. Modern Banking App (AI will auto-generate description and tags)"
-                    className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1A2A4F]/20 focus:border-[#1A2A4F] transition-all"
-                 />
-                 <p className="text-xs text-gray-500 mt-1">💡 Description and tags will be automatically generated from your title</p>
+                 <div className="flex gap-2">
+                   <input 
+                      type="text" 
+                      required
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="e.g. Modern Banking App"
+                      className="flex-1 px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1A2A4F]/20 focus:border-[#1A2A4F] transition-all"
+                   />
+                   <button
+                     type="button"
+                     onClick={handleGenerateAI}
+                     disabled={generatingAI || !title || title.trim().length < 3}
+                     className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2 rounded-lg font-semibold shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 whitespace-nowrap"
+                     title="Generate description and tags with AI"
+                   >
+                     {generatingAI ? (
+                       <>
+                         <Loader2 size={16} className="animate-spin" />
+                         <span className="hidden sm:inline">Generating...</span>
+                       </>
+                     ) : (
+                       <>
+                         <Sparkles size={16} />
+                         <span className="hidden sm:inline">Generate</span>
+                       </>
+                     )}
+                   </button>
+                 </div>
+                 <p className="text-xs text-gray-500 mt-1">💡 Click Generate to auto-fill description and tags with AI</p>
                </div>
 
                <div>
