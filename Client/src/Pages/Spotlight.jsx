@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { toast } from "react-hot-toast";
+import { toast, Toaster } from "react-hot-toast";
 import {
   Heart,
   Search,
@@ -186,16 +186,31 @@ const Spotlight = () => {
       return;
     }
     
+    // Input validation & sanitization
     if (!title || title.trim().length < 3) {
-      alert("Please enter a project title (at least 3 characters)");
+      toast.error("Please enter a project title (at least 3 characters)");
+      return;
+    }
+
+    if (title.trim().length > 100) {
+      toast.error("Project title is too long (max 100 characters)");
+      return;
+    }
+
+    // Prevent duplicate/concurrent requests
+    if (generatingAI) {
+      toast.error("Please wait for the current generation to complete");
       return;
     }
 
     try {
       setGeneratingAI(true);
       
+      // Sanitize input - prevent injection attacks
+      const sanitizedTitle = title.trim().replace(/[<>]/g, '');
+      
       // Use the same AI endpoint as CreateGig
-      const prompt = `Based on this project title: "${title.trim()}", generate:
+      const prompt = `Based on this project title: "${sanitizedTitle}", generate:
 1. A compelling, professional description (2-3 sentences) that showcases the project
 2. 3-5 relevant tags (single words or short phrases, comma-separated)
 
@@ -204,10 +219,11 @@ DESCRIPTION: [your description here]
 TAGS: [tag1, tag2, tag3]`;
 
       const response = await axios.post(
-        `${API_BASE}/spotlight/generate`,
+        `${API_BASE}/ai/chat`,
         { message: prompt },
         {
           headers: { Authorization: `Bearer ${token}` },
+          timeout: 30000, // 30 second timeout for scalability
         }
       );
 
@@ -225,13 +241,28 @@ TAGS: [tag1, tag2, tag3]`;
           setTags(tagsMatch[1].trim());
         }
         
-        alert("Description and tags generated successfully!");
+        toast.success("Description and tags generated successfully!");
       } else {
-        alert("Failed to generate details");
+        toast.error("No response from AI. Please try again.");
       }
     } catch (error) {
       console.error("AI Generation failed:", error);
-      alert(error.response?.data?.error || "Failed to generate details. Please try again.");
+      
+      // Better error handling for different scenarios
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error("Request timed out. Please try again.");
+      } else if (error.response?.status === 429) {
+        toast.error("Too many requests. Please wait a moment and try again.");
+      } else if (error.response?.status === 401) {
+        toast.error("Session expired. Please login again.");
+        navigate('/login');
+      } else if (error.response?.data?.error) {
+        toast.error(error.response.data.error);
+      } else if (error.message.includes('Network Error')) {
+        toast.error("Network error. Please check your connection.");
+      } else {
+        toast.error("Failed to generate details. Please try again.");
+      }
     } finally {
       setGeneratingAI(false);
     }
@@ -284,6 +315,7 @@ TAGS: [tag1, tag2, tag3]`;
 
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans">
+      <Toaster position="top-right" />
       <Navbar />
 
       <main className="flex-1 flex justify-center py-6 md:py-10 px-4 md:px-10">
