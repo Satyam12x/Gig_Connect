@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
-import { toast, Toaster } from "react-hot-toast";
 import {
   Heart,
   Search,
@@ -20,7 +18,6 @@ import { theme } from "../constants";
 
 // New imports
 import { spotlightAPI, authAPI } from "../api";
-import { API_BASE } from "../constants/api";
 
 
 const CATEGORIES = ["All", "UI/UX", "Web", "Mobile", "Branding", "Illustrations", "Motion"];
@@ -116,11 +113,9 @@ const Spotlight = () => {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submissionLoading, setSubmissionLoading] = useState(false);
-  const [generatingAI, setGeneratingAI] = useState(false);
   
   // Form State
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
@@ -178,85 +173,7 @@ const Spotlight = () => {
     }
   };
 
-  // Manual generation handler (triggered by button click)
-  const handleGenerateAI = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      toast.error("Please login to use AI features");
-      return;
-    }
-    
-    // Input validation & sanitization
-    if (!title || title.trim().length < 3) {
-      toast.error("Please enter a project title (at least 3 characters)");
-      return;
-    }
 
-    if (title.trim().length > 100) {
-      toast.error("Project title is too long (max 100 characters)");
-      return;
-    }
-
-    // Prevent duplicate/concurrent requests
-    if (generatingAI) {
-      toast.error("Please wait for the current generation to complete");
-      return;
-    }
-
-    try {
-      setGeneratingAI(true);
-      
-      // Sanitize input - prevent injection attacks
-      const sanitizedTitle = title.trim().replace(/[<>]/g, '');
-      
-      const response = await axios.post(
-        `${API_BASE}/spotlight/generate`,
-        { title: sanitizedTitle }, // Backend expects { title }, not { message }
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          timeout: 30000, // 30 second timeout for scalability
-        }
-      );
-
-      if (response.data.success && response.data.response) {
-        const data = response.data.response;
-        
-        // Backend returns { description, tags } directly
-        if (data.description) {
-          setDescription(data.description);
-        }
-        if (data.tags) {
-          // tags might be array or string
-          const tagsStr = Array.isArray(data.tags) ? data.tags.join(", ") : data.tags;
-          setTags(tagsStr);
-        }
-        
-        toast.success("Description and tags generated successfully!");
-      } else {
-        toast.error("No response from AI. Please try again.");
-      }
-    } catch (error) {
-      console.error("AI Generation failed:", error);
-      
-      // Better error handling for different scenarios
-      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-        toast.error("Request timed out. Please try again.");
-      } else if (error.response?.status === 429) {
-        toast.error("Too many requests. Please wait a moment and try again.");
-      } else if (error.response?.status === 401) {
-        toast.error("Session expired. Please login again.");
-        navigate('/login');
-      } else if (error.response?.data?.error) {
-        toast.error(error.response.data.error);
-      } else if (error.message.includes('Network Error')) {
-        toast.error("Network error. Please check your connection.");
-      } else {
-        toast.error("Failed to generate details. Please try again.");
-      }
-    } finally {
-      setGeneratingAI(false);
-    }
-  };
 
   const handleCreateProject = async (e) => {
     e.preventDefault();
@@ -270,7 +187,6 @@ const Spotlight = () => {
       // Use FormData for file upload
       const formData = new FormData();
       formData.append("title", title);
-      formData.append("description", description);
       
       // Send tags as a simple comma-separated string
       formData.append("tags", tagsArray.join(",")); 
@@ -284,7 +200,6 @@ const Spotlight = () => {
       
       // Reset form
       setTitle("");
-      setDescription("");
       setTags("");
       setImageFile(null);
       setImagePreview("");
@@ -305,7 +220,6 @@ const Spotlight = () => {
 
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans">
-      <Toaster position="top-right" />
       <Navbar />
 
       <main className="flex-1 flex justify-center py-6 md:py-10 px-4 md:px-10">
@@ -420,36 +334,14 @@ const Spotlight = () => {
             <form onSubmit={handleCreateProject} className="p-6 space-y-5">
                <div>
                  <label className="block text-sm font-semibold text-gray-700 mb-1">Project Title</label>
-                 <div className="flex gap-2">
-                   <input 
-                      type="text" 
-                      required
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder="e.g. Modern Banking App"
-                      className="flex-1 px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1A2A4F]/20 focus:border-[#1A2A4F] transition-all"
-                   />
-                   <button
-                     type="button"
-                     onClick={handleGenerateAI}
-                     disabled={generatingAI || !title || title.trim().length < 3}
-                     className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2 rounded-lg font-semibold shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 whitespace-nowrap"
-                     title="Generate description and tags with AI"
-                   >
-                     {generatingAI ? (
-                       <>
-                         <Loader2 size={16} className="animate-spin" />
-                         <span className="hidden sm:inline">Generating...</span>
-                       </>
-                     ) : (
-                       <>
-                         <Sparkles size={16} />
-                         <span className="hidden sm:inline">Generate</span>
-                       </>
-                     )}
-                   </button>
-                 </div>
-                 <p className="text-xs text-gray-500 mt-1">💡 Click Generate to auto-fill description and tags with AI</p>
+                 <input 
+                    type="text" 
+                    required
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="e.g. Modern Banking App"
+                    className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1A2A4F]/20 focus:border-[#1A2A4F] transition-all"
+                 />
                </div>
 
                <div>
@@ -498,15 +390,7 @@ const Spotlight = () => {
                  />
                </div>
 
-               <div>
-                 <label className="block text-sm font-semibold text-gray-700 mb-1">Description (Optional)</label>
-                 <textarea 
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Tell us a bit about this project..."
-                    className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1A2A4F]/20 focus:border-[#1A2A4F] transition-all min-h-[100px] resize-none"
-                 />
-               </div>
+
 
                <div className="pt-2">
                  <button 
