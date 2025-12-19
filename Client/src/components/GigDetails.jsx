@@ -238,7 +238,7 @@ const GigDetails = () => {
     setIsApplying(true);
     try {
       const response = await axios.post(
-        `${API_BASE}/gigs/${id}/apply`,
+        `${API_BASE}/gigs/${gig._id}/apply`,
         {},
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
@@ -248,7 +248,7 @@ const GigDetails = () => {
 
       setUserApplications([
         ...userApplications,
-        { gigId: id, status: "pending", _id: response.data.application._id },
+        { gigId: gig._id, status: "pending", _id: response.data.application._id },
       ]);
 
       navigate(`/tickets/${response.data.ticketId}`);
@@ -273,7 +273,7 @@ const GigDetails = () => {
 
     try {
       const response = await axios.patch(
-        `${API_BASE}/gigs/${id}/applications/${applicationId}`,
+        `${API_BASE}/gigs/${gig._id}/applications/${applicationId}`,
         { status },
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
