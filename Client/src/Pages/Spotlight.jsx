@@ -204,7 +204,7 @@ DESCRIPTION: [your description here]
 TAGS: [tag1, tag2, tag3]`;
 
       const response = await axios.post(
-        `${API_BASE}/ai/chat`,
+        `${API_BASE}/spotlight/generate`,
         { message: prompt },
         {
           headers: { Authorization: `Bearer ${token}` },
