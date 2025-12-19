@@ -8,8 +8,7 @@ import {
   X,
   Loader2,
   Image as ImageIcon,
-  Upload,
-  Sparkles
+  Upload
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "../components/Navbar";
@@ -17,28 +16,10 @@ import Footer from "../components/Footer";
 import { theme } from "../constants";
 
 // New imports
-import { spotlightAPI,authAPI } from "../api";
-import { DebouncedInput, DebouncedTextarea } from "../components/common";
+import { spotlightAPI, authAPI } from "../api";
 
 
 const CATEGORIES = ["All", "UI/UX", "Web", "Mobile", "Branding", "Illustrations", "Motion"];
-
-// Helper Component for AI Buttons
-const AIAction = ({ onClick, loading, label = "Write with AI" }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    disabled={loading}
-    className="group flex items-center gap-2 text-indigo-600 hover:text-indigo-700 disabled:opacity-50 transition-colors"
-    title="Auto-generate with AI"
-  >
-    <div className={`p-1.5 rounded-md bg-indigo-50 border border-indigo-100 group-hover:bg-indigo-100 transition-colors ${loading ? "animate-pulse" : ""}`}>
-       {loading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-    </div>
-    <span className="text-xs font-bold hidden md:inline">{loading ? "Generating..." : label}</span>
-    <span className="text-xs font-bold md:hidden inline">{loading ? "..." : "AI"}</span>
-  </button>
-);
 
 const ProjectCard = ({ project, onLike, currentUser }) => {
   const [liked, setLiked] = useState(false);
@@ -193,46 +174,31 @@ const Spotlight = () => {
     }
   };
 
-  const handleGenerateAI = async () => {
+  // Auto-generate description and tags when title changes (with debounce)
+  useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) return;
-    
-    // We need at least a title OR an image to generate context
-    if (!title && !imageFile) {
-        alert("Please provide a Project Title or Upload an Image first to generate details.");
-        return;
-    }
+    if (!token || !title || title.trim().length < 3) return;
 
-    try {
+    const debounceTimer = setTimeout(async () => {
+      try {
         setGeneratingAI(true);
+        const data = await spotlightAPI.generateWithAI(title.trim());
         
-        let reqData;
-
-        if (imageFile) {
-            // Multimodal: Use FormData
-            reqData = new FormData();
-            if (title) reqData.append("title", title);
-            reqData.append("image", imageFile);
-        } else {
-            // Text-only: Use JSON
-            reqData = { title };
-        }
-
-        const data = await spotlightAPI.generateWithAI(reqData);
-
-        const { title: suggestedTitle, description: aiDescription, tags: aiTags, category } = data;
-
-        if (suggestedTitle && !title) setTitle(suggestedTitle);
+        const { description: aiDescription, tags: aiTags } = data;
+        
         if (aiDescription) setDescription(aiDescription);
         if (aiTags && Array.isArray(aiTags)) setTags(aiTags.join(", "));
         
-    } catch (error) {
+      } catch (error) {
         console.error("AI Generation failed:", error);
-        alert("Failed to generate details. Please try again.");
-    } finally {
+        // Silent failure - don't alert user for automatic generation
+      } finally {
         setGeneratingAI(false);
-    }
-  };
+      }
+    }, 1500); // Wait 1.5 seconds after user stops typing
+
+    return () => clearTimeout(debounceTimer);
+  }, [title]);
 
   const handleCreateProject = async (e) => {
     e.preventDefault();
@@ -393,55 +359,25 @@ const Spotlight = () => {
             </div>
             
             <form onSubmit={handleCreateProject} className="p-6 space-y-5">
-               {/* AI Generation Button - Single, Prominent */}
-               <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 rounded-xl p-4">
-                 <div className="flex items-center justify-between">
-                   <div className="flex items-center gap-3">
-                     <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                       <Sparkles size={20} className="text-white" />
-                     </div>
-                     <div>
-                       <h3 className="text-sm font-bold text-gray-900">AI Auto-Generate</h3>
-                       <p className="text-xs text-gray-600">Let AI create title, tags, and description for you</p>
-                     </div>
-                   </div>
-                   <button
-                     type="button"
-                     onClick={handleGenerateAI}
-                     disabled={generatingAI || (!title && !imageFile)}
-                     className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2.5 rounded-lg font-semibold shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
-                   >
-                     {generatingAI ? (
-                       <>
-                         <Loader2 size={16} className="animate-spin" />
-                         <span>Generating...</span>
-                       </>
-                     ) : (
-                       <>
-                         <Sparkles size={16} />
-                         <span>Generate</span>
-                       </>
-                     )}
-                   </button>
+               {/* AI Status Indicator */}
+               {generatingAI && (
+                 <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 flex items-center gap-2">
+                   <Loader2 size={16} className="animate-spin text-indigo-600" />
+                   <span className="text-sm text-indigo-700">AI is generating description and tags...</span>
                  </div>
-                 {(!title && !imageFile) && (
-                   <p className="text-xs text-amber-700 mt-3 flex items-center gap-1">
-                     <span>💡</span>
-                     <span>Add a title or upload an image first to use AI generation</span>
-                   </p>
-                 )}
-               </div>
+               )}
 
                <div>
                  <label className="block text-sm font-semibold text-gray-700 mb-1">Project Title</label>
                  <input 
                     type="text" 
-                    required={!title}
+                    required
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. Modern Banking App"
+                    placeholder="e.g. Modern Banking App (AI will auto-generate description and tags)"
                     className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1A2A4F]/20 focus:border-[#1A2A4F] transition-all"
                  />
+                 <p className="text-xs text-gray-500 mt-1">💡 Description and tags will be automatically generated from your title</p>
                </div>
 
                <div>

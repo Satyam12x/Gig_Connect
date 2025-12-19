@@ -53,21 +53,15 @@ export const spotlightAPI = {
   },
 
   /**
-   * Generate project details using AI
-   * @param {Object|FormData} requestData - Title and/or image for AI generation
-   * @returns {Promise<Object>} AI-generated suggestions
+   * Generate project details using AI based on title
+   * @param {string} title - Project title for AI generation
+   * @returns {Promise<Object>} AI-generated suggestions (description, tags)
    */
-  generateWithAI: async (requestData) => {
-    const isFormData = requestData instanceof FormData;
-    const headers = {
-      ...getAuthHeaders(),
-      ...(isFormData && { 'Content-Type': 'multipart/form-data' }),
-    };
-
+  generateWithAI: async (title) => {
     const { data } = await axios.post(
       `${API_BASE}/spotlight/generate`,
-      requestData,
-      { headers }
+      { title },
+      { headers: getAuthHeaders() }
     );
     return data;
   },
