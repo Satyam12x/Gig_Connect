@@ -75,6 +75,7 @@ const Ticket = () => {
   const [showPriceInput, setShowPriceInput] = useState(false);
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
   const [rating, setRating] = useState(0);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
 
   // Refs
   const messagesEndRef = useRef(null);
