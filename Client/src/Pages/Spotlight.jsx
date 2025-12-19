@@ -209,18 +209,9 @@ const Spotlight = () => {
       // Sanitize input - prevent injection attacks
       const sanitizedTitle = title.trim().replace(/[<>]/g, '');
       
-      // Use the same AI endpoint as CreateGig
-      const prompt = `Based on this project title: "${sanitizedTitle}", generate:
-1. A compelling, professional description (2-3 sentences) that showcases the project
-2. 3-5 relevant tags (single words or short phrases, comma-separated)
-
-Format your response as:
-DESCRIPTION: [your description here]
-TAGS: [tag1, tag2, tag3]`;
-
       const response = await axios.post(
-        `${API_BASE}/generate`,
-        { message: prompt },
+        `${API_BASE}/spotlight/generate`,
+        { title: sanitizedTitle }, // Backend expects { title }, not { message }
         {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 30000, // 30 second timeout for scalability
@@ -228,17 +219,16 @@ TAGS: [tag1, tag2, tag3]`;
       );
 
       if (response.data.success && response.data.response) {
-        const aiResponse = response.data.response;
+        const data = response.data.response;
         
-        // Parse the AI response
-        const descMatch = aiResponse.match(/DESCRIPTION:\s*(.+?)(?=TAGS:|$)/s);
-        const tagsMatch = aiResponse.match(/TAGS:\s*(.+)/s);
-        
-        if (descMatch) {
-          setDescription(descMatch[1].trim());
+        // Backend returns { description, tags } directly
+        if (data.description) {
+          setDescription(data.description);
         }
-        if (tagsMatch) {
-          setTags(tagsMatch[1].trim());
+        if (data.tags) {
+          // tags might be array or string
+          const tagsStr = Array.isArray(data.tags) ? data.tags.join(", ") : data.tags;
+          setTags(tagsStr);
         }
         
         toast.success("Description and tags generated successfully!");
